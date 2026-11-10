@@ -1,0 +1,128 @@
+// Esquema de la base de datos de CowRegister.
+// Cada cambio acá se aplica con una migración: npx prisma migrate dev --name <descripcion>
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────
+
+enum Rol {
+  DUENO
+  ENCARGADO
+  VETERINARIO
+}
+
+enum Sexo {
+  HEMBRA
+  MACHO
+}
+
+// Estado del animal. Cada establecimiento define con ReglaLote
+// a qué lote va un animal según su estado.
+enum EstadoAnimal {
+  RECIEN_NACIDO
+  VAQUILLONA
+  EN_ORDENE
+  SECA
+  BAJA // vendido o muerto: sale de los lotes pero conserva su historial
+}
+
+// ─── Modelos ────────────────────────────────────────────────────────
+// Todos usan UUID como id (se pueden generar sin conexión, Etapa 6)
+// y guardan cuándo se crearon y modificaron.
+
+model Establecimiento {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  nombre        String
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  usuarios   Usuario[]
+  lotes      Lote[]
+  reglasLote ReglaLote[]
+  animales   Animal[]
+
+  @@map("establecimientos")
+}
+
+model Usuario {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  establecimientoId String   @db.Uuid
+  nombre            String
+  email             String   @unique
+  passwordHash      String // nunca se guarda la contraseña, solo su hash (argon2)
+  rol               Rol
+  activo            Boolean  @default(true)
+  creadoEn          DateTime @default(now())
+  actualizadoEn     DateTime @updatedAt
+
+  establecimiento Establecimiento @relation(fields: [establecimientoId], references: [id])
+
+  @@index([establecimientoId])
+  @@map("usuarios")
+}
+
+model Lote {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  establecimientoId String   @db.Uuid
+  nombre            String
+  descripcion       String?
+  creadoEn          DateTime @default(now())
+  actualizadoEn     DateTime @updatedAt
+
+  establecimiento Establecimiento @relation(fields: [establecimientoId], references: [id])
+  animales        Animal[]
+  reglas          ReglaLote[]
+
+  @@unique([establecimientoId, nombre]) // no puede haber dos lotes con el mismo nombre en un tambo
+  @@map("lotes")
+}
+
+// "Las vacas en estado X van al lote Y", configurable por cada tambo.
+model ReglaLote {
+  id                String       @id @default(uuid(7)) @db.Uuid
+  establecimientoId String       @db.Uuid
+  estado            EstadoAnimal
+  loteId            String       @db.Uuid
+  creadoEn          DateTime     @default(now())
+  actualizadoEn     DateTime     @updatedAt
+
+  establecimiento Establecimiento @relation(fields: [establecimientoId], references: [id])
+  lote            Lote            @relation(fields: [loteId], references: [id])
+
+  @@unique([establecimientoId, estado]) // una sola regla por estado en cada tambo
+  @@map("reglas_lote")
+}
+
+model Animal {
+  id                String       @id @default(uuid(7)) @db.Uuid
+  establecimientoId String       @db.Uuid
+  // Número de caravana = número del botón RFID. Es texto porque puede
+  // tener ceros a la izquierda o letras. Único entre los animales
+  // activos del tambo (índice parcial creado en la migración con SQL).
+  numero            String
+  sexo              Sexo
+  estado            EstadoAnimal
+  fechaNacimiento   DateTime?    @db.Date
+  madreId           String?      @db.Uuid
+  loteId            String?      @db.Uuid
+  fechaBaja         DateTime?    @db.Date
+  creadoEn          DateTime     @default(now())
+  actualizadoEn     DateTime     @updatedAt
+
+  establecimiento Establecimiento @relation(fields: [establecimientoId], references: [id])
+  lote            Lote?           @relation(fields: [loteId], references: [id])
+  madre           Animal?         @relation("MadreCrias", fields: [madreId], references: [id])
+  crias           Animal[]        @relation("MadreCrias")
+
+  @@index([establecimientoId, numero]) // búsqueda rápida por número
+  @@index([loteId])
+  @@map("animales")
+}

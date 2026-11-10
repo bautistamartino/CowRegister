@@ -5,6 +5,9 @@ node_modules/
 dist/
 build/
 
+# Código generado por Prisma (se regenera con "npx prisma generate")
+api/src/generated/
+
 # Variables de entorno (secretos): nunca se suben
 .env
 .env.*

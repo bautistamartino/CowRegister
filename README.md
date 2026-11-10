@@ -20,7 +20,9 @@ Sistema web para registrar las vacas de un tambo y sus eventos (pariciones, seca
 
 ```bash
 npm install
-cp api/.env.example api/.env
+cp api/.env.example api/.env   # completar la contraseña de PostgreSQL en api/.env
+npm run db:migrate -w api      # crea la base y las tablas
+npm run db:generate -w api     # genera el cliente de Prisma
 npm run dev
 ```
 
@@ -42,3 +44,5 @@ docs/   → requerimientos y plan
 | `npm run dev` | Levanta API y web juntas |
 | `npm run typecheck` | Revisa los tipos de todo el proyecto |
 | `npm run build` | Genera la versión de producción |
+| `npm run db:migrate -w api` | Aplica migraciones (o crea una nueva si cambió el esquema) |
+| `npm run db:studio -w api` | Abre Prisma Studio para ver y editar los datos |
