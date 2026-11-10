@@ -64,9 +64,26 @@ model Usuario {
   actualizadoEn     DateTime @updatedAt
 
   establecimiento Establecimiento @relation(fields: [establecimientoId], references: [id])
+  sesiones        Sesion[]
 
   @@index([establecimientoId])
   @@map("usuarios")
+}
+
+// Sesión iniciada en un dispositivo. La cookie del navegador lleva un
+// token aleatorio; acá se guarda solo su hash SHA-256, así un robo de la
+// base no permite usar las sesiones. Borrar la fila cierra la sesión.
+model Sesion {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  usuarioId String   @db.Uuid
+  tokenHash String   @unique
+  expiraEn  DateTime
+  creadoEn  DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("sesiones")
 }
 
 model Lote {

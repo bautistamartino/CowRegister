@@ -9,7 +9,7 @@ Objetivo: un dueño registra su tambo, inicia sesión, crea sus lotes, carga sus
 - [x] 1.0 Preparación: PostgreSQL, Git, `CLAUDE.md`, documentación
 - [x] 1.1 Esqueleto: API y web corriendo y conectadas
 - [x] 1.2 Base de datos: `Establecimiento`, `Usuario`, `Lote`, `ReglaLote`, `Animal` (UUID y fechas de auditoría)
-- [ ] 1.3 Login y seguridad: registro de tambo y dueño, login/logout, argon2, roles, aislamiento por establecimiento
+- [x] 1.3 Login y seguridad: registro de tambo y dueño, login/logout, argon2, roles, aislamiento por establecimiento
 - [ ] 1.4 Lotes: alta, edición y baja; configuración estado → lote
 - [ ] 1.5 Animales: alta con estado inicial, número único entre activos, asignación automática de lote, listado y ficha
 - [ ] 1.6 Buscador: número o bastón + Enter abre la ficha
