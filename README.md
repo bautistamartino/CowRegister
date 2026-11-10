@@ -16,4 +16,29 @@ Sistema web para registrar las vacas de un tambo y sus eventos (pariciones, seca
 - PostgreSQL 18
 - Git
 
-Las instrucciones para instalar y correr el proyecto se agregan en la Etapa 1.
+## Cómo correrlo en desarrollo
+
+```bash
+npm install
+cp api/.env.example api/.env
+npm run dev
+```
+
+- Web: http://localhost:5173
+- API: http://localhost:3000 (en desarrollo, la web reenvía `/api` a la API)
+
+## Estructura
+
+```
+api/    → servidor Express + TypeScript
+web/    → app React + Vite + TypeScript
+docs/   → requerimientos y plan
+```
+
+## Scripts
+
+| Comando | Qué hace |
+|---|---|
+| `npm run dev` | Levanta API y web juntas |
+| `npm run typecheck` | Revisa los tipos de todo el proyecto |
+| `npm run build` | Genera la versión de producción |
