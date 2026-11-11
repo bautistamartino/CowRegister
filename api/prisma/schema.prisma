@@ -169,6 +169,8 @@ model Animal {
   eventos         Evento[]
   // Parto del que nació (si es una cría dada de alta desde un parto, spec 004).
   criaDeParto     CriaParto?
+  // Cambios hechos a mano (spec 005).
+  cambios         CambioAnimal[]
 
   // Destino de la clave foránea compuesta de la madre (igual que en Lote).
   @@unique([establecimientoId, id])
@@ -366,4 +368,40 @@ model CriaParto {
   // Destino de la relación uno a uno desde Animal.
   @@unique([establecimientoId, animalId, madreId])
   @@map("crias_parto")
+}
+
+// ─── Editar animal y mover de lote a mano (spec 005) ────────────────
+
+// Campo modificado a mano. El orden de las opciones es el orden fijo en que se muestran
+// los cambios de un mismo guardado (RF-15): número, sexo, fecha de nacimiento, madre, lote.
+enum CampoCambio {
+  NUMERO
+  SEXO
+  FECHA_NACIMIENTO
+  MADRE
+  LOTE
+}
+
+// Historial de cambios manuales: una fila por dato modificado. Solo se agrega (un trigger
+// en la base impide UPDATE y DELETE). Guarda TEXTO copiado del momento (nombre del lote,
+// número de la madre, nombre del usuario) y NO tiene claves foráneas a lote, madre ni
+// usuario, para que se puedan eliminar sin tocar el historial (decisión 7 de la spec).
+// Solo se relaciona con su animal, y con clave compuesta: es del tambo de su animal.
+// A mano en la migración editar_animal: trigger de solo agregar y los CHECK
+// cambios_valores_distintos y cambios_usuario_nombre.
+model CambioAnimal {
+  id                String      @id @default(uuid(7)) @db.Uuid
+  establecimientoId String      @db.Uuid
+  animalId          String      @db.Uuid
+  campo             CampoCambio
+  valorAnterior     String? // null = "sin dato" o "sin lote"
+  valorNuevo        String?
+  usuarioId         String      @db.Uuid // sin clave foránea (decisión 7)
+  usuarioNombre     String // copia del nombre al momento del cambio
+  creadoEn          DateTime    @default(now()) // igual para todos los registros de un guardado
+
+  animal Animal @relation(fields: [establecimientoId, animalId], references: [establecimientoId, id], onDelete: Restrict)
+
+  @@index([animalId, creadoEn])
+  @@map("cambios_animal")
 }
