@@ -111,7 +111,10 @@ h1 {
   font-weight: 600;
 }
 
-.campo input {
+/* select y textarea (pantalla Lotes) comparten el aspecto de los input, con 48 px como mínimo. */
+.campo input,
+.campo select,
+.campo textarea {
   font: inherit;
   padding: 0.75rem 0.9rem;
   min-height: 48px; /* tamaño cómodo para tocar en la tablet */
@@ -121,13 +124,26 @@ h1 {
   color: var(--texto);
 }
 
-.campo input:focus {
+.campo input:focus,
+.campo select:focus,
+.campo textarea:focus {
   outline: 2px solid var(--primario);
   outline-offset: 1px;
 }
 
-.campo input[aria-invalid='true'] {
+.campo input[aria-invalid='true'],
+.campo textarea[aria-invalid='true'] {
   border-color: var(--error);
+}
+
+/* El textarea se puede agrandar solo hacia abajo (de costado desbordaría en celular). */
+.campo textarea {
+  resize: vertical;
+}
+
+.campo select:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 
 .campo-error {
@@ -177,6 +193,16 @@ h1 {
   border: 1px solid var(--borde);
   background: transparent;
   color: var(--texto);
+}
+
+.boton-secundario:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* Acción destructiva (Eliminar): mismo botón secundario, con el color de error. */
+.boton-peligro {
+  color: var(--error);
 }
 
 /* ─── Pantallas internas ─── */
@@ -267,4 +293,119 @@ h1 {
   max-width: 1000px;
   margin: 0 auto;
   padding: 1.5rem 1rem;
+}
+
+.texto-suave {
+  color: var(--texto-suave);
+}
+
+/* ─── Pantalla Lotes (paginas/Lotes.tsx) ─── */
+
+.pantalla-lotes {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.seccion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.seccion h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+/* Avisos de estados sin destino (RF-14). Si no hay ninguno, el contenedor queda vacío
+   y no ocupa lugar. Borde izquierdo con el color de error para que no dependa solo del fondo. */
+.avisos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.avisos:empty {
+  display: none;
+}
+
+.aviso {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radio);
+  border-left: 4px solid var(--error);
+  background: var(--error-fondo);
+  color: var(--texto);
+  font-weight: 600;
+}
+
+/* Destinos: una columna en celular, dos o cuatro en tablet y PC.
+   min(100%, 14rem) evita que la columna mínima sea más ancha que la pantalla. */
+.destinos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 1rem;
+}
+
+/* Destino en modo lectura (veterinario): estado arriba y lote abajo. */
+.destino-lectura {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 1rem;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+
+.destino-estado {
+  font-weight: 600;
+}
+
+.formulario-lote {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Lista de lotes en tarjetas (no tabla) para que entre en 375 px. */
+.lista-lotes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: 1rem;
+}
+
+.tarjeta-lote {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+
+.tarjeta-lote h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.tarjeta-lote p {
+  margin: 0;
+}
+
+/* Las acciones de la tarjeta quedan abajo aunque las tarjetas de una fila tengan distinto alto. */
+.tarjeta-lote > .acciones {
+  margin-top: auto;
+  padding-top: 0.5rem;
 }

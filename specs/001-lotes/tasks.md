@@ -34,7 +34,7 @@ Plan: [plan.md](plan.md) · Spec: [spec.md](spec.md)
   - RF: RF-23 a RF-26, RF-28 a RF-30
   - Hecho cuando: en el navegador, a 768 px y 375 px y en modo claro y oscuro, el menú aparece solo con la sesión iniciada, marca la sección actual con `aria-current="page"`, sus controles miden al menos 48 px, no hay scroll horizontal con nombres de tambo y usuario de 100 caracteres, "Cerrar sesión" lleva al login y, si se borra la sesión en la base, la siguiente acción lleva al login; `npm run typecheck` sin errores.
 
-- [ ] **T9** — Web, pantalla Lotes: avisos de estados sin destino, `select` de destino por estado, formulario de alta, tarjetas con edición, eliminación con confirmación y mensajes de error de la API; modo lectura para el veterinario. Tipos `Lote` y `ReglaLote` en `api.ts` y estilos de `select`, `textarea`, tarjetas y avisos.
+- [x] **T9** — Web, pantalla Lotes: avisos de estados sin destino, `select` de destino por estado, formulario de alta, tarjetas con edición, eliminación con confirmación y mensajes de error de la API; modo lectura para el veterinario. Tipos `Lote` y `ReglaLote` en `api.ts` y estilos de `select`, `textarea`, tarjetas y avisos.
   - RF: RF-1 a RF-17, RF-21, RF-26, RF-27
   - Hecho cuando: en el navegador, a 768 px y 375 px y en modo claro y oscuro, un dueño crea, renombra, borra la descripción y elimina lotes, ve el mensaje 409 al eliminar uno que es destino, cambia y quita destinos y ve aparecer el aviso; un veterinario ve todo sin controles de edición; todos los controles miden al menos 48 px y no hay scroll horizontal; `npm run typecheck` sin errores.
 

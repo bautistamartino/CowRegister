@@ -62,3 +62,24 @@ export type Perfil = {
   rol: Rol;
   establecimiento: { id: string; nombre: string };
 };
+
+// ─── Lotes (spec 001) ───
+
+// Estados que pueden tener un lote destino. BAJA nunca tiene destino (RF-16).
+export type EstadoConDestino = 'RECIEN_NACIDO' | 'VAQUILLONA' | 'EN_ORDENE' | 'SECA';
+
+// Respuesta de GET /api/lotes (y de POST/PATCH de un lote).
+export type Lote = {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  cantidadAnimales: number; // solo animales activos (los dados de baja no cuentan)
+  destinoDe: EstadoConDestino[]; // estados de los que este lote es destino
+};
+
+// Un elemento de GET /api/reglas-lote: siempre vienen los 4 estados,
+// con `lote: null` cuando el estado no tiene destino.
+export type ReglaLote = {
+  estado: EstadoConDestino;
+  lote: { id: string; nombre: string } | null;
+};
