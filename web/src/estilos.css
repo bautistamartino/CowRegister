@@ -665,3 +665,94 @@ h1 {
   background: var(--error);
   color: var(--superficie);
 }
+
+/* ─── Partos y secados (spec 004) ─── */
+
+/* Cada cría del formulario de parto, agrupada con su borde. min-width:0 evita que el
+   fieldset fuerce un ancho mayor al de la pantalla en celular. */
+.cria-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem 1rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+
+.cria-form legend {
+  padding: 0 0.5rem;
+  font-weight: 600;
+}
+
+/* Casilla "Nacida muerta": toda la fila es tocable y mide al menos 48 px. */
+.casilla {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 48px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.casilla input {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+}
+
+/* Resultado de un parto o secado recién registrado: avisos y accesos a las crías. */
+.resultado-registro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+
+.resultado-registro .avisos {
+  align-self: stretch;
+}
+
+.resultado-registro p {
+  margin: 0;
+}
+
+.resultado-titulo {
+  font-weight: 700;
+}
+
+.lista-crias {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lista-crias .enlace-fila {
+  min-height: 48px;
+}
+
+.evento {
+  scroll-margin-top: 1rem;
+}
+
+/* Rótulos con texto (no solo color): "del ciclo anterior" y "dada de baja". */
+.etiqueta-ciclo,
+.etiqueta-baja {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--texto-suave);
+  color: var(--texto-suave);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.etiqueta-baja {
+  margin-left: 0;
+}

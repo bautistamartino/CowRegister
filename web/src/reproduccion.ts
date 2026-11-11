@@ -1,4 +1,5 @@
-import type { EstadoReproductivo, EventoReproductivo, TipoServicio } from './api';
+import type { EstadoReproductivo, EventoReproductivo, Genetica, LoteAnterior, TipoServicio } from './api';
+import { ApiError } from './api';
 import { formatearFecha } from './animales';
 
 // Textos y utilidades de la parte reproductiva (spec 003).
@@ -57,5 +58,31 @@ export function resumenEvento(e: EventoReproductivo): string {
       ? `${base} · parto probable ${formatearFecha(e.tacto.fechaProbable)}`
       : base;
   }
+  if (e.parto) {
+    const n = e.parto.crias.length;
+    return `Parto · ${n} ${n === 1 ? 'cría' : 'crías'}`;
+  }
+  if (e.secado) return 'Secado';
   return e.tipo;
+}
+
+// Lote previo de un parto o secado (RF-38).
+export function textoLoteAnterior(l: LoteAnterior): string {
+  if (l === 'SIN_LOTE') return 'sin lote previo';
+  if (l === 'ELIMINADO') return 'lote previo eliminado';
+  return `lote previo: ${l.nombre}`;
+}
+
+// Genética de un parto o de la ficha de la cría: servicio y semen o toro, o "sin dato".
+export function textoGenetica(g: Genetica | null): string {
+  if (!g) return 'sin dato';
+  return `servicio del ${formatearFecha(g.fechaServicio)} · ${g.semen ? g.semen.nombre : 'semen o toro sin dato'}`;
+}
+
+// Un error de la API como mensaje general (los 409 y 400 ya vienen en español) y por campo.
+export function interpretar(err: unknown): { campos: Record<string, string>; general: string | null } {
+  if (err instanceof ApiError && err.detalles.length) {
+    return { campos: Object.fromEntries(err.detalles.map((d) => [d.campo, d.mensaje])), general: null };
+  }
+  return { campos: {}, general: err instanceof ApiError ? err.message : 'Error inesperado' };
 }

@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router';
 import { api, ApiError, type AnimalFicha as Ficha, type EstadoAnimal } from '../api';
 import { Reproduccion } from '../componentes/Reproduccion';
 import { NOMBRE_ESTADO, NOMBRE_SEXO, formatearFecha } from '../animales';
+import { textoGenetica } from '../reproduccion';
 
 // Ficha de un animal, solo lectura (RF-28, RF-29).
 export function AnimalFicha() {
@@ -33,6 +34,16 @@ export function AnimalFicha() {
       vigente = false;
     };
   }, [id]);
+
+  // Tras un parto o secado cambian el estado, el lote y las crías de la madre: se vuelve a leer
+  // la ficha sin vaciarla (si no, Reproduccion se desmontaría y perdería los avisos recién recibidos).
+  async function recargarFicha() {
+    try {
+      setFicha(await api<Ficha>(`/animales/${encodeURIComponent(id ?? '')}`));
+    } catch {
+      // Si falla, queda la ficha anterior: no es grave y un refresco de la página la corrige.
+    }
+  }
 
   if (noEncontrado) {
     return (
@@ -109,6 +120,19 @@ export function AnimalFicha() {
             )}
           </dd>
         </div>
+        {/* Cría nacida de un parto cargado (spec 004, RF-39): fecha del parto y su genética. */}
+        {ficha.parto && (
+          <>
+            <div>
+              <dt>Parto</dt>
+              <dd>Nació en el parto del {formatearFecha(ficha.parto.fecha)}</dd>
+            </div>
+            <div>
+              <dt>Genética</dt>
+              <dd className={ficha.parto.genetica ? undefined : 'texto-suave'}>{textoGenetica(ficha.parto.genetica)}</dd>
+            </div>
+          </>
+        )}
         <div>
           <dt>Crías</dt>
           <dd>
@@ -129,7 +153,7 @@ export function AnimalFicha() {
 
       {/* Hembras: situación reproductiva, formularios e historial. Machos: sin acciones reproductivas. */}
       {ficha.sexo === 'HEMBRA' ? (
-        <Reproduccion animalId={ficha.id} sexo={ficha.sexo} estado={ficha.estado} />
+        <Reproduccion animalId={ficha.id} sexo={ficha.sexo} estado={ficha.estado} alCambiarAnimal={recargarFicha} />
       ) : (
         <section className="seccion">
           <h2>Historial</h2>

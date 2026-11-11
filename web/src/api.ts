@@ -122,6 +122,8 @@ export type AnimalFicha = {
   lote: { nombre: string } | null;
   madre: { id: string; numero: string; activa: boolean } | null;
   crias: { id: string; numero: string }[];
+  // Parto del que nació (spec 004). null si el animal no nació de un parto cargado.
+  parto: { eventoId: string; fecha: string; genetica: Genetica | null } | null;
 };
 
 // ─── Carga desde planilla (spec 002) ───
@@ -165,19 +167,45 @@ export type EstadoReproductivo = 'SIN_SERVICIO' | 'SERVIDA' | 'PRENADA' | 'VACIA
 // Los detalles que no corresponden al tipo vienen en null.
 export type EventoReproductivo = {
   id: string;
-  tipo: 'SERVICIO' | 'TACTO';
+  tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO';
   fecha: string; // AAAA-MM-DD
   registradoPor: string;
   registradoEn: string;
   anulacion: { motivo: string | null; por: string | null; en: string } | null;
   servicio: { tipoServicio: TipoServicio; semen: { id: string; nombre: string } | null } | null;
   tacto: { resultado: ResultadoTacto; fechaProbableIndicada: string | null; fechaProbable: string | null; anomalias: string | null } | null;
+  parto: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior; genetica: Genetica | null; crias: CriaDeParto[] } | null;
+  secado: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior } | null;
 };
+
+// ─── Partos y secados (spec 004) ───
+
+// Lote de la vaca justo antes del parto o secado.
+export type LoteAnterior = 'SIN_LOTE' | 'ELIMINADO' | { id: string; nombre: string };
+
+// Servicio del que nació el parto. semen null = "sin dato".
+export type Genetica = { fechaServicio: string; semen: { id: string; nombre: string } | null };
+
+// Cría de un parto. animal null = nació muerta; activo false = "dada de baja" (sin ficha).
+export type CriaDeParto = {
+  orden: number;
+  sexo: Sexo;
+  nacidaMuerta: boolean;
+  observaciones: string | null;
+  animal: { id: string; numero: string; activo: boolean } | null;
+};
+
+// Aviso de la operación recién hecha (no persiste: se muestra una sola vez).
+export type Aviso = { codigo: string; mensaje: string };
+
+// Respuesta de POST /animales/:id/partos y /secados.
+export type RespuestaRegistro = { evento: EventoReproductivo; avisos: Aviso[] };
 
 export type SituacionReproductiva = {
   estado: EstadoReproductivo;
-  ultimoServicio: { id: string; fecha: string; tipoServicio: TipoServicio | null; semen: { id: string; nombre: string } | null } | null;
-  ultimoTacto: { id: string; fecha: string; resultado: ResultadoTacto | null; anomalias: string | null } | null;
+  // `cicloAnterior`: es de antes del último parto (RF-40).
+  ultimoServicio: { id: string; fecha: string; tipoServicio: TipoServicio | null; semen: { id: string; nombre: string } | null; cicloAnterior: boolean } | null;
+  ultimoTacto: { id: string; fecha: string; resultado: ResultadoTacto | null; anomalias: string | null; cicloAnterior: boolean } | null;
   // `dias` es positivo si faltan y negativo si ya pasó la fecha.
   fechaProbableParto: { fecha: string; dias: number; vencida: boolean } | null;
   fechaReferencia: { fecha: string; dias: number } | null;

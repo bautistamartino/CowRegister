@@ -1,36 +1,44 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { api, ApiError, type EstadoAnimal, type EventoReproductivo, type RespuestaEventos, type SemenToro, type Sexo } from '../api';
-import { formatearFecha } from '../animales';
+import { Link } from 'react-router';
+import { api, ApiError, type Aviso, type EstadoAnimal, type EventoReproductivo, type RespuestaEventos, type RespuestaRegistro, type SemenToro, type Sexo } from '../api';
+import { useAuth } from '../auth';
+import { formatearFecha, NOMBRE_ESTADO, NOMBRE_SEXO } from '../animales';
 import {
   fechaArgentinaIso,
   FECHA_MINIMA,
   hoyIso,
+  interpretar,
   NOMBRE_ESTADO_REPRODUCTIVO,
   NOMBRE_TIPO_SERVICIO,
   resumenEvento,
   sumarDiasIso,
   textoDias,
+  textoGenetica,
+  textoLoteAnterior,
 } from '../reproduccion';
 import { Campo } from './Campo';
+import { FormParto } from './FormParto';
+import { FormSecado } from './FormSecado';
 
-type Props = { animalId: string; sexo: Sexo; estado: EstadoAnimal };
-type Formulario = 'servicio' | 'tacto' | null;
+// alCambiarAnimal: la ficha debe releerse porque el parto o el secado cambian estado, lote y crías.
+type Props = { animalId: string; sexo: Sexo; estado: EstadoAnimal; alCambiarAnimal: () => Promise<void> };
+type Formulario = 'servicio' | 'tacto' | 'parto' | 'secado' | null;
 
-// Un error de la API como mensaje general (los 409 y 400 ya vienen en español) y por campo.
-function interpretar(err: unknown): { campos: Record<string, string>; general: string | null } {
-  if (err instanceof ApiError && err.detalles.length) {
-    return { campos: Object.fromEntries(err.detalles.map((d) => [d.campo, d.mensaje])), general: null };
-  }
-  return { campos: {}, general: err instanceof ApiError ? err.message : 'Error inesperado' };
-}
+// Resultado de un parto o secado recién registrado: avisos de la lista cerrada y accesos a las
+// crías vivas. Vive solo en pantalla (no persiste al recargar la ficha).
+type Resultado = { titulo: string; avisos: Aviso[]; crias: { id: string; numero: string }[] };
 
 // Sección "Reproducción" de la ficha: situación, formularios y lista de eventos (RF-23 a RF-26).
 // Los tres roles (dueño, encargado y veterinario) pueden registrar y anular servicios y tactos,
 // así que no se esconde nada por rol. Si una spec futura restringe algo, la API decide (403).
-export function Reproduccion({ animalId, sexo, estado }: Props) {
+export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal }: Props) {
   const [datos, setDatos] = useState<RespuestaEventos | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [formulario, setFormulario] = useState<Formulario>(null);
+  const [resultado, setResultado] = useState<Resultado | null>(null);
+  const { usuario } = useAuth();
+  // El veterinario no registra partos ni secados (RF-43); la API igual responde 403.
+  const puedeRegistrarPartos = !!usuario && usuario.rol !== 'VETERINARIO';
 
   const recargar = useCallback(async () => {
     try {
@@ -72,11 +80,26 @@ export function Reproduccion({ animalId, sexo, estado }: Props) {
   const admiteEventos = estado === 'VAQUILLONA' || estado === 'EN_ORDENE' || estado === 'SECA';
   const prenada = situacion.estado === 'PRENADA';
   // Solo se puede anular el último evento no anulado (el más nuevo de la lista sin anulación).
-  const ultimoAnulable = eventos.find((e) => !e.anulacion)?.id ?? null;
+  // La anulación de partos y secados llega en la tarea T5: por ahora solo servicios y tactos.
+  const ultimo = eventos.find((e) => !e.anulacion);
+  const ultimoAnulable = ultimo && (ultimo.tipo === 'SERVICIO' || ultimo.tipo === 'TACTO') ? ultimo.id : null;
+  const partos = eventos.filter((e) => e.tipo === 'PARTO' && !e.anulacion);
 
   async function alRegistrar() {
     setFormulario(null);
+    setResultado(null);
     await recargar();
+  }
+
+  // Parto o secado: se recarga la ficha y se muestran los avisos de la respuesta una sola vez.
+  async function alRegistrarParto(r: RespuestaRegistro) {
+    setFormulario(null);
+    setResultado({
+      titulo: r.evento.tipo === 'PARTO' ? 'Parto registrado' : 'Secado registrado',
+      avisos: r.avisos,
+      crias: (r.evento.parto?.crias ?? []).flatMap((c) => (c.animal ? [{ id: c.animal.id, numero: c.animal.numero }] : [])),
+    });
+    await Promise.all([recargar(), alCambiarAnimal()]);
   }
 
   return (
@@ -105,7 +128,7 @@ export function Reproduccion({ animalId, sexo, estado }: Props) {
             </div>
           )}
           <div>
-            <dt>Último servicio</dt>
+            <dt>Último servicio{situacion.ultimoServicio?.cicloAnterior && <EtiquetaCiclo />}</dt>
             <dd className={situacion.ultimoServicio ? undefined : 'texto-suave'}>
               {situacion.ultimoServicio
                 ? `${formatearFecha(situacion.ultimoServicio.fecha)} · ${
@@ -115,7 +138,7 @@ export function Reproduccion({ animalId, sexo, estado }: Props) {
             </dd>
           </div>
           <div>
-            <dt>Último tacto</dt>
+            <dt>Último tacto{situacion.ultimoTacto?.cicloAnterior && <EtiquetaCiclo />}</dt>
             <dd className={situacion.ultimoTacto ? undefined : 'texto-suave'}>
               {situacion.ultimoTacto
                 ? `${formatearFecha(situacion.ultimoTacto.fecha)} · ${
@@ -124,7 +147,48 @@ export function Reproduccion({ animalId, sexo, estado }: Props) {
                 : 'sin dato'}
             </dd>
           </div>
+          {partos.length > 0 && (
+            <div>
+              <dt>Partos</dt>
+              <dd>
+                <span className="lista-enlaces">
+                  {partos.map((p) => (
+                    <a key={p.id} href={`#evento-${p.id}`} className="enlace-fila">
+                      {formatearFecha(p.fecha)}
+                    </a>
+                  ))}
+                </span>
+              </dd>
+            </div>
+          )}
         </dl>
+
+        {resultado && (
+          <div className="resultado-registro" role="status">
+            <p className="resultado-titulo">{resultado.titulo}</p>
+            {resultado.avisos.length > 0 && (
+              <div className="avisos">
+                {resultado.avisos.map((a) => (
+                  <p key={a.codigo + a.mensaje} className="aviso">
+                    {a.mensaje}
+                  </p>
+                ))}
+              </div>
+            )}
+            {resultado.crias.length > 0 && (
+              <p className="lista-enlaces">
+                {resultado.crias.map((c) => (
+                  <Link key={c.id} to={`/animales/${c.id}`} className="enlace-fila">
+                    Ver la ficha de la cría {c.numero}
+                  </Link>
+                ))}
+              </p>
+            )}
+            <button type="button" className="boton-secundario" onClick={() => setResultado(null)}>
+              Cerrar
+            </button>
+          </div>
+        )}
 
         {situacion.fechaProbableParto?.vencida && (
           <p className="aviso" role="status">
@@ -148,10 +212,27 @@ export function Reproduccion({ animalId, sexo, estado }: Props) {
               <button type="button" className="boton" onClick={() => setFormulario(formulario === 'tacto' ? null : 'tacto')}>
                 Registrar tacto
               </button>
+              {puedeRegistrarPartos && (
+                <button type="button" className="boton" onClick={() => setFormulario(formulario === 'parto' ? null : 'parto')}>
+                  Registrar parto
+                </button>
+              )}
+              {/* El secado solo tiene sentido en una vaca en ordeñe (RF-44). */}
+              {puedeRegistrarPartos && estado === 'EN_ORDENE' && (
+                <button type="button" className="boton" onClick={() => setFormulario(formulario === 'secado' ? null : 'secado')}>
+                  Registrar secado
+                </button>
+              )}
             </div>
             {prenada && <p className="campo-ayuda">Para registrar un nuevo servicio, primero registrá un tacto &quot;vacía&quot;.</p>}
             {formulario === 'servicio' && (
               <FormServicio animalId={animalId} alCancelar={() => setFormulario(null)} alRegistrar={alRegistrar} />
+            )}
+            {formulario === 'parto' && puedeRegistrarPartos && (
+              <FormParto animalId={animalId} alCancelar={() => setFormulario(null)} alRegistrar={alRegistrarParto} />
+            )}
+            {formulario === 'secado' && puedeRegistrarPartos && (
+              <FormSecado animalId={animalId} alCancelar={() => setFormulario(null)} alRegistrar={alRegistrarParto} />
             )}
             {formulario === 'tacto' && (
               <FormTacto animalId={animalId} alCancelar={() => setFormulario(null)} alRegistrar={alRegistrar} />
@@ -373,12 +454,18 @@ function FilaEvento({ evento, anulable, alAnular }: { evento: EventoReproductivo
   }
 
   return (
-    <li className={anulado ? 'evento evento-anulado' : 'evento'}>
+    <li id={`evento-${evento.id}`} className={anulado ? 'evento evento-anulado' : 'evento'}>
       <p className="evento-titulo">
         <strong>{formatearFecha(evento.fecha)}</strong> · {resumenEvento(evento)}
         {anulado && <span className="etiqueta-anulado">Anulado</span>}
       </p>
       {evento.tacto?.anomalias && <p className="texto-suave">Anomalías: {evento.tacto.anomalias}</p>}
+      {evento.parto && <DetalleParto parto={evento.parto} />}
+      {evento.secado && (
+        <p className="texto-suave">
+          Estaba {NOMBRE_ESTADO[evento.secado.estadoAnterior].toLowerCase()} · {textoLoteAnterior(evento.secado.loteAnterior)}
+        </p>
+      )}
       <p className="texto-suave">Registrado por {evento.registradoPor}</p>
       {evento.anulacion && (
         <p className="texto-suave">
@@ -425,5 +512,44 @@ function FilaEvento({ evento, anulable, alAnular }: { evento: EventoReproductivo
         </form>
       )}
     </li>
+  );
+}
+
+// Rótulo de lo que quedó en el ciclo anterior al último parto (RF-40).
+function EtiquetaCiclo() {
+  return <span className="etiqueta-ciclo">del ciclo anterior</span>;
+}
+
+// Detalle de un parto en la lista: crías, genética y lote previo (RF-38).
+function DetalleParto({ parto }: { parto: NonNullable<EventoReproductivo['parto']> }) {
+  return (
+    <>
+      <ul className="lista-crias">
+        {parto.crias.map((c) => (
+          <li key={c.orden}>
+            {c.nacidaMuerta || !c.animal ? (
+              <>Cría {NOMBRE_SEXO[c.sexo].toLowerCase()} · nacida muerta</>
+            ) : c.animal.activo ? (
+              <>
+                Cría {NOMBRE_SEXO[c.sexo].toLowerCase()} ·{' '}
+                <Link to={`/animales/${c.animal.id}`} className="enlace-fila">
+                  {c.animal.numero}
+                </Link>
+              </>
+            ) : (
+              // Dada de baja (parto anulado): se ve el número, sin acceso a su ficha.
+              <>
+                Cría {NOMBRE_SEXO[c.sexo].toLowerCase()} · {c.animal.numero} · <span className="etiqueta-baja">dada de baja</span>
+              </>
+            )}
+            {c.observaciones && <span className="texto-suave"> · {c.observaciones}</span>}
+          </li>
+        ))}
+      </ul>
+      <p className="texto-suave">Genética: {textoGenetica(parto.genetica)}</p>
+      <p className="texto-suave">
+        Estaba {NOMBRE_ESTADO[parto.estadoAnterior].toLowerCase()} · {textoLoteAnterior(parto.loteAnterior)}
+      </p>
+    </>
   );
 }
