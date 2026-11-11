@@ -72,7 +72,8 @@ export function avisoLoteAnteriorEliminado(estado: string): Aviso {
 export function avisoLoteManualDescartado(lotePrevio: string | null, tipo: 'parto' | 'secado', fechaEvento: string): Aviso {
   return {
     codigo: 'LOTE_MANUAL_DESCARTADO',
-    mensaje: `La vaca volvió al lote «${lotePrevio ?? 'sin lote'}» y se descartó el lote que se le había puesto a mano después del ${tipo} del ${aFechaCorta(fechaEvento)}`,
+    // Sin lote previo suena mejor "quedó sin lote" que "volvió al lote «sin lote»".
+    mensaje: `La vaca ${lotePrevio === null ? 'quedó sin lote' : `volvió al lote «${lotePrevio}»`} y se descartó el lote que se le había puesto a mano después del ${tipo} del ${aFechaCorta(fechaEvento)}`,
   };
 }
 

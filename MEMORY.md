@@ -10,11 +10,20 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
 - **Etapa 2 — Reproducción** (en curso)
   - Hecho: 2.1 semen, servicios y tactos (spec [003-reproduccion](specs/003-reproduccion/spec.md)): catálogo "Semen y toros", servicios, tactos con fecha probable de parto, situación reproductiva en la ficha y anulación del último evento (con motivo, sin borrar).
   - Hecho: 2.2 partos, crías y secados (spec [004-partos-secados](specs/004-partos-secados/spec.md)): registro y anulación de partos y secados (dueño y encargado), alta de las crías vivas, genética de la cría, lote previo, avisos de la lista cerrada y reinicio del ciclo reproductivo. Anular un parto da de baja a las crías vivas (`PARTO_ANULADO`).
-  - **Siguiente:** la spec chica de **editar animal y mover de lote a mano** (la ficha es solo lectura), antes de la Etapa 3; después, el siguiente paso de [docs/plan.md](docs/plan.md).
+  - Hecho: 2.3 editar animal y mover de lote a mano (spec [005-editar-animal](specs/005-editar-animal/spec.md)): edición de número, sexo, fecha de nacimiento y madre (dueño y encargado), mover de lote o dejar sin lote, historial de cambios manuales en la ficha (los tres roles) y aviso 8 al anular un parto o secado tras un movimiento manual.
+  - **Siguiente:** Etapa 3 de [docs/plan.md](docs/plan.md) (reglas y bajas por venta o muerte).
 - Hay una API de gestión de usuarios (`/api/usuarios`) **sin pantalla** todavía.
 
 ## Decisiones
 
+- **2026-11-11 — Editar animal y mover de lote (spec 005):**
+  - **`CambioAnimal` (historial) con texto copiado y sin claves** a lote, madre ni usuario: un lote del historial se puede eliminar y el historial se lee siempre. Una fila por dato, con el mismo `creadoEn` por guardado (`siguienteRegistro`). Un trigger en la base impide `UPDATE` y `DELETE` (solo se agrega); `TRUNCATE` no lo dispara, así que `limpiarBase` sigue andando.
+  - **Madre y ciclos:** las ediciones de madre se serializan con un bloqueo por tambo (`pg_advisory_xact_lock`); después `FOR UPDATE` de la nueva madre y luego del animal (mismo orden que la anulación del parto). Ciclos por consulta recursiva, solo en el código.
+  - **Aviso 8** (`LOTE_MANUAL_DESCARTADO`): sale de una fila `LOTE` del historial posterior al evento anulado. Con lote previo "sin lote" dice "La vaca quedó sin lote y se descartó…".
+  - **Mover a un lote ya eliminado antes de mover:** responde 404 ("Lote no encontrado"), no 409, porque el lote se busca antes de la transacción; el 409 queda solo para el lote que desaparece entre la lectura y el guardado. Es una desviación menor de la tabla RF-17/RF-11 del plan y se acepta tal cual (no se cambió el código).
+  - **Editar la fecha de nacimiento no revisa a las crías** (decisión 6 del usuario). El estado no se edita.
+  - **`migrate diff` esperado:** sigue dando solo las dos claves foráneas de lote previo de la 004; no aplicar esa propuesta.
+  - **Web:** botones "Editar" y "Mover de lote" solo para dueño y encargado; historial "Cambios manuales" con la leyenda para los tres roles; la confirmación se muestra en una caja de la ficha y el aviso 8 en la caja de resultado de Reproducción. En una cría de parto el formulario deja cambiar solo el número.
 - **2026-11-11 — Partos, crías y secados (spec 004):**
   - **Lote previo con clave compuesta y `ON DELETE SET NULL ("loteAnteriorId")`:** si se elimina el lote donde estaba la vaca, `loteAnteriorId` queda nulo sin tocar `establecimientoId`; `tuvoLoteAnterior` distingue "no tenía lote" (aviso 6) de "su lote se eliminó" (aviso 7). Al anular se lee el lote con `FOR SHARE` para que nadie lo borre en el medio.
   - **CHECK `animales_baja_sin_lote`:** un animal de baja nunca tiene lote. La migración desasigna las bajas existentes y `DELETE /api/lotes/:id` ya no desasigna bajas. Con esto queda resuelto el riesgo pendiente de "baja sin lote".
@@ -65,7 +74,8 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
 
 - **Menú del encabezado en celular:** `.menu-acciones` del Layout desborda a 375 px (el ancho de la página supera el de la pantalla). Viene de antes de la spec 004; arreglarlo en una pasada chica de estilos.
 
-- **Spec chica antes de la Etapa 3:** editar un animal (número, sexo, fecha, madre) y moverlo de lote a mano; hoy la ficha es solo lectura.
+- **Alta con madre sin bloqueo (spec 002):** `POST /api/animales` con madre no bloquea a la madre. Una carrera con "madre pasa a macho" (spec 005) podría dejar una madre macho con crías. Bloquear a la madre en el alta.
+- **Reloj (spec 005):** si el reloj del servidor retrocede, un evento podría quedar con `creadoEn` menor al de un movimiento manual previo y el aviso 8 fallaría. Retomar en la Etapa 6.
 
 ## Pendiente de definir con el responsable
 

@@ -600,7 +600,7 @@ describe('aviso 8: se descartó un lote puesto a mano después del evento (spec 
     const res = await anularSecado(t.agente, secadoId).expect(200);
     expect(res.body.avisos.map((a: { codigo: string }) => a.codigo)).toEqual(['SIN_LOTE_PREVIO', 'LOTE_MANUAL_DESCARTADO']);
     expect(res.body.avisos[1].mensaje).toBe(
-      'La vaca volvió al lote «sin lote» y se descartó el lote que se le había puesto a mano después del secado del 05/11/2026',
+      'La vaca quedó sin lote y se descartó el lote que se le había puesto a mano después del secado del 05/11/2026',
     );
     expect(await vacaDe(t.vaca.id)).toMatchObject({ estado: 'EN_ORDENE', loteId: null });
   });
