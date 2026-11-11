@@ -222,6 +222,17 @@ rutasAnimales.get('/:id', async (req, res) => {
           ...seleccionAnimal,
           madre: { select: { id: true, numero: true, estado: true } },
           crias: { where: { estado: ACTIVO }, select: { id: true, numero: true } },
+          // Parto del que nació (spec 004): su fecha y la genética (servicio y semen o toro).
+          criaDeParto: {
+            select: {
+              parto: {
+                select: {
+                  evento: { select: { id: true, fecha: true } },
+                  servicio: { select: { fecha: true, servicio: { select: { semen: { select: { id: true, nombre: true } } } } } },
+                },
+              },
+            },
+          },
         },
       })
     : null;
@@ -237,5 +248,19 @@ rutasAnimales.get('/:id', async (req, res) => {
     // La madre puede haber sido dada de baja: se muestra el número, sin acceso a su ficha.
     madre: animal.madre ? { id: animal.madre.id, numero: animal.madre.numero, activa: animal.madre.estado !== 'BAJA' } : null,
     crias: animal.crias.sort((a, b) => compararNumeros(a.numero, b.numero)),
+    // null si el animal no nació de un parto cargado. `genetica` es null si el parto no vinculó servicio;
+    // con servicio sin semen o toro, `semen` es null ("sin dato").
+    parto: animal.criaDeParto
+      ? {
+          eventoId: animal.criaDeParto.parto.evento.id,
+          fecha: aTextoFecha(animal.criaDeParto.parto.evento.fecha),
+          genetica: animal.criaDeParto.parto.servicio
+            ? {
+                fechaServicio: aTextoFecha(animal.criaDeParto.parto.servicio.fecha),
+                semen: animal.criaDeParto.parto.servicio.servicio?.semen ?? null,
+              }
+            : null,
+        }
+      : null,
   });
 });

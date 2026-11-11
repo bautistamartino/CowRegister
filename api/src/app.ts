@@ -9,6 +9,7 @@ import { rutasReglasLote } from './rutas/reglas-lote.js';
 import { rutasAnimales } from './rutas/animales.js';
 import { rutasSemen } from './rutas/semen.js';
 import { rutasReproduccion } from './rutas/reproduccion.js';
+import { rutasPartos } from './rutas/partos.js';
 import { rutasAnulacionServicios, rutasAnulacionTactos } from './rutas/anulaciones.js';
 import { requiereRol, requiereSesion } from './auth/middleware.js';
 
@@ -38,6 +39,9 @@ export function createApp() {
   app.use(['/api/servicios', '/api/tactos'], requiereSesion);
   app.post(['/api/animales/:id/servicios', '/api/animales/:id/tactos'], requiereSesion);
   app.get('/api/animales/:id/eventos', requiereSesion);
+  // Partos y secados (spec 004, RF-42): solo dueño y encargado. El veterinario recibe 403 y un pedido
+  // sin sesión 401 aunque el JSON venga roto, así que sesión y rol van antes de los parsers.
+  app.post(['/api/animales/:id/partos', '/api/animales/:id/secados'], requiereSesion, requiereRol('DUENO', 'ENCARGADO'));
   // La carga desde planilla recibe un texto de hasta 100.000 caracteres: con las tabulaciones y los
   // saltos de línea escapados en el JSON puede pasar los 100 kb. Este parser de 1 MB va ANTES del
   // global y solo para esas dos rutas (Express no vuelve a leer un cuerpo ya leído); el límite de
@@ -55,6 +59,7 @@ export function createApp() {
   app.use('/api/lotes', rutasLotes);
   app.use('/api/reglas-lote', rutasReglasLote);
   app.use('/api/animales', rutasReproduccion); // /:id/eventos, /:id/servicios, /:id/tactos
+  app.use('/api/animales', rutasPartos); // /:id/partos, /:id/secados
   app.use('/api/animales', rutasAnimales);
   app.use('/api/servicios', rutasAnulacionServicios);
   app.use('/api/tactos', rutasAnulacionTactos);

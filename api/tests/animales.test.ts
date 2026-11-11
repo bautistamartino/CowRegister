@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '../src/db.js';
-import { app, crearAnimalDirecto, crearUsuario, limpiarBase, registrarTambo } from './ayudas.js';
+import { app, crearAnimalDirecto, crearPartoDirecto, crearSemenDirecto, crearServicioDirecto, crearUsuario, limpiarBase, prepararVaca, registrarTambo } from './ayudas.js';
 
 // Tests de la API de animales: alta, listado, ficha y búsqueda (spec 002, T2).
 // Todo tambo registrado con registrarTambo() trae los 4 lotes iniciales con sus destinos.
@@ -312,6 +312,7 @@ describe('GET /api/animales/:id: ficha (RF-28 a RF-30, RF-38)', () => {
         { id: cria2.id, numero: 'C2' },
         { id: cria10.id, numero: 'C10' },
       ],
+      parto: null, // no nació de un parto cargado (spec 004)
     });
 
     const fichaCria = await agente.get(`/api/animales/${cria2.id}`).expect(200);
@@ -412,5 +413,46 @@ describe('aislamiento entre dos tambos (RF-37)', () => {
     expect((await b.agente.get('/api/animales/buscar?numero=1').expect(200)).body.id).toBe(deB.id);
     await a.agente.get(`/api/animales/${deB.id}`).expect(404);
     await b.agente.get(`/api/animales/${deA.id}`).expect(404);
+  });
+});
+
+describe('ficha de la cría de un parto (spec 004, RF-39)', () => {
+  it('muestra el parto del que nació (fecha y genética con semen), y la de la madre no lleva parto propio', async () => {
+    const { agente, tambo, vaca, usuarioId } = await prepararVaca();
+    const base = { establecimientoId: tambo, animalId: vaca.id, registradoPorId: usuarioId };
+    const semen = await crearSemenDirecto(tambo, 'Toro Alfa');
+    const servicio = await crearServicioDirecto({ ...base, fecha: '2026-01-05', semenId: semen.id });
+    const parto = await crearPartoDirecto({ ...base, fecha: '2026-10-10', servicioId: servicio.id, crias: [{ sexo: 'HEMBRA', numero: 'CR1' }] });
+    const cria = await prisma.animal.findFirstOrThrow({ where: { establecimientoId: tambo, numero: 'CR1' } });
+
+    const ficha = await agente.get(`/api/animales/${cria.id}`).expect(200);
+    expect(ficha.body.parto).toEqual({
+      eventoId: parto.id,
+      fecha: '2026-10-10',
+      genetica: { fechaServicio: '2026-01-05', semen: { id: semen.id, nombre: 'Toro Alfa' } },
+    });
+    expect(ficha.body.madre).toMatchObject({ id: vaca.id, activa: true });
+    expect((await agente.get(`/api/animales/${vaca.id}`).expect(200)).body.parto).toBeNull();
+    expect(JSON.stringify(ficha.body)).not.toMatch(/hash|@prueba\.test/i);
+  });
+
+  it('sin servicio vinculado, la genética es null; con servicio sin semen, semen null ("sin dato")', async () => {
+    const { agente, tambo, vaca, usuarioId } = await prepararVaca();
+    const base = { establecimientoId: tambo, animalId: vaca.id, registradoPorId: usuarioId };
+    await crearPartoDirecto({ ...base, fecha: '2025-03-01', crias: [{ sexo: 'HEMBRA', numero: 'CR1' }] });
+    const servicio = await crearServicioDirecto({ ...base, fecha: '2025-12-01' });
+    await crearPartoDirecto({ ...base, fecha: '2026-09-01', servicioId: servicio.id, crias: [{ sexo: 'MACHO', numero: 'CR2' }] });
+    const cr1 = await prisma.animal.findFirstOrThrow({ where: { establecimientoId: tambo, numero: 'CR1' } });
+    const cr2 = await prisma.animal.findFirstOrThrow({ where: { establecimientoId: tambo, numero: 'CR2' } });
+    expect((await agente.get(`/api/animales/${cr1.id}`).expect(200)).body.parto.genetica).toBeNull();
+    expect((await agente.get(`/api/animales/${cr2.id}`).expect(200)).body.parto.genetica).toEqual({ fechaServicio: '2025-12-01', semen: null });
+  });
+
+  it('otro tambo ve 404 en la ficha de la cría', async () => {
+    const a = await prepararVaca({ nombreTambo: 'A', email: 'a@prueba.test' });
+    await crearPartoDirecto({ establecimientoId: a.tambo, animalId: a.vaca.id, registradoPorId: a.usuarioId, fecha: '2026-10-10', crias: [{ sexo: 'HEMBRA', numero: 'CR1' }] });
+    const cria = await prisma.animal.findFirstOrThrow({ where: { establecimientoId: a.tambo, numero: 'CR1' } });
+    const b = await registrarTambo('B', 'b@prueba.test');
+    await b.agente.get(`/api/animales/${cria.id}`).expect(404);
   });
 });

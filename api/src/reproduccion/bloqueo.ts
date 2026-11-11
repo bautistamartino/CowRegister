@@ -13,6 +13,7 @@ export type AnimalBloqueado = {
   sexo: Sexo;
   estado: EstadoAnimal;
   nacimiento: string | null; // AAAA-MM-DD
+  loteId: string | null; // lote actual (la 004 lo guarda como "lote previo" de partos y secados)
 };
 
 /**
@@ -25,8 +26,9 @@ export async function bloquearAnimal(
   animalId: string,
   establecimientoId: string,
 ): Promise<AnimalBloqueado | null> {
-  const filas = await tx.$queryRaw<{ sexo: Sexo; estado: EstadoAnimal; nacimiento: string | null }[]>`
-    SELECT "sexo"::text AS "sexo", "estado"::text AS "estado", "fechaNacimiento"::text AS "nacimiento"
+  const filas = await tx.$queryRaw<AnimalBloqueado[]>`
+    SELECT "sexo"::text AS "sexo", "estado"::text AS "estado", "fechaNacimiento"::text AS "nacimiento",
+           "loteId"::text AS "loteId"
     FROM "animales"
     WHERE "id" = ${animalId}::uuid
       AND "establecimientoId" = ${establecimientoId}::uuid

@@ -197,3 +197,65 @@ export const anomaliasSchema = z
   .refine((texto) => texto === null || largo(texto) <= MAX_ANOMALIAS, {
     error: `Las anomalías no pueden superar los ${MAX_ANOMALIAS} caracteres`,
   });
+
+// ---------------------------------------------------------------------------
+// Crías de un parto (spec 004, RF-5 a RF-7)
+// ---------------------------------------------------------------------------
+
+const MAX_OBSERVACIONES_CRIA = 200;
+
+// Observaciones de una cría: texto opcional de hasta 200 caracteres sin contar los extremos.
+// Vacío, de solo espacios o `null` se guarda como `null` ("sin observaciones"), que es lo único
+// que acepta la base (CHECK crias_observaciones_largo).
+const observacionesCriaSchema = z
+  .string({ error: 'Las observaciones tienen que ser un texto' })
+  .nullish()
+  .transform((texto) => {
+    const limpio = texto?.normalize('NFC').trim() ?? '';
+    return limpio === '' ? null : limpio;
+  })
+  .refine((texto) => texto === null || largo(texto) <= MAX_OBSERVACIONES_CRIA, {
+    error: `Las observaciones no pueden superar los ${MAX_OBSERVACIONES_CRIA} caracteres`,
+  });
+
+// El número de una cría: la web puede mandar "" o null cuando no corresponde (cría nacida muerta);
+// eso cuenta como "no vino". Un texto con algo escrito se valida con las reglas de la spec 002.
+const numeroCriaSchema = z.preprocess(
+  (v) => (v === null || (typeof v === 'string' && v.trim() === '') ? undefined : v),
+  numeroSchema.optional(),
+);
+
+const criaSchema = z
+  .object({
+    sexo: z.enum(['HEMBRA', 'MACHO'], { error: 'El sexo de la cría tiene que ser hembra o macho' }),
+    // Ausente = vive. Un texto o un número NO se convierten: 400 (z.boolean no es "coerce").
+    nacidaMuerta: z.boolean({ error: '«Nació muerta» tiene que ser verdadero o falso' }).default(false),
+    numero: numeroCriaSchema,
+    observaciones: observacionesCriaSchema,
+    // Cualquier otro campo de la cría se descarta: z.object ignora lo que no declara.
+  })
+  .superRefine((cria, ctx) => {
+    if (cria.nacidaMuerta && cria.numero !== undefined) {
+      ctx.addIssue({ code: 'custom', path: ['numero'], message: 'Una cría nacida muerta no lleva número' });
+    }
+    if (!cria.nacidaMuerta && cria.numero === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['numero'], message: 'El número de la cría viva es obligatorio' });
+    }
+  });
+
+// Lista de 1 o 2 crías. Dos crías vivas del mismo parto no pueden repetir número, aunque cambien
+// las mayúsculas (el número ya viene normalizado a mayúsculas).
+export const criasPartoSchema = z
+  .array(criaSchema, { error: 'Las crías tienen que ser una lista' })
+  .min(1, { error: 'El parto necesita al menos una cría' })
+  .max(2, { error: 'Un parto puede tener como máximo dos crías' })
+  .superRefine((crias, ctx) => {
+    const vistos = new Set<string>();
+    crias.forEach((cria, i) => {
+      if (cria.nacidaMuerta || cria.numero === undefined) return;
+      if (vistos.has(cria.numero)) {
+        ctx.addIssue({ code: 'custom', path: [i, 'numero'], message: 'Las dos crías no pueden tener el mismo número' });
+      }
+      vistos.add(cria.numero);
+    });
+  });

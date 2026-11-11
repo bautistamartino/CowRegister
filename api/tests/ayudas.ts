@@ -293,8 +293,28 @@ export async function crearSecadoDirecto(
  * simultáneas (RF-33). Devuelve la lista de violaciones encontradas (vacía si todo está bien),
  * para usar así: `expect(await verificarInvariantes()).toEqual([])`.
  */
-export async function verificarInvariantes(): Promise<string[]> {
+export async function verificarInvariantes(opciones: { estadoVaca?: boolean } = {}): Promise<string[]> {
   const consultas: Array<[string, string]> = [
+    // RF-33 (a): dos partos no anulados de la misma vaca a menos de 200 días.
+    [
+      'dos partos no anulados a menos de 200 días',
+      `SELECT a.id FROM eventos a JOIN eventos b ON b."animalId" = a."animalId" AND a.id < b.id
+       WHERE a.tipo = 'PARTO' AND b.tipo = 'PARTO' AND a."anuladoEn" IS NULL AND b."anuladoEn" IS NULL
+         AND abs(a.fecha - b.fecha) < 200`,
+    ],
+    // RF-33 (b): una cría de un parto anulado que sigue activa.
+    [
+      'cría de un parto anulado que sigue activa',
+      `SELECT c.id FROM crias_parto c
+       JOIN eventos e ON e.id = c."eventoId" JOIN animales a ON a.id = c."animalId"
+       WHERE e."anuladoEn" IS NOT NULL AND a.estado <> 'BAJA'`,
+    ],
+    // RF-33 (d): si A se registró antes que B (creadoEn menor), la fecha de A no puede ser mayor.
+    [
+      'eventos no anulados con fechas en desorden respecto del registro',
+      `SELECT a.id FROM eventos a JOIN eventos b ON b."animalId" = a."animalId"
+       WHERE a."anuladoEn" IS NULL AND b."anuladoEn" IS NULL AND a."creadoEn" < b."creadoEn" AND a.fecha > b.fecha`,
+    ],
     ['animal de baja con lote', `SELECT id FROM animales WHERE estado = 'BAJA' AND "loteId" IS NOT NULL`],
     [
       'dos animales activos con el mismo número en un tambo',
@@ -316,6 +336,26 @@ export async function verificarInvariantes(): Promise<string[]> {
       `SELECT id FROM animales WHERE estado <> 'BAJA' AND "motivoBaja" IS NOT NULL`,
     ],
   ];
+  // RF-33 (e): el estado de la vaca es el que dejó su último parto o secado no anulado; si todos
+  // están anulados, el estado previo del más antiguo. Solo vale cuando TODOS los cambios de estado
+  // pasan por la API (los datos sembrados con los helpers directos no mueven a la vaca).
+  if (opciones.estadoVaca) {
+    consultas.push([
+      'estado de la vaca distinto del que dejó su último parto o secado',
+      `WITH ev AS (
+         SELECT e."animalId", e.tipo, e.fecha, e."creadoEn", (e."anuladoEn" IS NOT NULL) AS anulado,
+                COALESCE(p."estadoAnterior", s."estadoAnterior")::text AS previo
+         FROM eventos e LEFT JOIN partos p ON p."eventoId" = e.id LEFT JOIN secados s ON s."eventoId" = e.id
+         WHERE e.tipo IN ('PARTO', 'SECADO')),
+       ultimo AS (SELECT DISTINCT ON ("animalId") "animalId", tipo FROM ev WHERE NOT anulado ORDER BY "animalId", fecha DESC, "creadoEn" DESC),
+       primero AS (SELECT DISTINCT ON ("animalId") "animalId", previo FROM ev ORDER BY "animalId", "creadoEn" ASC)
+       SELECT a.id FROM animales a
+       JOIN primero pr ON pr."animalId" = a.id
+       LEFT JOIN ultimo u ON u."animalId" = a.id
+       WHERE a.estado <> 'BAJA'
+         AND a.estado::text <> COALESCE(CASE u.tipo WHEN 'PARTO' THEN 'EN_ORDENE' WHEN 'SECADO' THEN 'SECA' END, pr.previo)`,
+    ]);
+  }
   const violaciones: string[] = [];
   for (const [nombre, sql] of consultas) {
     const filas = await prisma.$queryRawUnsafe<unknown[]>(sql);

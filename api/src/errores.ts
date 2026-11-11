@@ -7,6 +7,9 @@ export class HttpError extends Error {
   constructor(
     public status: number,
     message: string,
+    // Opcional: en qué campo está el problema (por ejemplo `crias.0.numero`), con el mismo
+    // formato que los errores de zod, para que la pantalla lo muestre debajo del campo.
+    public detalles?: { campo: string; mensaje: string }[],
   ) {
     super(message);
   }
@@ -25,7 +28,7 @@ export function esErrorPrisma(err: unknown, codigo: string): err is Prisma.Prism
 // Express 5 envía acá también los errores de funciones async.
 export const manejarErrores: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof HttpError) {
-    res.status(err.status).json({ error: err.message });
+    res.status(err.status).json(err.detalles ? { error: err.message, detalles: err.detalles } : { error: err.message });
     return;
   }
 
