@@ -98,7 +98,13 @@ model Lote {
   animales        Animal[]
   reglas          ReglaLote[]
 
-  @@unique([establecimientoId, nombre]) // no puede haber dos lotes con el mismo nombre en un tambo
+  // Destino de la clave foránea compuesta de ReglaLote: así una regla solo
+  // puede apuntar a un lote de su mismo tambo.
+  @@unique([establecimientoId, id])
+  // El nombre es único por tambo SIN distinguir mayúsculas: lo garantiza el
+  // índice "lotes_nombre_unico_sin_mayusculas" sobre lower(nombre), creado a
+  // mano en la migración lotes_restricciones (Prisma no expresa índices sobre
+  // funciones). Por eso acá no hay @@unique de nombre.
   @@map("lotes")
 }
 
@@ -112,9 +118,14 @@ model ReglaLote {
   actualizadoEn     DateTime     @updatedAt
 
   establecimiento Establecimiento @relation(fields: [establecimientoId], references: [id])
-  lote            Lote            @relation(fields: [loteId], references: [id])
+  // Clave foránea compuesta (establecimientoId, loteId): el lote destino tiene
+  // que ser del mismo tambo que la regla. Restrict impide borrar un lote que
+  // es destino de algún estado.
+  lote            Lote            @relation(fields: [establecimientoId, loteId], references: [establecimientoId, id], onDelete: Restrict)
 
-  @@unique([establecimientoId, estado]) // una sola regla por estado en cada tambo
+  // Una sola regla por estado en cada tambo. El estado BAJA nunca tiene regla:
+  // lo garantiza el CHECK "reglas_lote_sin_baja" (agregado a mano en la migración).
+  @@unique([establecimientoId, estado])
   @@map("reglas_lote")
 }
 

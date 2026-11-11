@@ -2,7 +2,7 @@
 
 Plan: [plan.md](plan.md) · Spec: [spec.md](spec.md)
 
-- [ ] **T1** — Migración `lotes_restricciones`: en `schema.prisma`, clave foránea compuesta (establecimientoId, loteId) con `onDelete: Restrict`, `@@unique([establecimientoId, id])` en `Lote` y quitar el `@@unique` de nombre. A mano en el SQL: verificación de repetidos, índice único sobre `lower(nombre)` y CHECK sin BAJA. Primero se escribe `api/tests/base-lotes.test.ts`, que inserta directo en la base para probar cada garantía.
+- [x] **T1** — Migración `lotes_restricciones`: en `schema.prisma`, clave foránea compuesta (establecimientoId, loteId) con `onDelete: Restrict`, `@@unique([establecimientoId, id])` en `Lote` y quitar el `@@unique` de nombre. A mano en el SQL: verificación de repetidos, índice único sobre `lower(nombre)` y CHECK sin BAJA. Primero se escribe `api/tests/base-lotes.test.ts`, que inserta directo en la base para probar cada garantía.
   - RF: RF-6, RF-9, RF-16, RF-17, RF-31
   - Hecho cuando: `base-lotes.test.ts` pasa (falla insertar "Secas"/"secas", una regla BAJA, una regla hacia un lote de otro tambo y una regla hacia un lote inexistente, y falla borrar un lote que es destino); `prisma migrate diff` desde las migraciones hasta el schema no propone ningún `DROP` de lo agregado a mano; `npm run typecheck` sin errores.
 
