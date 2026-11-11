@@ -16,6 +16,11 @@ Software simple y funcional para registrar los eventos importantes de las vacas 
 - Identificación por número de caravana, que es el mismo número que el botón RFID leído con un bastón y consultado en una tablet.
 - Al dar de baja un animal, normalmente no se reutiliza su número.
 - Baja por venta o muerte, conservando el historial (baja lógica).
+- **Carga de animales** (decidido el 2026-11-10):
+  - **Alta manual** de a una, para las vacas que se agregan en el día a día.
+  - **Pegar desde una planilla** (Excel o Google Sheets) para cargar el rodeo existente de una vez: el usuario copia las filas y las pega en la app, ve una vista previa con las filas correctas y las que tienen errores (con el motivo) y recién al confirmar se guardan. Columnas fijas, por ejemplo: número, sexo, fecha de nacimiento, estado, número de la madre.
+  - No se suben archivos (se respeta el límite de "sin archivos"). La carga en serie con el bastón quedó descartada por ahora.
+  - En esta etapa solo se cargan los datos básicos; la situación reproductiva actual de cada vaca (preñez, servicios) se carga en la Etapa 2.
 
 ### Eventos
 - **Parición**: da de alta al ternero con sexo, número de caravana, madre y genética del semen usado.

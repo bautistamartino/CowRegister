@@ -6,7 +6,7 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
 
 - **Etapa 1 — Base del sistema** (ver [docs/plan.md](docs/plan.md))
   - Hecho: 1.0 preparación, 1.1 esqueleto, 1.2 base de datos, 1.3 login y seguridad, 1.4 lotes y destino de cada estado (spec [001-lotes](specs/001-lotes/spec.md)).
-  - Siguiente: 1.5 animales.
+  - Siguiente: 1.5 animales + 1.6 buscador, en una sola spec (`/sdd`). Carga decidida: alta manual de a una y pegar desde planilla con vista previa (ver [docs/requerimientos.md](docs/requerimientos.md) › Carga de animales). El rodeo existente está en papel o en una planilla digital.
 - Hay una API de gestión de usuarios (`/api/usuarios`) **sin pantalla** todavía.
 
 ## Decisiones
