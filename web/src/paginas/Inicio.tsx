@@ -20,7 +20,7 @@ export function Inicio() {
             {usuario.nombre} · {nombresRol[usuario.rol]}
           </span>
           <button className="boton-secundario" onClick={logout}>
-            Salir
+            Cerrar sesión 
           </button>
         </div>
       </header>
