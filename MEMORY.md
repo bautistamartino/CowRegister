@@ -9,11 +9,22 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
   - 1.7 cierre (2026-11-11): 275 tests y typecheck en verde; las ramas apiladas se juntaron en `main`. Falta que el usuario cree el repositorio en GitHub y haga el primer `git push` (los agentes no hacen push).
 - **Etapa 2 — Reproducción** (en curso)
   - Hecho: 2.1 semen, servicios y tactos (spec [003-reproduccion](specs/003-reproduccion/spec.md)): catálogo "Semen y toros", servicios, tactos con fecha probable de parto, situación reproductiva en la ficha y anulación del último evento (con motivo, sin borrar).
-  - **Siguiente: 2.2 partos y secados (spec 004)** con `/sdd`, en una sesión nueva. Depende de la 003: la 004 cambia solo `cicloActual` y `estadoReproductivo` en `api/src/reproduccion/situacion.ts` (un parto reinicia el ciclo). Antes de la Etapa 3 hace falta una spec chica de **editar animal y mover de lote a mano** (la ficha es solo lectura).
+  - Hecho: 2.2 partos, crías y secados (spec [004-partos-secados](specs/004-partos-secados/spec.md)): registro y anulación de partos y secados (dueño y encargado), alta de las crías vivas, genética de la cría, lote previo, avisos de la lista cerrada y reinicio del ciclo reproductivo. Anular un parto da de baja a las crías vivas (`PARTO_ANULADO`).
+  - **Siguiente:** la spec chica de **editar animal y mover de lote a mano** (la ficha es solo lectura), antes de la Etapa 3; después, el siguiente paso de [docs/plan.md](docs/plan.md).
 - Hay una API de gestión de usuarios (`/api/usuarios`) **sin pantalla** todavía.
 
 ## Decisiones
 
+- **2026-11-11 — Partos, crías y secados (spec 004):**
+  - **Lote previo con clave compuesta y `ON DELETE SET NULL ("loteAnteriorId")`:** si se elimina el lote donde estaba la vaca, `loteAnteriorId` queda nulo sin tocar `establecimientoId`; `tuvoLoteAnterior` distingue "no tenía lote" (aviso 6) de "su lote se eliminó" (aviso 7). Al anular se lee el lote con `FOR SHARE` para que nadie lo borre en el medio.
+  - **CHECK `animales_baja_sin_lote`:** un animal de baja nunca tiene lote. La migración desasigna las bajas existentes y `DELETE /api/lotes/:id` ya no desasigna bajas. Con esto queda resuelto el riesgo pendiente de "baja sin lote".
+  - **`CriaParto`:** una fila por cría (viva con `animalId`, o nacida muerta sin animal). Las crías vivas son animales reales; al anular el parto quedan de baja con `motivoBaja = PARTO_ANULADO`, sin lote, y su número se libera (el índice único es solo entre activos).
+  - **La genética de la cría se guarda separada del servicio base:** se resuelve al registrar el parto (servicio entre 240 y 300 días antes, si es único) y no cambia si después se anula ese servicio.
+  - **Respuestas con avisos:** registrar y anular partos y secados devuelven `{ evento, avisos }` (lista cerrada, 7 códigos); servicio y tacto siguen devolviendo el evento a secas.
+  - **Un parto reinicia el ciclo:** `cicloActual` corta en el último parto no anulado; lo anterior se rotula "del ciclo anterior" (`cicloAnterior`). El secado no cuenta para el estado reproductivo.
+  - **`migrate diff` esperado:** da solo las dos claves foráneas de lote previo (`SET NULL (columna)` no lo expresa Prisma). No aplicar esa propuesta: dejaría `ON DELETE SET NULL` completo y rompería `establecimientoId`.
+  - **Web:** "Anular" aparece en el último evento no anulado de cualquier tipo; al veterinario solo si es servicio o tacto (la API da 403 con el mensaje "lo tiene que hacer un dueño o encargado"). Los avisos 6 y 7 se muestran en la caja de resultado de la ficha.
+  - **Para la spec de "editar animal":** debe respetar la madre de las crías de un parto (no cambiarla ni dejar un animal sin madre si nació de un parto registrado).
 - **2026-11-11 — Reproducción (spec 003):**
   - **Eventos en dos capas:** `Evento` (común: animal, tipo, fecha, quién y cuándo, anulación) más un detalle por tipo (`Servicio`, `Tacto`), unidos por clave compuesta (establecimientoId, eventoId, tipo) para que el detalle no cuelgue de un evento de otro tipo o de otro tambo. La 004 suma `Parto` y `Secado` de la misma forma.
   - **Orden total por fecha y `creadoEn`:** a igual fecha manda el momento de registro, y `creadoEn` es único por animal (índice único; `siguienteRegistro` lo asegura creciente). Riesgo para el modo sin conexión (Etapa 6): relojes de distintos dispositivos pueden desordenar eventos del mismo día; habrá que revisarlo ahí.
@@ -52,7 +63,7 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
 
 ## Riesgos pendientes
 
-- **Etapa 3 (bajas):** agregar `CHECK (estado <> 'BAJA' OR "loteId" IS NULL)` en `animales` junto con las bajas. Hoy la spec 001 asume que un animal dado de baja no tiene lote, pero la base no lo garantiza.
+- **Menú del encabezado en celular:** `.menu-acciones` del Layout desborda a 375 px (el ancho de la página supera el de la pantalla). Viene de antes de la spec 004; arreglarlo en una pasada chica de estilos.
 
 - **Spec chica antes de la Etapa 3:** editar un animal (número, sexo, fecha, madre) y moverlo de lote a mano; hoy la ficha es solo lectura.
 

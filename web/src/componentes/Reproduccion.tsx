@@ -80,9 +80,11 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal }: Props)
   const admiteEventos = estado === 'VAQUILLONA' || estado === 'EN_ORDENE' || estado === 'SECA';
   const prenada = situacion.estado === 'PRENADA';
   // Solo se puede anular el último evento no anulado (el más nuevo de la lista sin anulación).
-  // La anulación de partos y secados llega en la tarea T5: por ahora solo servicios y tactos.
+  // Servicios y tactos los anulan los tres roles; partos y secados, solo dueño y encargado (RF-43):
+  // al veterinario no se le ofrece el botón (la API igual responde 403).
   const ultimo = eventos.find((e) => !e.anulacion);
-  const ultimoAnulable = ultimo && (ultimo.tipo === 'SERVICIO' || ultimo.tipo === 'TACTO') ? ultimo.id : null;
+  const ultimoAnulable =
+    ultimo && (ultimo.tipo === 'SERVICIO' || ultimo.tipo === 'TACTO' || puedeRegistrarPartos) ? ultimo.id : null;
   const partos = eventos.filter((e) => e.tipo === 'PARTO' && !e.anulacion);
 
   async function alRegistrar() {
@@ -100,6 +102,14 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal }: Props)
       crias: (r.evento.parto?.crias ?? []).flatMap((c) => (c.animal ? [{ id: c.animal.id, numero: c.animal.numero }] : [])),
     });
     await Promise.all([recargar(), alCambiarAnimal()]);
+  }
+
+  // Anulación: tras anular un parto o secado cambian estado, lote y crías de la madre, así que
+  // se relee la ficha. Los avisos 6 y 7 (lote previo) se muestran en la misma caja de resultado.
+  async function alAnularEvento(tipo: EventoReproductivo['tipo'], avisos: Aviso[]) {
+    const titulo = tipo === 'PARTO' ? 'Parto anulado' : tipo === 'SECADO' ? 'Secado anulado' : null;
+    setResultado(titulo ? { titulo, avisos, crias: [] } : null);
+    await Promise.all([recargar(), titulo ? alCambiarAnimal() : Promise.resolve()]);
   }
 
   return (
@@ -248,7 +258,7 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal }: Props)
         ) : (
           <ul className="lista-eventos">
             {eventos.map((e) => (
-              <FilaEvento key={e.id} evento={e} anulable={e.id === ultimoAnulable} alAnular={recargar} />
+              <FilaEvento key={e.id} evento={e} anulable={e.id === ultimoAnulable} alAnular={(avisos) => alAnularEvento(e.tipo, avisos)} />
             ))}
           </ul>
         )}
@@ -426,7 +436,15 @@ function FormTacto({ animalId, alCancelar, alRegistrar }: { animalId: string; al
 
 // ─── Una fila de la lista, con la anulación ───
 
-function FilaEvento({ evento, anulable, alAnular }: { evento: EventoReproductivo; anulable: boolean; alAnular: () => Promise<void> }) {
+function FilaEvento({
+  evento,
+  anulable,
+  alAnular,
+}: {
+  evento: EventoReproductivo;
+  anulable: boolean;
+  alAnular: (avisos: Aviso[]) => Promise<void>;
+}) {
   const [anulando, setAnulando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorMotivo, setErrorMotivo] = useState<string | undefined>();
@@ -440,16 +458,17 @@ function FilaEvento({ evento, anulable, alAnular }: { evento: EventoReproductivo
     setErrorMotivo(undefined);
     setEnviando(true);
     try {
-      const ruta = evento.tipo === 'SERVICIO' ? 'servicios' : 'tactos';
-      await api(`/${ruta}/${evento.id}/anular`, { method: 'POST', body: { motivo: String(d.get('motivo')) } });
-      await alAnular(); // la fila se vuelve a dibujar con su marca de anulado
+      const ruta = { SERVICIO: 'servicios', TACTO: 'tactos', PARTO: 'partos', SECADO: 'secados' }[evento.tipo];
+      // Parto y secado devuelven { evento, avisos }; servicio y tacto, el evento a secas.
+      const r = await api<{ avisos?: Aviso[] }>(`/${ruta}/${evento.id}/anular`, { method: 'POST', body: { motivo: String(d.get('motivo')) } });
+      await alAnular(r.avisos ?? []); // la fila se vuelve a dibujar con su marca de anulado
     } catch (err) {
       const r = interpretar(err);
       setErrorMotivo(r.campos.motivo);
       setError(r.general);
       setEnviando(false);
       // Si ya la anuló otro o cambió el último evento, se refresca para mostrar lo real.
-      if (err instanceof ApiError && (err.status === 404 || err.status === 409)) await alAnular();
+      if (err instanceof ApiError && (err.status === 404 || err.status === 409)) await alAnular([]);
     }
   }
 
