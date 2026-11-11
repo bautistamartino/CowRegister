@@ -306,7 +306,7 @@ describe('GET /api/animales/:id: ficha (RF-28 a RF-30, RF-38)', () => {
       sexo: 'HEMBRA',
       estado: 'EN_ORDENE',
       fechaNacimiento: '2020-01-02',
-      lote: { nombre: 'Secas' },
+      lote: { id: secas.id, nombre: 'Secas' },
       madre: null,
       crias: [
         { id: cria2.id, numero: 'C2' },
