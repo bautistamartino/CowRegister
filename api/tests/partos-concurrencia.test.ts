@@ -9,7 +9,7 @@ import { crearAnimalDirecto, limpiarBase, prepararVaca, verificarInvariantes } f
 // enumera la tabla (no un orden fijo: depende de quién llega primero a la base). Un fallo
 // intermitente es un error real: no se reintenta. Al final de cada ronda se comprueban los
 // invariantes de RF-33 con una consulta por invariante (verificarInvariantes).
-// Las filas de ANULACIÓN (RF-32) se prueban en la tarea T3.
+// Las filas de ANULACIÓN (RF-32) van al final de este archivo (tarea T3).
 
 beforeEach(() => {
   fijarReloj(new Date('2026-11-11T15:00:00Z'));
@@ -248,4 +248,133 @@ describe('parto × cambio del lote destino (RF-14, RF-31)', () => {
       }
     },
   );
+});
+
+// ─── Operaciones simultáneas que incluyen una ANULACIÓN (RF-32, spec 004, T3) ───────────────
+
+const anularParto = (agente: Agente, id: string) =>
+  agente.post(`/api/partos/${id}/anular`).send({ motivo: 'Error de carga' }) as unknown as Promise<Respuesta>;
+const anularSecado = (agente: Agente, id: string) =>
+  agente.post(`/api/secados/${id}/anular`).send({ motivo: 'Error de carga' }) as unknown as Promise<Respuesta>;
+const anularServicio = (agente: Agente, id: string) =>
+  agente.post(`/api/servicios/${id}/anular`).send({ motivo: 'Error de carga' }) as unknown as Promise<Respuesta>;
+
+// Carga por la API (para que la vaca cambie de estado y lote como en la realidad) y devuelve el id.
+async function cargarParto(agente: Agente, vacaId: string, fecha: string, numero: string) {
+  return (await parto(agente, vacaId, fecha, [viva(numero)])).body.evento.id as string;
+}
+async function cargarSecado(agente: Agente, vacaId: string, fecha: string) {
+  return (await secado(agente, vacaId, fecha)).body.evento.id as string;
+}
+
+describe('anular el mismo evento dos veces (RF-32)', () => {
+  it('un parto: uno 200 y el otro 409; la cría se da de baja una sola vez', async () => {
+    const { agente, vacaNueva } = await tamboBase();
+    for (let ronda = 0; ronda < RONDAS; ronda++) {
+      const vaca = await vacaNueva(ronda);
+      const id = await cargarParto(agente, vaca.id, '2026-10-01', `AP${ronda}`);
+      const r = await Promise.all([anularParto(agente, id), anularParto(agente, id)]);
+      expect(estados(r).sort()).toEqual([200, 409]);
+      expect(await prisma.animal.count({ where: { numero: `AP${ronda}`, estado: 'BAJA' } })).toBe(1);
+      await invariantes();
+    }
+  });
+
+  it('un secado: uno 200 y el otro 409', async () => {
+    const { agente, vacaNueva } = await tamboBase();
+    for (let ronda = 0; ronda < RONDAS; ronda++) {
+      const vaca = await vacaNueva(ronda);
+      const id = await cargarSecado(agente, vaca.id, '2026-10-01');
+      const r = await Promise.all([anularSecado(agente, id), anularSecado(agente, id)]);
+      expect(estados(r).sort()).toEqual([200, 409]);
+      expect((await prisma.animal.findUniqueOrThrow({ where: { id: vaca.id } })).estado).toBe('EN_ORDENE');
+      await invariantes();
+    }
+  });
+});
+
+describe('anular un parto × registrar un secado (RF-32)', () => {
+  // [anulación, secado]: secado primero → [409, 201]; anulación primero → [200, 409] si la vaca
+  // vuelve a un estado que no se puede secar (vaquillona) o [200, 201] si vuelve "en ordeñe".
+  it.each(['VAQUILLONA', 'EN_ORDENE'] as const)('la vaca estaba %s antes del parto', async (previo) => {
+    const { agente, tambo } = await tamboBase();
+    for (let ronda = 0; ronda < RONDAS; ronda++) {
+      const vaca = await crearAnimalDirecto(tambo, `PS${ronda}`, { estado: previo });
+      const id = await cargarParto(agente, vaca.id, '2026-10-01', `PS-C${ronda}`);
+      const [ra, rs] = await Promise.all([anularParto(agente, id), secado(agente, vaca.id, '2026-10-05')]);
+      const par = JSON.stringify([ra.status, rs.status]);
+      expect(previo === 'VAQUILLONA' ? ['[409,201]', '[200,409]'] : ['[409,201]', '[200,409]', '[200,201]']).toContain(par);
+      await invariantes();
+    }
+  });
+});
+
+describe('anular un secado × registrar un parto (RF-32)', () => {
+  it('parto 201 y anulación 409; o anulación 200 y parto 201, 409 o 400', async () => {
+    const { agente, vacaNueva } = await tamboBase();
+    for (let ronda = 0; ronda < RONDAS; ronda++) {
+      const vaca = await vacaNueva(ronda);
+      const id = await cargarSecado(agente, vaca.id, '2026-10-01');
+      const [ra, rp] = await Promise.all([anularSecado(agente, id), parto(agente, vaca.id, '2026-10-10', [viva(`SP${ronda}`)])]);
+      if (ra.status === 409) expect(rp.status).toBe(201);
+      else {
+        expect(ra.status).toBe(200);
+        expect([201, 409, 400]).toContain(rp.status);
+      }
+      await invariantes();
+    }
+  });
+});
+
+describe('anular un parto o secado × registrar un servicio o tacto (RF-32)', () => {
+  const casos: Array<['parto' | 'secado', 'servicio' | 'tacto']> = [
+    ['parto', 'servicio'],
+    ['parto', 'tacto'],
+    ['secado', 'servicio'],
+    ['secado', 'tacto'],
+  ];
+  it.each(casos)('anular un %s × registrar un %s: el otro 201 y la anulación 409; o anulación 200 y el otro 201, 409 o 400', async (que, otro) => {
+    const { agente, vacaNueva } = await tamboBase();
+    for (let ronda = 0; ronda < RONDAS; ronda++) {
+      const vaca = await vacaNueva(ronda);
+      const id = que === 'parto' ? await cargarParto(agente, vaca.id, '2026-09-01', `ST${ronda}`) : await cargarSecado(agente, vaca.id, '2026-09-01');
+      const anular = que === 'parto' ? anularParto(agente, id) : anularSecado(agente, id);
+      const nuevo = otro === 'servicio' ? servicio(agente, vaca.id, '2026-09-10') : tactoVacia(agente, vaca.id, '2026-09-10');
+      const [ra, ro] = await Promise.all([anular, nuevo]);
+      if (ra.status === 409) expect(ro.status).toBe(201);
+      else {
+        expect(ra.status).toBe(200);
+        expect([201, 409, 400]).toContain(ro.status);
+      }
+      await invariantes();
+    }
+  });
+});
+
+describe('anular un parto o secado × anular el evento anterior (RF-32)', () => {
+  it('parto × servicio anterior: el parto 200 y el servicio 200 o 409', async () => {
+    const { agente, vacaNueva } = await tamboBase();
+    for (let ronda = 0; ronda < RONDAS; ronda++) {
+      const vaca = await vacaNueva(ronda);
+      const idServicio = (await servicio(agente, vaca.id, '2026-01-10')).body.id as string;
+      const idParto = await cargarParto(agente, vaca.id, '2026-10-01', `PA${ronda}`);
+      const [rp, rs] = await Promise.all([anularParto(agente, idParto), anularServicio(agente, idServicio)]);
+      expect(rp.status).toBe(200); // el último siempre se puede anular
+      expect([200, 409]).toContain(rs.status);
+      await invariantes();
+    }
+  });
+
+  it('secado × parto anterior: el secado 200 y el parto 200 o 409', async () => {
+    const { agente, vacaNueva } = await tamboBase();
+    for (let ronda = 0; ronda < RONDAS; ronda++) {
+      const vaca = await vacaNueva(ronda);
+      const idParto = await cargarParto(agente, vaca.id, '2026-09-01', `SA${ronda}`);
+      const idSecado = await cargarSecado(agente, vaca.id, '2026-10-01');
+      const [rs, rp] = await Promise.all([anularSecado(agente, idSecado), anularParto(agente, idParto)]);
+      expect(rs.status).toBe(200);
+      expect([200, 409]).toContain(rp.status);
+      await invariantes();
+    }
+  });
 });

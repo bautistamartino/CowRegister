@@ -2,7 +2,17 @@ import request from 'supertest';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../src/db.js';
 import { fijarReloj } from '../src/reloj.js';
-import { app, crearServicioDirecto, crearTactoDirecto, crearUsuario, limpiarBase, prepararVaca, registrarTambo } from './ayudas.js';
+import {
+  app,
+  crearPartoDirecto,
+  crearSecadoDirecto,
+  crearServicioDirecto,
+  crearTactoDirecto,
+  crearUsuario,
+  limpiarBase,
+  prepararVaca,
+  registrarTambo,
+} from './ayudas.js';
 
 // Tests de POST /api/servicios/:id/anular y /api/tactos/:id/anular: RF-19 a RF-21, RF-27, RF-28.
 
@@ -129,6 +139,49 @@ describe('solo el último evento no anulado (RF-20)', () => {
     const res = await anularTacto(agente, tacto.id, motivo).expect(400);
     expect(JSON.stringify(res.body)).toMatch(/motivo/i);
     expect((await prisma.evento.findUniqueOrThrow({ where: { id: tacto.id } })).anuladoEn).toBeNull();
+  });
+});
+
+describe('último evento de la spec 004: parto y secado (RF-26)', () => {
+  // Una vaca con un servicio, un tacto y, después, un parto o un secado como último evento.
+  async function vacaConUltimo(tipo: 'PARTO' | 'SECADO') {
+    const t = await vacaServidaYPrenada();
+    if (tipo === 'PARTO') await crearPartoDirecto({ ...t.base, fecha: '2026-11-01' });
+    else await crearSecadoDirecto({ ...t.base, fecha: '2026-11-01' });
+    return t;
+  }
+
+  it.each([
+    ['PARTO', 'Primero tenés que anular el parto del 01/11/2026'],
+    ['SECADO', 'Primero tenés que anular el secado del 01/11/2026'],
+  ] as const)('dueño: con un %s posterior, el mensaje dice qué anular primero', async (tipo, mensaje) => {
+    const { agente, servicio, tacto } = await vacaConUltimo(tipo);
+    expect((await anularTacto(agente, tacto.id).expect(409)).body.error).toBe(mensaje);
+    expect((await anularServicio(agente, servicio.id).expect(409)).body.error).toBe(mensaje);
+  });
+
+  it.each([
+    ['PARTO', 'Primero hay que anular el parto del 01/11/2026; lo tiene que hacer un dueño o encargado'],
+    ['SECADO', 'Primero hay que anular el secado del 01/11/2026; lo tiene que hacer un dueño o encargado'],
+  ] as const)('veterinario: con un %s posterior, el mensaje dice que lo tiene que hacer un dueño o encargado', async (tipo, mensaje) => {
+    const { agente, servicio, tacto } = await vacaConUltimo(tipo);
+    const vet = await crearUsuario(agente, 'VETERINARIO', 'vet@prueba.test');
+    expect((await anularTacto(vet, tacto.id).expect(409)).body.error).toBe(mensaje);
+    expect((await anularServicio(vet, servicio.id).expect(409)).body.error).toBe(mensaje);
+    expect((await prisma.evento.findUniqueOrThrow({ where: { id: tacto.id } })).anuladoEn).toBeNull();
+  });
+
+  it('veterinario: si el que hay que anular primero es un servicio o tacto, mantiene el mensaje de la 003', async () => {
+    const { agente, servicio } = await vacaServidaYPrenada();
+    const vet = await crearUsuario(agente, 'VETERINARIO', 'vet@prueba.test');
+    expect((await anularServicio(vet, servicio.id).expect(409)).body.error).toBe('Primero tenés que anular el tacto del 01/05/2026');
+  });
+
+  it('la respuesta de anular un servicio o un tacto sigue siendo el evento a secas (sin avisos)', async () => {
+    const { agente, tacto } = await vacaServidaYPrenada();
+    const res = await anularTacto(agente, tacto.id).expect(200);
+    expect(res.body).toMatchObject({ id: tacto.id, tipo: 'TACTO' });
+    expect(res.body.avisos).toBeUndefined();
   });
 });
 
