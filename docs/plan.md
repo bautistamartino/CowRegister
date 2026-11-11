@@ -18,6 +18,9 @@ Objetivo: un dueño registra su tambo, inicia sesión, crea sus lotes, carga sus
 ## Etapa 2 — Reproducción
 Servicios, tactos con fecha probable de parto, partos con alta del ternero, secados.
 
+- [x] 2.1 Semen, servicios y tactos (spec [003-reproduccion](../specs/003-reproduccion/spec.md)): catálogo de semen y toros, situación reproductiva, anulación del último evento
+- [ ] 2.2 Partos y secados (spec 004, en sesión nueva; depende de la 003)
+
 ## Etapa 3 — Reglas y bajas
 Movimiento automático entre lotes según el estado; bajas por venta o muerte.
 

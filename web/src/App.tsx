@@ -6,6 +6,7 @@ import { Login } from './paginas/Login';
 import { Registro } from './paginas/Registro';
 import { Inicio } from './paginas/Inicio';
 import { Lotes } from './paginas/Lotes';
+import { SemenToros } from './paginas/SemenToros';
 import { Animales } from './paginas/Animales';
 import { AnimalNuevo } from './paginas/AnimalNuevo';
 import { AnimalFicha } from './paginas/AnimalFicha';
@@ -23,6 +24,7 @@ export function App() {
           <Route element={<RutaPrivada><Layout /></RutaPrivada>}>
             <Route index element={<Inicio />} />
             <Route path="lotes" element={<Lotes />} />
+            <Route path="semen" element={<SemenToros />} />
             <Route path="animales" element={<Animales />} />
             {/* "nuevo" va antes que ":id" (React Router igual prioriza la ruta fija). */}
             <Route path="animales/nuevo" element={<AnimalNuevo />} />

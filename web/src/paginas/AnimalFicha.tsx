@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import { api, ApiError, type AnimalFicha as Ficha, type EstadoAnimal } from '../api';
+import { Reproduccion } from '../componentes/Reproduccion';
 import { NOMBRE_ESTADO, NOMBRE_SEXO, formatearFecha } from '../animales';
 
 // Ficha de un animal, solo lectura (RF-28, RF-29).
@@ -126,10 +127,15 @@ export function AnimalFicha() {
         </div>
       </dl>
 
-      <section className="seccion">
-        <h2>Historial</h2>
-        <p className="subtitulo">Todavía no hay eventos registrados</p>
-      </section>
+      {/* Hembras: situación reproductiva, formularios e historial. Machos: sin acciones reproductivas. */}
+      {ficha.sexo === 'HEMBRA' ? (
+        <Reproduccion animalId={ficha.id} sexo={ficha.sexo} estado={ficha.estado} />
+      ) : (
+        <section className="seccion">
+          <h2>Historial</h2>
+          <p className="subtitulo">Todavía no hay eventos registrados</p>
+        </section>
+      )}
 
       <p>
         <Link to="/animales" className="enlace-fila">

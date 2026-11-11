@@ -7,11 +7,21 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
 - **Etapa 1 — Base del sistema** (ver [docs/plan.md](docs/plan.md))
   - Hecho: 1.0 preparación, 1.1 esqueleto, 1.2 base de datos, 1.3 login y seguridad, 1.4 lotes y destino de cada estado (spec [001-lotes](specs/001-lotes/spec.md)), 1.5 animales y 1.6 buscador (spec [002-animales-buscador](specs/002-animales-buscador/spec.md)): alta manual, carga desde planilla con vista previa, listado, ficha y buscador por número.
   - 1.7 cierre (2026-11-11): 275 tests y typecheck en verde; las ramas apiladas se juntaron en `main`. Falta que el usuario cree el repositorio en GitHub y haga el primer `git push` (los agentes no hacen push).
-- **Siguiente: Etapa 2 — Reproducción** con `/sdd` (servicios, tactos con fecha probable de parto, partos con alta del ternero, secados), en una sesión nueva. Antes de la Etapa 3 hace falta una spec chica de **editar animal y mover de lote a mano** (la ficha es solo lectura).
+- **Etapa 2 — Reproducción** (en curso)
+  - Hecho: 2.1 semen, servicios y tactos (spec [003-reproduccion](specs/003-reproduccion/spec.md)): catálogo "Semen y toros", servicios, tactos con fecha probable de parto, situación reproductiva en la ficha y anulación del último evento (con motivo, sin borrar).
+  - **Siguiente: 2.2 partos y secados (spec 004)** con `/sdd`, en una sesión nueva. Depende de la 003: la 004 cambia solo `cicloActual` y `estadoReproductivo` en `api/src/reproduccion/situacion.ts` (un parto reinicia el ciclo). Antes de la Etapa 3 hace falta una spec chica de **editar animal y mover de lote a mano** (la ficha es solo lectura).
 - Hay una API de gestión de usuarios (`/api/usuarios`) **sin pantalla** todavía.
 
 ## Decisiones
 
+- **2026-11-11 — Reproducción (spec 003):**
+  - **Eventos en dos capas:** `Evento` (común: animal, tipo, fecha, quién y cuándo, anulación) más un detalle por tipo (`Servicio`, `Tacto`), unidos por clave compuesta (establecimientoId, eventoId, tipo) para que el detalle no cuelgue de un evento de otro tipo o de otro tambo. La 004 suma `Parto` y `Secado` de la misma forma.
+  - **Orden total por fecha y `creadoEn`:** a igual fecha manda el momento de registro, y `creadoEn` es único por animal (índice único; `siguienteRegistro` lo asegura creciente). Riesgo para el modo sin conexión (Etapa 6): relojes de distintos dispositivos pueden desordenar eventos del mismo día; habrá que revisarlo ahí.
+  - **Bloqueo `SELECT ... FOR UPDATE` sobre el animal** en cada registro y anulación: dos pedidos simultáneos sobre la misma vaca se serializan y las reglas (preñez vigente, solo anular el último) se evalúan sobre datos estables.
+  - **La situación reproductiva y la fecha probable se calculan al leer** (funciones puras en `api/src/reproduccion/`), nunca se guardan: al anular un evento se rehace sola. Un evento solo se anula, no se edita ni se borra.
+  - **Reloj inyectable** (`api/src/reloj.ts`): los tests fijan la hora de Argentina para probar "fecha futura" y la fecha probable vencida.
+  - **CHECK e índices hechos a mano** en la migración `reproduccion_base` (índice único sobre `lower(nombre)` del semen, CHECK de nombre, raza, fecha mínima 2000, anulación completa, tipo constante y fecha probable solo en "preñada"). `migrate diff` debe dar vacío y no proponer `DROP` de esto.
+  - **Web:** con una preñez vigente no se ofrece "Registrar servicio" (se explica que primero va un tacto "vacía"); solo se ofrece "Anular" en el último evento no anulado. Los tres roles pueden registrar y anular servicios y tactos; el catálogo lo modifican dueño y encargado.
 - **2026-11-11 — Animales y buscador (spec 002):**
   - `animales` → `lotes` y madre → animal con claves foráneas compuestas (establecimientoId, id) y `ON DELETE RESTRICT`: un animal nunca apunta a un lote o madre de otro tambo, y no se borra un lote con animales ni una madre con crías. Para eso `Animal` tiene `@@unique([establecimientoId, id])`.
   - `DELETE /api/lotes/:id` primero desasigna a los animales dados de baja y después borra; un lote con animales activos sigue dando 409. Con esto queda resuelto el riesgo del lote en paralelo (alta y borrado simultáneos: la base lo impide).

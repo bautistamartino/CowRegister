@@ -151,3 +151,37 @@ export type ResultadoPlanilla = {
   quedaronAfuera: { fila: number; motivo: string }[];
   sinLotePorEstado: SinLotePorEstado[];
 };
+
+// ─── Semen y toros, servicios y tactos (spec 003) ───
+
+// Un elemento de GET /api/semen (y de POST/PATCH).
+export type SemenToro = { id: string; nombre: string; raza: string | null; activo: boolean };
+
+export type TipoServicio = 'INSEMINACION' | 'MONTA_NATURAL';
+export type ResultadoTacto = 'PRENADA' | 'VACIA';
+export type EstadoReproductivo = 'SIN_SERVICIO' | 'SERVIDA' | 'PRENADA' | 'VACIA';
+
+// Un evento de GET /api/animales/:id/eventos (del más reciente al más antiguo).
+// Los detalles que no corresponden al tipo vienen en null.
+export type EventoReproductivo = {
+  id: string;
+  tipo: 'SERVICIO' | 'TACTO';
+  fecha: string; // AAAA-MM-DD
+  registradoPor: string;
+  registradoEn: string;
+  anulacion: { motivo: string | null; por: string | null; en: string } | null;
+  servicio: { tipoServicio: TipoServicio; semen: { id: string; nombre: string } | null } | null;
+  tacto: { resultado: ResultadoTacto; fechaProbableIndicada: string | null; fechaProbable: string | null; anomalias: string | null } | null;
+};
+
+export type SituacionReproductiva = {
+  estado: EstadoReproductivo;
+  ultimoServicio: { id: string; fecha: string; tipoServicio: TipoServicio | null; semen: { id: string; nombre: string } | null } | null;
+  ultimoTacto: { id: string; fecha: string; resultado: ResultadoTacto | null; anomalias: string | null } | null;
+  // `dias` es positivo si faltan y negativo si ya pasó la fecha.
+  fechaProbableParto: { fecha: string; dias: number; vencida: boolean } | null;
+  fechaReferencia: { fecha: string; dias: number } | null;
+};
+
+// Machos: situacion null y lista vacía.
+export type RespuestaEventos = { situacion: SituacionReproductiva | null; eventos: EventoReproductivo[] };
