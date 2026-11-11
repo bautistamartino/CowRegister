@@ -14,7 +14,7 @@ Plan: [plan.md](plan.md) · Spec: [spec.md](spec.md)
   - RF: RF-18
   - Hecho cuando: los tests comprueban que un tambo recién registrado tiene los 4 lotes con sus 4 reglas y que, si la creación del dueño falla (email repetido), no queda establecimiento, lotes ni reglas; `auth.test.ts` sigue en verde.
 
-- [ ] **T4** — Migración de datos `lotes_iniciales_existentes`: un solo bloque `DO $$ … $$` entre los marcadores `-- INICIO lotes iniciales` y `-- FIN lotes iniciales`, que completa solo los estados sin destino reutilizando o creando el lote. Tests primero en `lotes-iniciales.test.ts`, ejecutando el bloque leído del archivo.
+- [x] **T4** — Migración de datos `lotes_iniciales_existentes`: un solo bloque `DO $$ … $$` entre los marcadores `-- INICIO lotes iniciales` y `-- FIN lotes iniciales`, que completa solo los estados sin destino reutilizando o creando el lote. Tests primero en `lotes-iniciales.test.ts`, ejecutando el bloque leído del archivo.
   - RF: RF-19
   - Hecho cuando: el test confirma que un tambo sin reglas recibe los 4 lotes y destinos, que un lote propio "  terneros" se reutiliza sin duplicarse y que una SECA apuntando a "Secas viejas" queda igual y no se crea "Secas"; la migración se aplica sin errores sobre la base de desarrollo.
 
