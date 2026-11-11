@@ -26,6 +26,15 @@ async function dosTambos() {
 const cantidadAnimales = () => prisma.animal.count();
 
 describe('permisos y validación del cuerpo', () => {
+  it('con JSON mal formado: veterinario 403 y sin sesión 401, no 400 (RF-40)', async () => {
+    const { agente } = await registrarTambo();
+    const vet = await crearUsuario(agente, 'VETERINARIO', 'vet@prueba.test');
+    for (const ruta of [VISTA_PREVIA, CONFIRMAR]) {
+      await vet.post(ruta).set('Content-Type', 'application/json').send('{mal').expect(403);
+      await request(app).post(ruta).set('Content-Type', 'application/json').send('{mal').expect(401);
+    }
+  });
+
   it('sin sesión responde 401', async () => {
     await request(app).post(VISTA_PREVIA).send({ texto: 'x' }).expect(401);
     await request(app).post(CONFIRMAR).send({ texto: 'x' }).expect(401);

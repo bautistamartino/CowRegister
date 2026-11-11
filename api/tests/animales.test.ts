@@ -197,6 +197,13 @@ describe('POST /api/animales: alta (RF-1 a RF-9)', () => {
     await vet.post('/api/animales').expect(403);
     expect(await prisma.animal.count()).toBe(0);
   });
+
+  it('con JSON mal formado: veterinario 403 y sin sesión 401, no 400 (RF-40)', async () => {
+    const { agente } = await registrarTambo();
+    const vet = await crearUsuario(agente, 'VETERINARIO', 'vet@prueba.test');
+    await vet.post('/api/animales').set('Content-Type', 'application/json').send('{mal').expect(403);
+    await request(app).post('/api/animales').set('Content-Type', 'application/json').send('{mal').expect(401);
+  });
 });
 
 describe('GET /api/animales: listado (RF-23 a RF-26)', () => {
