@@ -162,13 +162,18 @@ h1 {
   background: var(--primario-hover);
 }
 
+.boton:focus-visible,
+.boton-secundario:focus-visible {
+  outline: 2px solid var(--primario);
+  outline-offset: 2px;
+}
+
 .boton:disabled {
   opacity: 0.6;
   cursor: wait;
 }
 
 .boton-secundario {
-  min-height: 40px;
   border: 1px solid var(--borde);
   background: transparent;
   color: var(--texto);
@@ -176,25 +181,89 @@ h1 {
 
 /* ─── Pantallas internas ─── */
 
-.barra {
+/* Menú: barra superior común a las pantallas privadas (componentes/Layout.tsx).
+   Con espacio se ve en una fila; en celular (375 px) pasa a dos: arriba los nombres
+   y abajo la navegación y "Cerrar sesión". Lo hace flex-wrap, sin media queries. */
+.menu {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
   flex-wrap: wrap;
-  padding: 0.75rem 1.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 1rem;
   background: var(--superficie);
   border-bottom: 1px solid var(--borde);
 }
 
-.barra-usuario {
+.menu-identidad {
+  /* Crece y ocupa lo que sobra; si no entran 16rem junto a las acciones, baja de fila.
+     min-width: 0 deja que se achique por debajo del ancho del texto (si no, el
+     nombre largo empujaría todo hacia afuera en vez de recortarse). */
+  flex: 1 1 16rem;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
+}
+
+.menu-usuario {
+  display: flex;
+  min-width: 0;
   color: var(--texto-suave);
 }
 
+.menu-rol {
+  flex-shrink: 0; /* el rol siempre se ve completo; se recorta el nombre */
+  white-space: pre;
+}
+
+/* Texto en una sola línea que, si no entra, termina en "…" (RF-30). */
+.recortado {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.menu-acciones {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.menu-nav {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.menu-enlace {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 1rem;
+  border-radius: var(--radio);
+  color: var(--texto);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.menu-enlace:hover {
+  background: var(--fondo);
+}
+
+.menu-enlace:focus-visible {
+  outline: 2px solid var(--primario);
+  outline-offset: 2px;
+}
+
+/* Sección actual (RF-24): NavLink pone aria-current="page"; se marca con el color
+   principal y una línea abajo, así no depende solo del color. */
+.menu-enlace[aria-current='page'] {
+  color: var(--primario);
+  box-shadow: inset 0 -3px 0 var(--primario);
+}
+
 .contenido {
+  overflow-wrap: anywhere; /* palabras muy largas (nombres de 100 letras) no desbordan */
   max-width: 1000px;
   margin: 0 auto;
   padding: 1.5rem 1rem;

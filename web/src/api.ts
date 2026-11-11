@@ -10,6 +10,25 @@ export class ApiError extends Error {
   }
 }
 
+// ─── Sesión vencida (RF-29) ───
+// Si la sesión vence (o se borra) mientras el usuario usa la app, la API responde 401
+// a cualquier pedido. En vez de revisar eso en cada pantalla, este módulo avisa a una
+// única función registrada (la registra AuthProvider, que saca al usuario al login).
+let manejadorSesionVencida: (() => void) | null = null;
+
+// Registra la función a llamar cuando la sesión vence. Devuelve otra función que la
+// des-registra (sirve como "limpieza" de un useEffect).
+export function alVencerSesion(fn: () => void): () => void {
+  manejadorSesionVencida = fn;
+  return () => {
+    if (manejadorSesionVencida === fn) manejadorSesionVencida = null;
+  };
+}
+
+// En estas rutas un 401 es una respuesta normal, no una sesión vencida:
+// /auth/yo responde 401 al abrir la app sin sesión y /auth/login con datos incorrectos.
+const rutasSin401Global = ['/auth/yo', '/auth/login'];
+
 export async function api<T>(ruta: string, opciones: { method?: string; body?: unknown } = {}): Promise<T> {
   let res: Response;
   try {
@@ -27,6 +46,7 @@ export async function api<T>(ruta: string, opciones: { method?: string; body?: u
 
   const datos = await res.json().catch(() => null);
   if (!res.ok) {
+    if (res.status === 401 && !rutasSin401Global.includes(ruta)) manejadorSesionVencida?.();
     throw new ApiError(res.status, datos?.error ?? `Error ${res.status}`, datos?.detalles ?? []);
   }
   return datos as T;

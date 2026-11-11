@@ -1,33 +1,15 @@
 import { useAuth } from '../auth';
-import type { Rol } from '../api';
 
-const nombresRol: Record<Rol, string> = {
-  DUENO: 'Dueño',
-  ENCARGADO: 'Encargado',
-  VETERINARIO: 'Veterinario',
-};
-
+// Pantalla de bienvenida. La barra con el menú la pone el Layout.
 export function Inicio() {
-  const { usuario, logout } = useAuth();
+  const { usuario } = useAuth();
   if (!usuario) return null;
 
   return (
-    <>
-      <header className="barra">
-        <strong>{usuario.establecimiento.nombre}</strong>
-        <div className="barra-usuario">
-          <span>
-            {usuario.nombre} · {nombresRol[usuario.rol]}
-          </span>
-          <button className="boton-secundario" onClick={logout}>
-            Cerrar sesión 
-          </button>
-        </div>
-      </header>
-      <main className="contenido">
-        <h1>¡Hola, {usuario.nombre}!</h1>
-        <p>Acá van a aparecer los lotes, los animales y el buscador (próximos pasos de la Etapa 1).</p>
-      </main>
-    </>
+    <main className="contenido">
+      <h1>¡Hola, {usuario.nombre}!</h1>
+      <p>Desde el menú podés ir a Lotes para armar los lotes del tambo y elegir a cuál va cada animal según su estado.</p>
+      <p>Los animales y el buscador llegan en los próximos pasos de la Etapa 1.</p>
+    </main>
   );
 }

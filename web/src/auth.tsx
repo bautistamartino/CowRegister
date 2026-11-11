@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { api, ApiError, type Perfil } from './api';
+import { alVencerSesion, api, ApiError, type Perfil } from './api';
 
 // Contexto de autenticación: guarda quién está logueado y lo comparte con toda la app.
 
@@ -18,6 +18,10 @@ const AuthContext = createContext<Auth | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Perfil | null>(null);
   const [cargando, setCargando] = useState(true);
+
+  // Si cualquier pedido a la API responde 401 (sesión vencida o borrada), se olvida al
+  // usuario: RutaPrivada lo detecta y lo lleva al login (RF-29).
+  useEffect(() => alVencerSesion(() => setUsuario(null)), []);
 
   // Al abrir la app, pregunta a la API si ya hay una sesión activa (cookie).
   useEffect(() => {
