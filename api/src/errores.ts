@@ -30,9 +30,14 @@ export const manejarErrores: ErrorRequestHandler = (err, _req, res, _next) => {
   }
 
   if (err instanceof ZodError) {
+    // Los errores de un campo van en "detalles" (la web los muestra debajo de cada campo).
+    // Los de todo el pedido (sin campo, por ejemplo "Indicá el nombre o la descripción
+    // a cambiar") van como mensaje principal, porque no hay un campo donde mostrarlos.
+    const deCampo = err.issues.filter((i) => i.path.length > 0);
+    const generales = err.issues.filter((i) => i.path.length === 0);
     res.status(400).json({
-      error: 'Datos inválidos',
-      detalles: err.issues.map((i) => ({ campo: i.path.join('.'), mensaje: i.message })),
+      error: generales[0]?.message ?? 'Datos inválidos',
+      detalles: deCampo.map((i) => ({ campo: i.path.join('.'), mensaje: i.message })),
     });
     return;
   }

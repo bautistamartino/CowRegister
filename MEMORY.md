@@ -32,6 +32,8 @@ Las ramas de la Etapa 1 están apiladas y todavía no existe `main`: `setup/estr
 
 ## Riesgos pendientes
 
+- **Paso 1.5 (animales), sugerido por el revisor en la spec 001:** en `DELETE /api/lotes/:id` (`api/src/rutas/lotes.ts`), el conteo de animales activos y el borrado no se bloquean entre sí (READ COMMITTED). Cuando exista la API de animales, un animal asignado en paralelo podría quedar con `loteId` null. Resolverlo en el plan de 1.5 (por ejemplo, `SELECT … FOR UPDATE` sobre el lote en el DELETE y en la asignación de animales).
+
 - **Etapa 3 (bajas):** agregar `CHECK (estado <> 'BAJA' OR "loteId" IS NULL)` en `animales` junto con las bajas. Hoy la spec 001 asume que un animal dado de baja no tiene lote, pero la base no lo garantiza.
 
 ## Pendiente de definir con el responsable

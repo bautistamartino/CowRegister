@@ -289,6 +289,19 @@ function TarjetaLote({
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
+  // Si cambian los animales o los destinos del lote (por ejemplo, se le quitó el destino
+  // que impedía eliminarlo), el error anterior de la tarjeta ya no vale: se borra.
+  const firma = `${lote.cantidadAnimales}|${lote.destinoDe.join(',')}`;
+  useEffect(() => {
+    setError(null);
+  }, [firma]);
+
+  // 404: otro usuario eliminó el lote mientras esta pantalla estaba abierta (RF-32).
+  // Se recarga la lista para que la tarjeta desaparezca en vez de quedar con un error.
+  function fueEliminadoPorOtro(err: unknown) {
+    return err instanceof ApiError && err.status === 404;
+  }
+
   async function guardar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const datos = new FormData(e.currentTarget);
@@ -305,6 +318,10 @@ function TarjetaLote({
       setEditando(false);
       await alCambiar();
     } catch (err) {
+      if (fueEliminadoPorOtro(err)) {
+        await alCambiar();
+        return;
+      }
       const { campos, general } = interpretarError(err);
       setErrores(campos);
       setError(general);
@@ -323,6 +340,11 @@ function TarjetaLote({
       await api(`/lotes/${lote.id}`, { method: 'DELETE' });
       await alCambiar(); // la tarjeta desaparece al recargar la lista
     } catch (err) {
+      if (fueEliminadoPorOtro(err)) {
+        await alCambiar();
+        setOcupado(false); // por si la recarga falló y la tarjeta sigue en pantalla
+        return;
+      }
       // 409: la API explica el motivo ("El lote tiene 3 animales y es destino de En ordeñe").
       setError(err instanceof ApiError ? err.message : 'No se pudo eliminar el lote');
       setOcupado(false);

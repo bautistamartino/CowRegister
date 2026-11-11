@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+// Mensajes por defecto de zod en español (constitución §2). Cubren los casos sin
+// mensaje propio, por ejemplo un cuerpo que es un array en vez de un objeto.
+// Se configura acá porque todas las rutas que validan importan este archivo.
+z.config(z.locales.es());
+
 // Reglas de validación compartidas por varias rutas.
 
 export const emailSchema = z
