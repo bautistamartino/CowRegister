@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, ApiError, type EstadoAnimal, type EventoReproductivo, type RespuestaEventos, type SemenToro, type Sexo } from '../api';
 import { formatearFecha } from '../animales';
-import { hoyIso, NOMBRE_ESTADO_REPRODUCTIVO, resumenEvento, textoDias } from '../reproduccion';
+import {
+  fechaArgentinaIso,
+  FECHA_MINIMA,
+  hoyIso,
+  NOMBRE_ESTADO_REPRODUCTIVO,
+  NOMBRE_TIPO_SERVICIO,
+  resumenEvento,
+  sumarDiasIso,
+  textoDias,
+} from '../reproduccion';
 import { Campo } from './Campo';
 
 type Props = { animalId: string; sexo: Sexo; estado: EstadoAnimal };
@@ -79,14 +88,14 @@ export function Reproduccion({ animalId, sexo, estado }: Props) {
             <dt>Situación</dt>
             <dd>{NOMBRE_ESTADO_REPRODUCTIVO[situacion.estado]}</dd>
           </div>
-          {situacion.fechaProbableParto && (
-            <div>
-              <dt>Parto probable</dt>
-              <dd>
-                {formatearFecha(situacion.fechaProbableParto.fecha)} · {textoDias(situacion.fechaProbableParto.dias)}
-              </dd>
-            </div>
-          )}
+          <div>
+            <dt>Parto probable</dt>
+            <dd className={situacion.fechaProbableParto ? undefined : 'texto-suave'}>
+              {situacion.fechaProbableParto
+                ? `${formatearFecha(situacion.fechaProbableParto.fecha)} · ${textoDias(situacion.fechaProbableParto.dias)}`
+                : 'sin dato'}
+            </dd>
+          </div>
           {situacion.fechaReferencia && (
             <div>
               <dt>Fecha de referencia (servicio + 283 días)</dt>
@@ -98,13 +107,21 @@ export function Reproduccion({ animalId, sexo, estado }: Props) {
           <div>
             <dt>Último servicio</dt>
             <dd className={situacion.ultimoServicio ? undefined : 'texto-suave'}>
-              {situacion.ultimoServicio ? formatearFecha(situacion.ultimoServicio.fecha) : 'sin dato'}
+              {situacion.ultimoServicio
+                ? `${formatearFecha(situacion.ultimoServicio.fecha)} · ${
+                    situacion.ultimoServicio.tipoServicio ? NOMBRE_TIPO_SERVICIO[situacion.ultimoServicio.tipoServicio] : 'sin dato'
+                  } · ${situacion.ultimoServicio.semen ? situacion.ultimoServicio.semen.nombre : 'No especificado'}`
+                : 'sin dato'}
             </dd>
           </div>
           <div>
             <dt>Último tacto</dt>
             <dd className={situacion.ultimoTacto ? undefined : 'texto-suave'}>
-              {situacion.ultimoTacto ? formatearFecha(situacion.ultimoTacto.fecha) : 'sin dato'}
+              {situacion.ultimoTacto
+                ? `${formatearFecha(situacion.ultimoTacto.fecha)} · ${
+                    situacion.ultimoTacto.resultado === 'PRENADA' ? 'Preñada' : situacion.ultimoTacto.resultado === 'VACIA' ? 'Vacía' : 'sin dato'
+                  }`
+                : 'sin dato'}
             </dd>
           </div>
         </dl>
@@ -203,7 +220,7 @@ function FormServicio({ animalId, alCancelar, alRegistrar }: { animalId: string;
           {error}
         </div>
       )}
-      <Campo etiqueta="Fecha" name="fecha" id="servicio-fecha" type="date" required defaultValue={hoyIso()} error={errores.fecha} />
+      <Campo etiqueta="Fecha" name="fecha" id="servicio-fecha" type="date" required defaultValue={hoyIso()} min={FECHA_MINIMA} max={hoyIso()} error={errores.fecha} />
       <div className="campo">
         <label htmlFor="servicio-tipo">Tipo</label>
         <select id="servicio-tipo" name="tipo" defaultValue="INSEMINACION" aria-invalid={!!errores.tipo}>
@@ -241,6 +258,8 @@ function FormServicio({ animalId, alCancelar, alRegistrar }: { animalId: string;
 
 function FormTacto({ animalId, alCancelar, alRegistrar }: { animalId: string; alCancelar: () => void; alRegistrar: () => Promise<void> }) {
   const [resultado, setResultado] = useState<'PRENADA' | 'VACIA'>('PRENADA');
+  // Fecha del tacto elegida: acota la fecha probable (RF-14: posterior al tacto, hasta 283 días después).
+  const [fechaTacto, setFechaTacto] = useState(hoyIso());
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -279,7 +298,18 @@ function FormTacto({ animalId, alCancelar, alRegistrar }: { animalId: string; al
           {error}
         </div>
       )}
-      <Campo etiqueta="Fecha" name="fecha" id="tacto-fecha" type="date" required defaultValue={hoyIso()} error={errores.fecha} />
+      <Campo
+        etiqueta="Fecha"
+        name="fecha"
+        id="tacto-fecha"
+        type="date"
+        required
+        defaultValue={hoyIso()}
+        min={FECHA_MINIMA}
+        max={hoyIso()}
+        onChange={(e) => setFechaTacto(e.target.value)}
+        error={errores.fecha}
+      />
       <div className="campo">
         <label htmlFor="tacto-resultado">Resultado</label>
         <select id="tacto-resultado" value={resultado} onChange={(e) => setResultado(e.target.value as 'PRENADA' | 'VACIA')}>
@@ -294,6 +324,8 @@ function FormTacto({ animalId, alCancelar, alRegistrar }: { animalId: string; al
           name="fechaProbableParto"
           id="tacto-probable"
           type="date"
+          min={fechaTacto ? sumarDiasIso(fechaTacto, 1) : undefined}
+          max={fechaTacto ? sumarDiasIso(fechaTacto, 283) : undefined}
           ayuda="Si la dejás vacía se calcula desde el último servicio (283 días). Si no hay servicio, es obligatoria."
           error={errores.fechaProbableParto}
         />
@@ -350,7 +382,7 @@ function FilaEvento({ evento, anulable, alAnular }: { evento: EventoReproductivo
       <p className="texto-suave">Registrado por {evento.registradoPor}</p>
       {evento.anulacion && (
         <p className="texto-suave">
-          Anulado por {evento.anulacion.por ?? 'sin dato'} el {formatearFecha(evento.anulacion.en.slice(0, 10))}. Motivo: {evento.anulacion.motivo}
+          Anulado por {evento.anulacion.por ?? 'sin dato'} el {formatearFecha(fechaArgentinaIso(new Date(evento.anulacion.en)))}. Motivo: {evento.anulacion.motivo}
         </p>
       )}
       {error && !anulando && (

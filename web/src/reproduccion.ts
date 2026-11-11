@@ -23,12 +23,26 @@ export function textoDias(dias: number): string {
   return dias > 0 ? `faltan ${d}` : `venció hace ${d}`;
 }
 
-// Fecha de hoy de este dispositivo como AAAA-MM-DD (valor inicial de los formularios).
-// La API es la que valida de verdad contra la hora de Argentina.
+const ZONA = 'America/Argentina/Buenos_Aires';
+
+// AAAA-MM-DD de un instante en hora de Argentina (el locale en-CA ya da ese formato).
+export function fechaArgentinaIso(d: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: ZONA, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+
+// Hoy en Argentina como AAAA-MM-DD (valor inicial y tope de los formularios).
+// La API es la que valida de verdad.
 export function hoyIso(): string {
-  const h = new Date();
-  const dos = (n: number) => String(n).padStart(2, '0');
-  return `${h.getFullYear()}-${dos(h.getMonth() + 1)}-${dos(h.getDate())}`;
+  return fechaArgentinaIso(new Date());
+}
+
+// Cota mínima de las fechas de servicio y tacto (RF de validación de la spec).
+export const FECHA_MINIMA = '2000-01-01';
+
+// Suma días a una fecha AAAA-MM-DD (en UTC, sin corrimientos de zona).
+export function sumarDiasIso(iso: string, dias: number): string {
+  const [a, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10);
 }
 
 // Resumen de una línea de un evento para la lista.
