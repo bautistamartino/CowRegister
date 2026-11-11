@@ -5,6 +5,7 @@ import { HttpError, manejarErrores } from './errores.js';
 import { rutasAuth } from './rutas/auth.js';
 import { rutasUsuarios } from './rutas/usuarios.js';
 import { rutasLotes } from './rutas/lotes.js';
+import { rutasReglasLote } from './rutas/reglas-lote.js';
 
 // Crea la aplicación Express sin levantar el servidor.
 // Separarlo de index.ts permite testear la API sin abrir un puerto.
@@ -23,6 +24,7 @@ export function createApp() {
   app.use('/api/auth', rutasAuth);
   app.use('/api/usuarios', rutasUsuarios);
   app.use('/api/lotes', rutasLotes);
+  app.use('/api/reglas-lote', rutasReglasLote);
 
   // Cualquier otra ruta de la API no existe.
   app.use('/api', () => {

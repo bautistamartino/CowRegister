@@ -26,7 +26,7 @@ Plan: [plan.md](plan.md) · Spec: [spec.md](spec.md)
   - RF: RF-3, RF-6, RF-7 a RF-9, RF-20 a RF-22, RF-27, RF-31, RF-32
   - Hecho cuando: pasan los tests de renombrar (a otro nombre existente da 409; a sí mismo o cambiando solo las mayúsculas da 200), borrar la descripción, eliminar sin animales o con solo animales dados de baja (204), bloqueo con "El lote tiene 3 animales", "El lote es destino de En ordeñe" y los dos motivos juntos, PATCH y DELETE sobre un lote ya eliminado (404), aislamiento entre dos tambos en editar y eliminar, y veterinario con 403 también con un id de otro tambo.
 
-- [ ] **T7** — API de destinos: `api/src/rutas/reglas-lote.ts` con GET, PUT `/:estado` y DELETE `/:estado`, montada en `app.ts`. Tests primero en `api/tests/reglas-lote.test.ts`.
+- [x] **T7** — API de destinos: `api/src/rutas/reglas-lote.ts` con GET, PUT `/:estado` y DELETE `/:estado`, montada en `app.ts`. Tests primero en `api/tests/reglas-lote.test.ts`.
   - RF: RF-11 a RF-17, RF-20 a RF-22, RF-31
   - Hecho cuando: pasan los tests de los 4 estados siempre presentes, reemplazo del destino, PUT repetido sin cambios, quitar destino (también repetido), un lote destino de dos estados, BAJA (400), `loteId` de otro tambo, inexistente, mal formado o recién eliminado (404), aislamiento entre dos tambos en listar, configurar y quitar, y veterinario con 403; `npm test` y `npm run typecheck` completos en verde.
 
