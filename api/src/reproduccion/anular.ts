@@ -4,7 +4,7 @@ import { fechaADate, hoyArgentina } from '../animales/reglas.js';
 import type { EstadoAnimal, Rol } from '../generated/prisma/client.js';
 import { NOMBRE_ESTADO } from '../lotes/estados.js';
 import { ahora } from '../reloj.js';
-import { avisoLoteAnteriorEliminado, avisoSinLotePrevio, type Aviso } from './avisos.js';
+import { avisoLoteAnteriorEliminado, avisoLoteManualDescartado, avisoSinLotePrevio, type Aviso } from './avisos.js';
 import { bloquearAnimal } from './bloqueo.js';
 import { eventoPorId, leerEventos, textoEvento } from './eventos.js';
 import { ultimoNoAnulado } from './situacion.js';
@@ -29,7 +29,7 @@ const nombreEstado = (estado: EstadoAnimal) => NOMBRE_ESTADO[estado].toLowerCase
  * Un secado devuelve la vaca al estado y lote previos; un parto además da de baja a las crías
  * vivas. Todo en una sola transacción: se guarda completo o no se guarda nada.
  *
- * Devuelve el evento ya armado y los avisos (solo los de lote al volver atrás: 6 y 7).
+ * Devuelve el evento ya armado y los avisos (solo los de lote al volver atrás: 6, 7 y 8).
  */
 export async function anularEvento(datos: {
   tipo: TipoAnulable;
@@ -85,8 +85,7 @@ export async function anularEvento(datos: {
       // 5. Vuelta atrás y baja de las crías (solo parto y secado).
       const avisos: Aviso[] = [];
       if (tipo === 'PARTO' || tipo === 'SECADO') {
-        const aviso = await volverAtras(tx, { tipo, id, establecimientoId, animalId: evento.animalId, fechaEvento: fila.fecha });
-        if (aviso) avisos.push(aviso);
+        avisos.push(...(await volverAtras(tx, { tipo, id, establecimientoId, animalId: evento.animalId, fechaEvento: fila.fecha })));
       }
 
       // 6. Se completa la anulación. El filtro `anuladoEn: null` es una defensa extra: si
@@ -108,13 +107,14 @@ type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 /**
  * Deja a la vaca como estaba justo antes del parto o secado (estado y lote) y, en un parto,
- * da de baja a las crías vivas. Devuelve el aviso 6 o 7 si la vaca vuelve sin lote.
+ * da de baja a las crías vivas. Devuelve el aviso 6 o 7 si la vaca vuelve sin lote y, al final, el
+ * aviso 8 si se descarta un lote puesto a mano después del evento (spec 005, RF-13).
  * El animal de la vaca ya está bloqueado (FOR UPDATE) por el llamador.
  */
 async function volverAtras(
   tx: Tx,
   d: { tipo: 'PARTO' | 'SECADO'; id: string; establecimientoId: string; animalId: string; fechaEvento: string },
-): Promise<Aviso | null> {
+): Promise<Aviso[]> {
   const { tipo, id, establecimientoId, animalId, fechaEvento } = d;
   // `leerEventos` no trae el id crudo del lote previo ni si lo había: se relee el detalle.
   const detalle =
@@ -129,7 +129,7 @@ async function volverAtras(
   // Lote previo: se toma con FOR SHARE para que nadie lo elimine entre esta lectura y el guardado.
   // Si ya no existe (la base anuló `loteAnteriorId` al eliminarlo), la vaca vuelve sin lote.
   let loteId: string | null = null;
-  let aviso: Aviso | null = null;
+  const avisos: Aviso[] = [];
   if (detalle.loteAnteriorId) {
     const filas = await tx.$queryRaw<{ id: string }[]>`
       SELECT "id" FROM "lotes"
@@ -138,9 +138,29 @@ async function volverAtras(
     if (filas.length > 0) loteId = filas[0]!.id;
   }
   if (!loteId) {
-    aviso = detalle.tuvoLoteAnterior
-      ? avisoLoteAnteriorEliminado(detalle.estadoAnterior)
-      : avisoSinLotePrevio(detalle.estadoAnterior, tipo === 'PARTO' ? 'parto' : 'secado', fechaEvento);
+    avisos.push(
+      detalle.tuvoLoteAnterior
+        ? avisoLoteAnteriorEliminado(detalle.estadoAnterior)
+        : avisoSinLotePrevio(detalle.estadoAnterior, tipo === 'PARTO' ? 'parto' : 'secado', fechaEvento),
+    );
+  }
+
+  // Aviso 8 (spec 005, RF-13): si después del evento hubo un movimiento manual de lote y el lote
+  // actual de la vaca es distinto del que va a recibir, ese lote manual se descarta y se avisa.
+  // "Después" se mide con el `creadoEn` del evento y el de la fila LOTE del historial (que nunca es
+  // anterior al último evento del animal). Va al final, después de los avisos 6 y 7.
+  const [eventoAnulado, actual] = await Promise.all([
+    tx.evento.findUniqueOrThrow({ where: { id }, select: { creadoEn: true } }),
+    tx.animal.findUniqueOrThrow({ where: { id: animalId }, select: { loteId: true } }),
+  ]);
+  if (actual.loteId !== loteId) {
+    const hubo = await tx.cambioAnimal.count({
+      where: { animalId, establecimientoId, campo: 'LOTE', creadoEn: { gt: eventoAnulado.creadoEn } },
+    });
+    if (hubo > 0) {
+      const previo = loteId ? await tx.lote.findUnique({ where: { id: loteId }, select: { nombre: true } }) : null;
+      avisos.push(avisoLoteManualDescartado(previo?.nombre ?? null, tipo === 'PARTO' ? 'parto' : 'secado', fechaEvento));
+    }
   }
 
   await tx.animal.update({
@@ -156,7 +176,7 @@ async function volverAtras(
       data: { estado: 'BAJA', fechaBaja: fechaADate(hoyArgentina(ahora())), motivoBaja: 'PARTO_ANULADO', loteId: null },
     });
   }
-  return aviso;
+  return avisos;
 }
 
 /**

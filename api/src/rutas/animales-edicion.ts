@@ -13,6 +13,7 @@ import {
 } from '../animales/edicion.js';
 import { ahora } from '../reloj.js';
 import { siguienteRegistro } from '../reproduccion/bloqueo.js';
+import { bloquearLoteDestino, MENSAJE_LOTE_DESAPARECIO } from '../animales/mover.js';
 import { leerFicha } from './animales.js';
 
 // Editar un animal y leer su historial de cambios manuales (spec 005).
@@ -185,6 +186,94 @@ rutasAnimalesEdicion.patch('/:id', soloEdicion, async (req, res) => {
     // El índice único de número entre activos es la garantía final cuando dos ediciones (o una
     // edición y un alta o parto) simultáneas buscan el mismo número.
     if (esErrorPrisma(err, 'P2002')) throw new HttpError(409, 'Ya existe un animal activo con ese número');
+    throw err;
+  }
+
+  const ficha = await leerFicha(prisma, animalId, establecimientoId);
+  if (!ficha) throw new HttpError(404, NO_ENCONTRADO);
+  res.json(ficha);
+});
+
+// PATCH /api/animales/:id/lote — mueve el animal a otro lote o lo deja sin lote (RF-9 a RF-14).
+// Cuerpo: { loteId: uuid | null }. No toca el estado. Devuelve la ficha actualizada.
+// Orden: formato 400 → animal 404 → lote 404 → [transacción] mismo lote 400 → lote desaparecido 409.
+rutasAnimalesEdicion.patch('/:id/lote', soloEdicion, async (req, res) => {
+  const { establecimientoId, id: usuarioId, nombre: usuarioNombre } = usuarioActual(req);
+
+  // 1) Formato (400): solo se admite `loteId` (string o null); `establecimientoId` se ignora.
+  const cuerpo: unknown = req.body;
+  if (typeof cuerpo !== 'object' || cuerpo === null || Array.isArray(cuerpo)) {
+    throw new HttpError(400, 'El pedido tiene que ser un objeto con el lote');
+  }
+  const c = cuerpo as Record<string, unknown>;
+  for (const clave of Object.keys(c)) {
+    if (clave === 'loteId' || clave === 'establecimientoId') continue;
+    if (clave === 'estado') throw new HttpError(400, 'El estado no se cambia a mano: lo cambian los eventos');
+    throw new HttpError(400, `El dato «${clave}» no se puede editar`);
+  }
+  if (!('loteId' in c)) throw new HttpError(400, 'Falta indicar el lote (o null para dejar al animal sin lote)');
+  if (c.loteId !== null && typeof c.loteId !== 'string') {
+    throw new HttpError(400, 'El lote tiene que ser un identificador o null');
+  }
+  const loteId = c.loteId;
+  const animalId = idAnimal(req.params.id);
+
+  // 2) Búsquedas sin bloqueo (404). Lote ajeno, inexistente y mal formado dan el mismo 404.
+  const animal = await prisma.animal.findFirst({
+    where: { id: animalId, establecimientoId, estado: { not: 'BAJA' } },
+    select: { id: true },
+  });
+  if (!animal) throw new HttpError(404, NO_ENCONTRADO);
+  if (loteId !== null) {
+    const idLote = z.uuid().safeParse(loteId);
+    const lote = idLote.success
+      ? await prisma.lote.findFirst({ where: { id: idLote.data, establecimientoId }, select: { id: true } })
+      : null;
+    if (!lote) throw new HttpError(404, 'Lote no encontrado');
+  }
+
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        // 3) El animal, bloqueado y releído (puede haber cambiado de lote o de baja mientras tanto).
+        const filas = await tx.$queryRaw<{ loteId: string | null; loteNombre: string | null }[]>`
+          SELECT a."loteId"::text AS "loteId", l."nombre" AS "loteNombre"
+          FROM "animales" a LEFT JOIN "lotes" l ON l."id" = a."loteId"
+          WHERE a."id" = ${animalId}::uuid AND a."establecimientoId" = ${establecimientoId}::uuid
+            AND a."estado" <> 'BAJA'
+          FOR UPDATE OF a`;
+        const actual = filas[0];
+        if (!actual) throw new HttpError(404, NO_ENCONTRADO);
+
+        // 4) Mismo lote (400), antes del conflicto del lote desaparecido (409).
+        if (actual.loteId === loteId) {
+          throw new HttpError(400, loteId === null ? 'El animal ya está sin lote' : 'El animal ya está en ese lote');
+        }
+
+        // 5) El lote destino, con FOR SHARE: si ya no existe, 409 sin guardar nada.
+        const destino = loteId === null ? null : await bloquearLoteDestino(tx, establecimientoId, loteId);
+
+        // 6) Escritura: el animal y su fila de historial (con el nombre copiado), todo junto.
+        await tx.animal.update({ where: { id: animalId }, data: { loteId: destino ? destino.id : null } });
+        await tx.cambioAnimal.create({
+          data: {
+            establecimientoId,
+            animalId,
+            campo: 'LOTE',
+            valorAnterior: actual.loteNombre,
+            valorNuevo: destino ? destino.nombre : null,
+            usuarioId,
+            usuarioNombre,
+            // Nunca anterior al último evento del animal: así "movimiento posterior al evento" es confiable (RF-13).
+            creadoEn: await siguienteRegistro(tx, animalId),
+          },
+        });
+      },
+      { timeout: 15_000 },
+    );
+  } catch (err) {
+    // La clave foránea (ON DELETE RESTRICT) es la garantía final si alguien elimina el lote justo ahora.
+    if (esErrorPrisma(err, 'P2003')) throw new HttpError(409, MENSAJE_LOTE_DESAPARECIO);
     throw err;
   }
 

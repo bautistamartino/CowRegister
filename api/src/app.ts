@@ -48,7 +48,7 @@ export function createApp() {
   app.post(['/api/partos/:id/anular', '/api/secados/:id/anular'], requiereSesion, requiereRol('DUENO', 'ENCARGADO'));
   // Editar un animal (spec 005, RF-19): solo dueño y encargado; el veterinario recibe 403 y sin sesión 401
   // aunque el JSON venga roto. Leer el historial (GET) lo hacen los tres roles y no tiene cuerpo.
-  app.patch('/api/animales/:id', requiereSesion, requiereRol('DUENO', 'ENCARGADO'));
+  app.patch(['/api/animales/:id', '/api/animales/:id/lote'], requiereSesion, requiereRol('DUENO', 'ENCARGADO'));
   // La carga desde planilla recibe un texto de hasta 100.000 caracteres: con las tabulaciones y los
   // saltos de línea escapados en el JSON puede pasar los 100 kb. Este parser de 1 MB va ANTES del
   // global y solo para esas dos rutas (Express no vuelve a leer un cuerpo ya leído); el límite de
