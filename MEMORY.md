@@ -6,7 +6,7 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
 
 - **Etapa 1 — Base del sistema** (ver [docs/plan.md](docs/plan.md))
   - Hecho: 1.0 preparación, 1.1 esqueleto, 1.2 base de datos, 1.3 login y seguridad, 1.4 lotes y destino de cada estado (spec [001-lotes](specs/001-lotes/spec.md)), 1.5 animales y 1.6 buscador (spec [002-animales-buscador](specs/002-animales-buscador/spec.md)): alta manual, carga desde planilla con vista previa, listado, ficha y buscador por número.
-  - 1.7 cierre (2026-11-11): 275 tests y typecheck en verde; las ramas apiladas se juntaron en `main`. Falta que el usuario cree el repositorio en GitHub y haga el primer `git push` (los agentes no hacen push).
+  - 1.7 cierre (2026-11-11): 275 tests y typecheck en verde; las ramas apiladas se juntaron en `main`. El repositorio está en GitHub (`origin`, rama `main`); el usuario hace los `git push` (los agentes no).
 - **Etapa 2 — Reproducción** (en curso)
   - Hecho: 2.1 semen, servicios y tactos (spec [003-reproduccion](specs/003-reproduccion/spec.md)): catálogo "Semen y toros", servicios, tactos con fecha probable de parto, situación reproductiva en la ficha y anulación del último evento (con motivo, sin borrar).
   - Hecho: 2.2 partos, crías y secados (spec [004-partos-secados](specs/004-partos-secados/spec.md)): registro y anulación de partos y secados (dueño y encargado), alta de las crías vivas, genética de la cría, lote previo, avisos de la lista cerrada y reinicio del ciclo reproductivo. Anular un parto da de baja a las crías vivas (`PARTO_ANULADO`).
