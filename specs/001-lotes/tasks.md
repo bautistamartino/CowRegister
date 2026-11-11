@@ -10,7 +10,7 @@ Plan: [plan.md](plan.md) · Spec: [spec.md](spec.md)
   - RF: RF-4, RF-5, RF-27
   - Hecho cuando: `validacion.test.ts` pasa con espacios y tabulaciones en los extremos, espacios internos repetidos, nombre vacío o de solo espacios, 50 y 51 caracteres con ñ/é, forma descompuesta y descripción vacía o de 201 caracteres.
 
-- [ ] **T3** — Lotes iniciales en el registro: `api/src/lotes/estados.ts`, `api/src/lotes/iniciales.ts` (`crearLotesIniciales`) y `api/src/auth/registro.ts` (`crearTamboConDueno`: establecimiento, lotes, reglas y por último el dueño, en una sola transacción); la ruta de registro pasa a usarlo. Tests primero en `api/tests/lotes-iniciales.test.ts`.
+- [x] **T3** — Lotes iniciales en el registro: `api/src/lotes/estados.ts`, `api/src/lotes/iniciales.ts` (`crearLotesIniciales`) y `api/src/auth/registro.ts` (`crearTamboConDueno`: establecimiento, lotes, reglas y por último el dueño, en una sola transacción); la ruta de registro pasa a usarlo. Tests primero en `api/tests/lotes-iniciales.test.ts`.
   - RF: RF-18
   - Hecho cuando: los tests comprueban que un tambo recién registrado tiene los 4 lotes con sus 4 reglas y que, si la creación del dueño falla (email repetido), no queda establecimiento, lotes ni reglas; `auth.test.ts` sigue en verde.
 

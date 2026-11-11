@@ -7,6 +7,7 @@ import { emailSchema, nombreSchema, passwordSchema } from '../validacion.js';
 import { hashearPassword, verificarPassword, verificarPasswordFalso } from '../auth/password.js';
 import { COOKIE_SESION, cerrarSesion, iniciarSesion } from '../auth/sesiones.js';
 import { requiereSesion, usuarioActual } from '../auth/middleware.js';
+import { crearTamboConDueno } from '../auth/registro.js';
 
 export const rutasAuth = Router();
 
@@ -41,20 +42,12 @@ rutasAuth.post('/registro', limiteIntentos, async (req, res) => {
 
   const passwordHash = await hashearPassword(datos.password);
 
-  // Transacción: se crean los dos registros o ninguno.
-  const usuario = await prisma.$transaction(async (tx) => {
-    const establecimiento = await tx.establecimiento.create({
-      data: { nombre: datos.nombreEstablecimiento },
-    });
-    return tx.usuario.create({
-      data: {
-        establecimientoId: establecimiento.id,
-        nombre: datos.nombre,
-        email: datos.email,
-        passwordHash,
-        rol: 'DUENO',
-      },
-    });
+  // Tambo, lotes iniciales con sus destinos y dueño: todo o nada (RF-18).
+  const usuario = await crearTamboConDueno({
+    nombreEstablecimiento: datos.nombreEstablecimiento,
+    nombre: datos.nombre,
+    email: datos.email,
+    passwordHash,
   });
 
   await iniciarSesion(res, usuario.id);
