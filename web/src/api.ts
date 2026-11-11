@@ -83,3 +83,43 @@ export type ReglaLote = {
   estado: EstadoConDestino;
   lote: { id: string; nombre: string } | null;
 };
+
+// ─── Animales (spec 002) ───
+
+export type EstadoAnimal = EstadoConDestino | 'BAJA';
+export type Sexo = 'HEMBRA' | 'MACHO';
+
+// Un elemento de GET /api/animales.
+export type Animal = {
+  id: string;
+  numero: string;
+  sexo: Sexo;
+  estado: EstadoAnimal;
+  lote: { nombre: string } | null;
+};
+
+// Respuesta de GET /api/animales: `truncado` es true si hay más de los que se muestran.
+export type ListadoAnimales = {
+  total: number;
+  mostrados: number;
+  truncado: boolean;
+  animales: Animal[];
+};
+
+// Respuesta de POST /api/animales. `avisoSinLote` viene cuando el estado no tiene lote destino.
+export type AltaAnimal = {
+  animal: { id: string; numero: string; sexo: Sexo; estado: EstadoAnimal; fechaNacimiento: string | null; lote: { nombre: string } | null };
+  avisoSinLote: { estado: EstadoAnimal } | null;
+};
+
+// Respuesta de GET /api/animales/:id. Las fechas vienen como AAAA-MM-DD.
+export type AnimalFicha = {
+  id: string;
+  numero: string;
+  sexo: Sexo;
+  estado: EstadoAnimal;
+  fechaNacimiento: string | null;
+  lote: { nombre: string } | null;
+  madre: { id: string; numero: string; activa: boolean } | null;
+  crias: { id: string; numero: string }[];
+};

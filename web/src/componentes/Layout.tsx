@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router';
 import { useAuth } from '../auth';
 import { ApiError, type Rol } from '../api';
+import { Buscador } from './Buscador';
 
 const nombresRol: Record<Rol, string> = {
   DUENO: 'Dueño',
@@ -55,11 +56,17 @@ export function Layout() {
             <NavLink to="/lotes" className="menu-enlace">
               Lotes
             </NavLink>
+            <NavLink to="/animales" className="menu-enlace">
+              Animales
+            </NavLink>
           </nav>
           <button type="button" className="boton-secundario" onClick={cerrarSesion}>
             Cerrar sesión
           </button>
         </div>
+
+        {/* Buscador por número: en todas las pantallas con sesión (RF-31). */}
+        <Buscador />
       </header>
 
       {error && (

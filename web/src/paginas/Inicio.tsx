@@ -1,6 +1,6 @@
 import { useAuth } from '../auth';
 
-// Pantalla de bienvenida. La barra con el menú la pone el Layout.
+// Pantalla de bienvenida. La barra con el menú y el buscador la pone el Layout.
 export function Inicio() {
   const { usuario } = useAuth();
   if (!usuario) return null;
@@ -8,8 +8,11 @@ export function Inicio() {
   return (
     <main className="contenido">
       <h1>¡Hola, {usuario.nombre}!</h1>
-      <p>Desde el menú podés ir a Lotes para armar los lotes del tambo y elegir a cuál va cada animal según su estado.</p>
-      <p>Los animales y el buscador llegan en los próximos pasos de la Etapa 1.</p>
+      <p>
+        Para abrir la ficha de un animal, escribí su número en el buscador de arriba y apretá Enter (o leé la caravana
+        con el bastón).
+      </p>
+      <p>Desde el menú podés ir a Animales para ver el rodeo o a Lotes para armar los lotes del tambo.</p>
     </main>
   );
 }

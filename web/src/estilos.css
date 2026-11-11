@@ -409,3 +409,160 @@ h1 {
   margin-top: auto;
   padding-top: 0.5rem;
 }
+
+/* ─── Buscador (componentes/Buscador.tsx) ─── */
+
+/* Ocupa una fila completa de la barra: siempre visible, también en celular (RF-31). */
+.buscador {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.buscador-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.buscador-form input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0.75rem 0.9rem;
+  font: inherit;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo);
+  color: var(--texto);
+}
+
+.buscador-form input:focus {
+  outline: 2px solid var(--primario);
+  outline-offset: 1px;
+}
+
+/* Sin aviso, el contenedor no ocupa lugar. */
+.buscador-aviso:empty {
+  display: none;
+}
+
+.buscador-aviso p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.5rem;
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.buscador-aviso a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+}
+
+.buscador-error {
+  color: var(--error);
+}
+
+/* ─── Animales: listado, alta y ficha ─── */
+
+.encabezado-pantalla {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* Un enlace con aspecto de botón. */
+.enlace-boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 1rem;
+}
+
+.formulario-ancho {
+  max-width: 32rem;
+}
+
+/* La tabla se desplaza dentro de su contenedor; la página no (RF-41). */
+.tabla-contenedor {
+  overflow-x: auto;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tabla th,
+.tabla td {
+  padding: 0 1rem;
+  height: 48px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--borde);
+}
+
+.tabla th {
+  color: var(--texto-suave);
+  font-weight: 600;
+}
+
+.tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Enlaces de número: el área clickeable llega a 48 px de alto. */
+.enlace-fila {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  font-weight: 600;
+}
+
+.lista-enlaces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+}
+
+.ficha {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 1rem;
+}
+
+.ficha > div {
+  min-width: 0;
+  padding: 0.75rem 1rem;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+
+.ficha dt {
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+}
+
+.ficha dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
