@@ -2,7 +2,7 @@
 name: revisor
 description: SDD - revisa una spec de CowRegister como QA (clarificación) y valida la implementación RF por RF, sin modificar ningún archivo.
 tools: Read, Glob, Grep, Bash, mcp__Claude_Browser__*
-model: inherit
+model: sonnet
 color: orange
 hooks:
   PreToolUse:

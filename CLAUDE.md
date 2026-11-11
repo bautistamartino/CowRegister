@@ -51,3 +51,13 @@ Requisitos completos: [docs/requerimientos.md](docs/requerimientos.md) · Plan p
 ## Forma de trabajar con el usuario
 
 El usuario es estudiante de tecnicatura y este es su primer proyecto completo: explicar qué se hace y por qué antes de implementar, en español rioplatense, y planificar antes de escribir código.
+
+### Uso eficiente (pedido del usuario, 2026-11-10)
+
+- **Claude decide y recomienda el camino** antes de empezar cualquier pedido, en una línea:
+  - `/sdd` solo para funcionalidades grandes: entidades nuevas, reglas del negocio, cambios en la base o varias pantallas (por ejemplo: animales, reproducción, bajas, informes).
+  - `/feature` o trabajo directo para lo chico: textos, estilos, bugs acotados, ajustes en un par de archivos.
+- **Máximo 5 tareas por spec**, agrupando lo que va junto. Cada tarea es un subagente que relee el proyecto.
+- **Una sesión por spec o tarea grande.** Al terminar: todo commiteado y `MEMORY.md` al día; después el usuario abre una sesión nueva o usa `/clear`. El contexto vive en `CLAUDE.md`, `MEMORY.md`, `docs/` y `specs/`.
+- Los subagentes usan Sonnet. Verificar en el navegador solo en tareas visuales, y en un solo ancho si el cambio es chico.
+- No relanzar revisores en paralelo salvo que el usuario lo pida.

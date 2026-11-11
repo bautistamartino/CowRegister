@@ -97,4 +97,4 @@ Pantallas y componentes, y cómo se ven en tablet.
 - [ ] **T2** — …
 ```
 
-Máximo 10 tareas, en orden, cada una chica y verificable.
+Máximo 5 tareas, en orden y verificables. Agrupar lo que va junto (base de datos, API de una entidad, interfaz, cierre dentro de la última).

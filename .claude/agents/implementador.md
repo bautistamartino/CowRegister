@@ -2,7 +2,7 @@
 name: implementador
 description: SDD - implementa UNA tarea de un plan aprobado de CowRegister, con tests primero, y verifica los cambios visuales en el navegador.
 disallowedTools: WebFetch, WebSearch, Agent
-model: inherit
+model: sonnet
 color: green
 ---
 
