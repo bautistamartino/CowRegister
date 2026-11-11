@@ -104,6 +104,12 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal }: Props)
     await Promise.all([recargar(), alCambiarAnimal()]);
   }
 
+  // Si la anulación falla (404/409) se relee todo pero sin cartel de éxito ni avisos.
+  async function refrescarTrasError() {
+    setResultado(null);
+    await Promise.all([recargar(), alCambiarAnimal()]);
+  }
+
   // Anulación: tras anular un parto o secado cambian estado, lote y crías de la madre, así que
   // se relee la ficha. Los avisos 6 y 7 (lote previo) se muestran en la misma caja de resultado.
   async function alAnularEvento(tipo: EventoReproductivo['tipo'], avisos: Aviso[]) {
@@ -258,7 +264,7 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal }: Props)
         ) : (
           <ul className="lista-eventos">
             {eventos.map((e) => (
-              <FilaEvento key={e.id} evento={e} anulable={e.id === ultimoAnulable} alAnular={(avisos) => alAnularEvento(e.tipo, avisos)} />
+              <FilaEvento key={e.id} evento={e} anulable={e.id === ultimoAnulable} alAnular={(avisos) => alAnularEvento(e.tipo, avisos)} alRefrescar={refrescarTrasError} />
             ))}
           </ul>
         )}
@@ -440,10 +446,13 @@ function FilaEvento({
   evento,
   anulable,
   alAnular,
+  alRefrescar,
 }: {
   evento: EventoReproductivo;
   anulable: boolean;
   alAnular: (avisos: Aviso[]) => Promise<void>;
+  // Solo relee eventos y ficha, sin cartel de éxito (se usa cuando la anulación falla).
+  alRefrescar: () => Promise<void>;
 }) {
   const [anulando, setAnulando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -468,7 +477,7 @@ function FilaEvento({
       setError(r.general);
       setEnviando(false);
       // Si ya la anuló otro o cambió el último evento, se refresca para mostrar lo real.
-      if (err instanceof ApiError && (err.status === 404 || err.status === 409)) await alAnular([]);
+      if (err instanceof ApiError && (err.status === 404 || err.status === 409)) await alRefrescar();
     }
   }
 
@@ -491,7 +500,7 @@ function FilaEvento({
           Anulado por {evento.anulacion.por ?? 'sin dato'} el {formatearFecha(fechaArgentinaIso(new Date(evento.anulacion.en)))}. Motivo: {evento.anulacion.motivo}
         </p>
       )}
-      {error && !anulando && (
+      {error && !(anulable && anulando) && (
         <div className="alerta" role="alert">
           {error}
         </div>
