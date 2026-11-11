@@ -35,3 +35,18 @@ export async function iniciarSesion(email: string, password = PASSWORD) {
   await agente.post('/api/auth/login').send({ email, password }).expect(200);
   return agente;
 }
+
+// El dueño (agenteDueño) crea un usuario de su tambo con POST /api/usuarios y
+// devuelve el agente de ese usuario ya logueado. Sirve para probar los permisos
+// de encargado y veterinario.
+export async function crearUsuario(
+  agenteDueño: ReturnType<typeof request.agent>,
+  rol: 'DUENO' | 'ENCARGADO' | 'VETERINARIO',
+  email: string,
+) {
+  await agenteDueño
+    .post('/api/usuarios')
+    .send({ nombre: `Usuario ${rol}`, email, password: PASSWORD, rol })
+    .expect(201);
+  return iniciarSesion(email);
+}

@@ -12,6 +12,15 @@ export class HttpError extends Error {
   }
 }
 
+// ¿El error es uno conocido de Prisma con este código? Por ejemplo:
+// - P2002: violación de un índice único (nombre de lote repetido).
+// - P2003: violación de una clave foránea.
+// Sirve para traducir esos errores a mensajes concretos en cada ruta,
+// en vez del mensaje genérico del manejador central.
+export function esErrorPrisma(err: unknown, codigo: string): err is Prisma.PrismaClientKnownRequestError {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === codigo;
+}
+
 // Manejador central de errores: convierte cualquier error en una respuesta JSON.
 // Express 5 envía acá también los errores de funciones async.
 export const manejarErrores: ErrorRequestHandler = (err, _req, res, _next) => {

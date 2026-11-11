@@ -18,7 +18,7 @@ Plan: [plan.md](plan.md) · Spec: [spec.md](spec.md)
   - RF: RF-19
   - Hecho cuando: el test confirma que un tambo sin reglas recibe los 4 lotes y destinos, que un lote propio "  terneros" se reutiliza sin duplicarse y que una SECA apuntando a "Secas viejas" queda igual y no se crea "Secas"; la migración se aplica sin errores sobre la base de desarrollo.
 
-- [ ] **T5** — API de lectura y alta de lotes: `api/src/rutas/lotes.ts` con GET lista, GET por id y POST, montada en `app.ts`; helper `esErrorPrisma` en `errores.ts` y `crearUsuario` en `tests/ayudas.ts`. Tests primero en `api/tests/lotes.test.ts`.
+- [x] **T5** — API de lectura y alta de lotes: `api/src/rutas/lotes.ts` con GET lista, GET por id y POST, montada en `app.ts`; helper `esErrorPrisma` en `errores.ts` y `crearUsuario` en `tests/ayudas.ts`. Tests primero en `api/tests/lotes.test.ts`.
   - RF: RF-1, RF-2, RF-4 a RF-6, RF-20 a RF-22, RF-27
   - Hecho cuando: pasan los tests de orden sin mayúsculas, cantidad de animales activos (no cuenta BAJA), `destinoDe`, alta con y sin descripción, nombre repetido (409), dos tambos con el mismo nombre, aislamiento entre dos tambos en listar, ver y crear (incluido un `establecimientoId` enviado por el cliente, que se ignora), 404 con id mal formado, y veterinario con 200 al listar y 403 al crear.
 
