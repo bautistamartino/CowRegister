@@ -14,6 +14,11 @@ export function createApp() {
   const app = express();
 
   app.use(helmet()); // cabeceras HTTP de seguridad
+  // La carga desde planilla recibe un texto de hasta 100.000 caracteres: con las tabulaciones y los
+  // saltos de línea escapados en el JSON puede pasar los 100 kb. Este parser de 1 MB va ANTES del
+  // global y solo para esas dos rutas (Express no vuelve a leer un cuerpo ya leído); el límite de
+  // la spec (100.000 caracteres) lo aplica el código con su mensaje en español.
+  app.use('/api/animales/planilla', express.json({ limit: '1mb' }));
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
 

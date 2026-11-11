@@ -6,6 +6,7 @@ import { normalizarNumero, numeroSchema } from '../validacion.js';
 import { requiereRol, requiereSesion, usuarioActual } from '../auth/middleware.js';
 import { ESTADOS_INICIALES, hoyArgentina, puedeTenerEstado, validarFechaNacimiento, fechaADate } from '../animales/reglas.js';
 import { compararNumeros } from '../animales/orden.js';
+import { analizarTexto, confirmarPlanilla, filaPublica } from '../animales/carga.js';
 
 // Animales del tambo (spec 002). Todos los usuarios pueden consultar; solo dueño y
 // encargado pueden dar de alta (RF-40). Toda consulta se filtra por el
@@ -121,6 +122,30 @@ rutasAnimales.post('/', soloCarga, async (req, res) => {
     if (esErrorPrisma(err, 'P2003')) throw new HttpError(409, 'El lote destino ya no existe, volvé a intentar');
     throw err;
   }
+});
+
+// Cuerpo de la carga desde planilla: el texto pegado, tal cual.
+const planillaSchema = z.object({ texto: z.string({ error: 'El texto de la planilla es obligatorio' }) });
+
+// POST /api/animales/planilla/vista-previa — analiza el texto y NO guarda nada (RF-11, RF-20).
+// `soloCarga` va antes de leer el cuerpo: el veterinario recibe 403 aunque los datos sean inválidos (RF-40).
+// Se declara antes de /:id (que es solo GET) por claridad.
+rutasAnimales.post('/planilla/vista-previa', soloCarga, async (req, res) => {
+  const { establecimientoId } = usuarioActual(req);
+  const { texto } = planillaSchema.parse(req.body);
+  const { filas, sinLotePorEstado } = await analizarTexto(texto, establecimientoId);
+  const correctas = filas.filter((f) => f.ok).length;
+  res.json({
+    filas: filas.map(filaPublica),
+    resumen: { total: filas.length, correctas, conError: filas.length - correctas, sinLotePorEstado },
+  });
+});
+
+// POST /api/animales/planilla/confirmar — revalida el texto crudo y guarda las filas correctas (RF-18, RF-19, RF-21).
+rutasAnimales.post('/planilla/confirmar', soloCarga, async (req, res) => {
+  const { establecimientoId } = usuarioActual(req);
+  const { texto } = planillaSchema.parse(req.body);
+  res.json(await confirmarPlanilla(texto, establecimientoId));
 });
 
 // GET /api/animales?estado=&loteId= — activos del tambo (RF-23 a RF-26).

@@ -54,6 +54,12 @@ export const manejarErrores: ErrorRequestHandler = (err, _req, res, _next) => {
     return;
   }
 
+  // Cuerpo del pedido más grande que el límite del parser (100 kb en general, 1 MB en la planilla)
+  if (err?.type === 'entity.too.large') {
+    res.status(413).json({ error: 'El pedido es demasiado grande' });
+    return;
+  }
+
   // Error inesperado: se registra en el servidor pero no se muestran detalles al cliente.
   console.error(err);
   res.status(500).json({ error: 'Error interno del servidor' });
