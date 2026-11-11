@@ -6,7 +6,7 @@ Plan: [plan.md](plan.md) · Spec: [spec.md](spec.md)
   - RF: RF-6, RF-9, RF-16, RF-17, RF-31
   - Hecho cuando: `base-lotes.test.ts` pasa (falla insertar "Secas"/"secas", una regla BAJA, una regla hacia un lote de otro tambo y una regla hacia un lote inexistente, y falla borrar un lote que es destino); `prisma migrate diff` desde las migraciones hasta el schema no propone ningún `DROP` de lo agregado a mano; `npm run typecheck` sin errores.
 
-- [ ] **T2** — Normalización y validación: `normalizarNombre`, `nombreLoteSchema` (1 a 50 caracteres contados en code points después de NFC) y `descripcionLoteSchema` (hasta 200; vacía pasa a `null`) en `api/src/validacion.ts`, con `api/tests/validacion.test.ts` escrito primero.
+- [x] **T2** — Normalización y validación: `normalizarNombre`, `nombreLoteSchema` (1 a 50 caracteres contados en code points después de NFC) y `descripcionLoteSchema` (hasta 200; vacía pasa a `null`) en `api/src/validacion.ts`, con `api/tests/validacion.test.ts` escrito primero.
   - RF: RF-4, RF-5, RF-27
   - Hecho cuando: `validacion.test.ts` pasa con espacios y tabulaciones en los extremos, espacios internos repetidos, nombre vacío o de solo espacios, 50 y 51 caracteres con ñ/é, forma descompuesta y descripción vacía o de 201 caracteres.
 
