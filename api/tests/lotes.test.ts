@@ -429,9 +429,49 @@ describe('DELETE /api/lotes/:id (RF-7 a RF-9, RF-31, RF-32)', () => {
     const animal = await crearAnimal(perfil.establecimiento.id, creado.body.id, '900', 'BAJA');
 
     await agente.delete(`/api/lotes/${creado.body.id}`).expect(204);
-    // El historial no se pierde: el animal sigue, solo sin lote (ON DELETE SET NULL).
+    // El historial no se pierde: el animal sigue, solo sin lote (la API lo desasigna antes de borrar el lote).
     const guardado = await prisma.animal.findUniqueOrThrow({ where: { id: animal.id } });
     expect(guardado.loteId).toBeNull();
+  });
+
+  it('con animales activos y dados de baja a la vez, no borra nada y da 409 (RF-7, RF-8)', async () => {
+    const { agente, perfil } = await registrarTambo();
+    const creado = await agente.post('/api/lotes').send({ nombre: 'Recría' }).expect(201);
+    const baja = await crearAnimal(perfil.establecimiento.id, creado.body.id, '900', 'BAJA');
+    await crearAnimal(perfil.establecimiento.id, creado.body.id, '1');
+
+    await agente.delete(`/api/lotes/${creado.body.id}`).expect(409);
+    // La baja conserva su lote: no se desasignó nada porque el DELETE se frenó antes.
+    expect((await prisma.animal.findUniqueOrThrow({ where: { id: baja.id } })).loteId).toBe(creado.body.id);
+  });
+
+  it('alta y DELETE simultáneos del mismo lote: nunca queda un animal con lote inexistente (RF-10)', async () => {
+    const { agente, perfil } = await registrarTambo();
+    const tamboId = perfil.establecimiento.id;
+
+    for (let i = 0; i < 8; i++) {
+      const creado = await agente.post('/api/lotes').send({ nombre: `Carrera ${i}` }).expect(201);
+      const loteId: string = creado.body.id;
+      const numero = `C${i}`;
+
+      // Los dos pedidos salen a la vez: gana uno y la base garantiza el resultado.
+      const [alta, borrado] = await Promise.allSettled([
+        crearAnimal(tamboId, loteId, numero),
+        agente.delete(`/api/lotes/${loteId}`),
+      ]);
+
+      const lote = await prisma.lote.findUnique({ where: { id: loteId } });
+      const animal = await prisma.animal.findFirst({ where: { establecimientoId: tamboId, numero } });
+      if (lote) {
+        // El lote sigue: el animal ganó y el DELETE tiene que haber dado 409.
+        expect(animal?.loteId).toBe(loteId);
+        expect(borrado.status === 'fulfilled' && borrado.value.status).toBe(409);
+      } else {
+        // El lote se eliminó: el alta tiene que haber fallado y no quedó el animal.
+        expect(alta.status).toBe('rejected');
+        expect(animal).toBeNull();
+      }
+    }
   });
 
   it('con 3 animales activos da 409 "El lote tiene 3 animales" (RF-8)', async () => {

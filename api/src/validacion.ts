@@ -82,3 +82,47 @@ export const descripcionLoteSchema = z
   .refine((texto) => texto === null || largo(texto) <= MAX_DESCRIPCION_LOTE, {
     error: `La descripción no puede superar los ${MAX_DESCRIPCION_LOTE} caracteres`,
   });
+
+// ---------------------------------------------------------------------------
+// Número de animal (RF-2, RF-34)
+// ---------------------------------------------------------------------------
+
+const MAX_NUMERO = 20;
+
+// Solo letras ASCII, dígitos, guion y punto, de 1 a 20 caracteres.
+const FORMATO_NUMERO = /^[A-Za-z0-9.-]+$/;
+
+/**
+ * Normaliza el número de un animal (caravana / botón) o devuelve `null` si no es válido.
+ * 1) Quita los extremos con `trim()` (espacios, tabulaciones, saltos de línea y
+ *    espacios Unicode como el de no separación).
+ * 2) Valida los caracteres sobre el texto ORIGINAL, antes de pasar a mayúsculas:
+ *    `toUpperCase()` convierte "ß" en "SS" y "ı" en "I", y esas letras entrarían
+ *    como válidas por error.
+ * 3) Recién entonces pasa a mayúsculas. El resultado es lo que se guarda y se busca.
+ */
+export function normalizarNumero(texto: string): string | null {
+  const limpio = texto.trim();
+  if (limpio.length < 1 || limpio.length > MAX_NUMERO) return null;
+  if (!FORMATO_NUMERO.test(limpio)) return null;
+  return limpio.toUpperCase();
+}
+
+// Como normalizarNumero, pero con un mensaje distinto para cada problema.
+// Devuelve el número ya normalizado.
+export const numeroSchema = z
+  .string({ error: 'El número del animal es obligatorio' })
+  .transform((texto) => texto.trim())
+  .pipe(
+    z
+      .string()
+      .refine((n) => n.length >= 1, { error: 'El número del animal es obligatorio', abort: true })
+      .refine((n) => n.length <= MAX_NUMERO, {
+        error: `El número del animal no puede superar los ${MAX_NUMERO} caracteres`,
+        abort: true,
+      })
+      .refine((n) => FORMATO_NUMERO.test(n), {
+        error: 'El número solo puede tener letras sin tildes, números, guion y punto (sin espacios)',
+      }),
+  )
+  .transform((n) => n.toUpperCase());

@@ -146,10 +146,17 @@ model Animal {
   actualizadoEn     DateTime     @updatedAt
 
   establecimiento Establecimiento @relation(fields: [establecimientoId], references: [id])
-  lote            Lote?           @relation(fields: [loteId], references: [id])
-  madre           Animal?         @relation("MadreCrias", fields: [madreId], references: [id])
+  // Claves foráneas compuestas: el lote y la madre tienen que ser del mismo tambo.
+  // Con loteId / madreId nulos no se controlan (un animal sin lote o sin madre es válido).
+  // Restrict: no se borra un lote con animales ni se borra una madre con crías.
+  lote            Lote?           @relation(fields: [establecimientoId, loteId], references: [establecimientoId, id], onDelete: Restrict)
+  madre           Animal?         @relation("MadreCrias", fields: [establecimientoId, madreId], references: [establecimientoId, id], onDelete: Restrict)
   crias           Animal[]        @relation("MadreCrias")
 
+  // Destino de la clave foránea compuesta de la madre (igual que en Lote).
+  @@unique([establecimientoId, id])
+  // Además, a mano en la migración animales_restricciones: CHECK de número
+  // normalizado (animales_numero_normalizado) y de madre distinta (animales_madre_distinta).
   @@index([establecimientoId, numero]) // búsqueda rápida por número
   @@index([loteId])
   @@map("animales")
