@@ -204,12 +204,10 @@ rutasLotes.delete('/:id', soloAdministra, async (req, res) => {
       if (!estado.existe) throw new HttpError(404, 'Lote no encontrado');
       if (estado.motivo) throw new HttpError(409, estado.motivo);
 
-      // Los animales dados de baja que tuviera quedan con loteId null: se
-      // conservan con todo su historial. Se hace acá (y no con ON DELETE SET NULL)
-      // porque la clave foránea es RESTRICT: si quedara un animal asignado, el
-      // borrado fallaría. Es después de verificar que no hay animales activos.
-      await tx.animal.updateMany({ where: { loteId: id, establecimientoId, estado: 'BAJA' }, data: { loteId: null } });
-
+      // Ya no hace falta desasignar animales de baja: la base garantiza que un animal de
+      // baja no tiene lote (CHECK animales_baja_sin_lote, spec 004). Y si el lote figura
+      // como lote previo de un parto o secado, la base lo deja como "eliminado" sola
+      // (ON DELETE SET NULL en la clave partos_loteAnterior_fkey / secados_loteAnterior_fkey).
       const { count } = await tx.lote.deleteMany({ where: { id, establecimientoId } });
       if (count === 0) throw new HttpError(404, 'Lote no encontrado'); // otro usuario lo eliminó recién
     });

@@ -4,13 +4,13 @@ import { DIAS_GESTACION, diasEntre, sumarDias } from './fechas.js';
 // ni Express): reciben la lista de eventos del animal y calculan. Nada derivado se guarda:
 // al anular un evento, el cálculo se rehace solo (RF-19, RF-21).
 //
-// La spec 004 (partos y secados) cambia solo `cicloActual` (el ciclo empieza también después
-// del último parto) y `estadoReproductivo` (un parto vuelve a "sin servicio"). Todo lo demás
-// se apoya en esas funciones.
+// La spec 004 (partos y secados) cambió solo esto: `cicloActual` (el ciclo empieza también
+// después del último parto) y el estado reproductivo (un parto vuelve a "sin servicio" y el
+// secado no cuenta). Todo lo demás se apoya en esas funciones.
 
 export type EventoCalculo = {
   id: string;
-  tipo: 'SERVICIO' | 'TACTO';
+  tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO';
   fecha: string; // AAAA-MM-DD
   creadoEn: Date; // momento de registro: desempata el orden a igual fecha
   anulado: boolean;
@@ -36,13 +36,13 @@ export function ultimoNoAnulado<T extends EventoCalculo>(lista: readonly T[]): T
 
 const esVacia = (e: EventoCalculo) => e.tipo === 'TACTO' && e.resultado === 'VACIA';
 
-// Ciclo actual: los eventos no anulados posteriores al último tacto "vacía" no anulado,
-// en orden. (La spec 004 suma "o al último parto".)
+// Ciclo actual: los eventos no anulados posteriores al último tacto "vacía" o al último
+// parto no anulado (el que sea posterior), en orden. El secado NO corta el ciclo.
 export function cicloActual<T extends EventoCalculo>(lista: readonly T[]): T[] {
   const vigentes = ordenarEventos(lista).filter((e) => !e.anulado);
   let desde = 0;
   vigentes.forEach((e, i) => {
-    if (esVacia(e)) desde = i + 1;
+    if (esVacia(e) || e.tipo === 'PARTO') desde = i + 1;
   });
   return vigentes.slice(desde);
 }
@@ -74,6 +74,10 @@ export type Situacion<T extends EventoCalculo> = {
   estado: EstadoReproductivo;
   ultimoServicio: T | null; // último servicio no anulado (de cualquier ciclo)
   ultimoTacto: T | null; // último tacto no anulado
+  // true si ese servicio o tacto es anterior al último parto no anulado: se muestra
+  // rotulado "del ciclo anterior" (RF-40). Sin parto, siempre false.
+  ultimoServicioCicloAnterior: boolean;
+  ultimoTactoCicloAnterior: boolean;
   // Solo si está "preñada". `dias` es positivo si faltan y negativo si ya pasó.
   fechaProbableParto: { fecha: string; dias: number; vencida: boolean } | null;
   // Solo si está "servida (sin tacto)": servicio + 283 días como referencia.
@@ -100,13 +104,20 @@ export function calcularSituacion<T extends EventoCalculo>(lista: readonly T[], 
     }
   });
 
-  const ultimo = vigentes[vigentes.length - 1] ?? null;
+  // El estado reproductivo sale del último evento no anulado entre servicio, tacto y parto:
+  // el secado no lo cambia (decisión del usuario, spec 004). Si el último es un parto, el
+  // estado queda en 'SIN_SERVICIO': el ciclo se reinició.
+  const reproductivos = vigentes.filter((e) => e.tipo !== 'SECADO');
+  const ultimo = reproductivos[reproductivos.length - 1] ?? null;
   let estado: EstadoReproductivo = 'SIN_SERVICIO';
   if (ultimo?.tipo === 'SERVICIO') estado = 'SERVIDA';
   else if (ultimo?.tipo === 'TACTO') estado = ultimo.resultado === 'PRENADA' ? 'PRENADA' : 'VACIA';
 
   const soloServicios = vigentes.filter((e) => e.tipo === 'SERVICIO');
   const soloTactos = vigentes.filter((e) => e.tipo === 'TACTO');
+  // Posición del último parto no anulado: lo anterior a él es del ciclo anterior.
+  const posicionUltimoParto = vigentes.map((e) => e.tipo).lastIndexOf('PARTO');
+  const esAnteriorAlParto = (e: T | undefined) => e !== undefined && vigentes.indexOf(e) < posicionUltimoParto;
 
   let fechaProbableParto: Situacion<T>['fechaProbableParto'] = null;
   if (estado === 'PRENADA' && ultimo) {
@@ -130,6 +141,8 @@ export function calcularSituacion<T extends EventoCalculo>(lista: readonly T[], 
     estado,
     ultimoServicio: soloServicios[soloServicios.length - 1] ?? null,
     ultimoTacto: soloTactos[soloTactos.length - 1] ?? null,
+    ultimoServicioCicloAnterior: esAnteriorAlParto(soloServicios[soloServicios.length - 1]),
+    ultimoTactoCicloAnterior: esAnteriorAlParto(soloTactos[soloTactos.length - 1]),
     fechaProbableParto,
     fechaReferencia,
     fechasTactos,

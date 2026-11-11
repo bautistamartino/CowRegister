@@ -27,7 +27,8 @@ async function loteDeLista(agente: ReturnType<typeof request.agent>, nombre: str
 }
 
 // Todavía no hay API de animales: se crean directo con Prisma.
-// La base exige que un animal en BAJA tenga fechaBaja (y que solo él la tenga).
+// La base exige que un animal en BAJA tenga fechaBaja (y que solo él la tenga) y que NO tenga
+// lote (spec 004, CHECK animales_baja_sin_lote): una baja se crea siempre sin lote.
 function crearAnimal(
   establecimientoId: string,
   loteId: string,
@@ -37,7 +38,7 @@ function crearAnimal(
   return prisma.animal.create({
     data: {
       establecimientoId,
-      loteId,
+      loteId: estado === 'BAJA' ? null : loteId,
       numero,
       sexo: 'HEMBRA',
       estado,
@@ -423,26 +424,27 @@ describe('DELETE /api/lotes/:id (RF-7 a RF-9, RF-31, RF-32)', () => {
     expect(await prisma.lote.findUnique({ where: { id: creado.body.id } })).toBeNull();
   });
 
-  it('elimina un lote que solo tiene animales dados de baja; esos animales quedan sin lote (RF-7)', async () => {
+  it('elimina un lote y un animal de baja (que ya no tiene lote) se conserva intacto (RF-7)', async () => {
     const { agente, perfil } = await registrarTambo();
     const creado = await agente.post('/api/lotes').send({ nombre: 'Recría' }).expect(201);
     const animal = await crearAnimal(perfil.establecimiento.id, creado.body.id, '900', 'BAJA');
 
     await agente.delete(`/api/lotes/${creado.body.id}`).expect(204);
-    // El historial no se pierde: el animal sigue, solo sin lote (la API lo desasigna antes de borrar el lote).
+    // El historial no se pierde: el animal de baja sigue, sin lote desde antes (la base lo exige).
     const guardado = await prisma.animal.findUniqueOrThrow({ where: { id: animal.id } });
     expect(guardado.loteId).toBeNull();
   });
 
-  it('con animales activos y dados de baja a la vez, no borra nada y da 409 (RF-7, RF-8)', async () => {
+  it('con un animal activo y otro de baja, no borra nada y da 409 (RF-7, RF-8)', async () => {
     const { agente, perfil } = await registrarTambo();
     const creado = await agente.post('/api/lotes').send({ nombre: 'Recría' }).expect(201);
     const baja = await crearAnimal(perfil.establecimiento.id, creado.body.id, '900', 'BAJA');
     await crearAnimal(perfil.establecimiento.id, creado.body.id, '1');
 
     await agente.delete(`/api/lotes/${creado.body.id}`).expect(409);
-    // La baja conserva su lote: no se desasignó nada porque el DELETE se frenó antes.
-    expect((await prisma.animal.findUniqueOrThrow({ where: { id: baja.id } })).loteId).toBe(creado.body.id);
+    // La baja sigue sin lote y el lote sigue existiendo: el DELETE se frenó por el animal activo.
+    expect((await prisma.animal.findUniqueOrThrow({ where: { id: baja.id } })).loteId).toBeNull();
+    expect(await prisma.lote.findUnique({ where: { id: creado.body.id } })).not.toBeNull();
   });
 
   it('alta y DELETE simultáneos del mismo lote: nunca queda un animal con lote inexistente (RF-10)', async () => {

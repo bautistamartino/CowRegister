@@ -117,6 +117,7 @@ export function eventoPorId(filas: FilaEvento[], id: string, hoy: string) {
 }
 
 // "tacto del 05/11/2026": nombra un evento en los mensajes.
-export function textoEvento(tipo: 'SERVICIO' | 'TACTO', fecha: string): string {
-  return `${tipo === 'SERVICIO' ? 'servicio' : 'tacto'} del ${aFechaCorta(fecha)}`;
+export function textoEvento(tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO', fecha: string): string {
+  const nombres = { SERVICIO: 'servicio', TACTO: 'tacto', PARTO: 'parto', SECADO: 'secado' };
+  return `${nombres[tipo]} del ${aFechaCorta(fecha)}`;
 }

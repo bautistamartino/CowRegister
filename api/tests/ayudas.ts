@@ -12,7 +12,7 @@ export async function limpiarBase() {
     throw new Error('limpiarBase() solo puede usarse con la base de tests');
   }
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "servicios", "tactos", "eventos", "semen_toros", "sesiones", "animales", "reglas_lote", "lotes", "usuarios", "establecimientos" CASCADE',
+    'TRUNCATE TABLE "crias_parto", "partos", "secados", "servicios", "tactos", "eventos", "semen_toros", "sesiones", "animales", "reglas_lote", "lotes", "usuarios", "establecimientos" CASCADE',
   );
 }
 
@@ -53,7 +53,8 @@ export async function crearUsuario(
 
 // Crea un animal directo con Prisma (sin pasar por la API), para preparar datos de
 // los tests. Por defecto: hembra en ordeñe, sin lote ni madre. La base exige que un
-// animal en BAJA tenga fechaBaja (y que solo él la tenga), así que se completa sola.
+// animal en BAJA tenga fechaBaja (y que solo él la tenga) y no tenga lote (spec 004), así que
+// la fecha se completa sola y el lote se ignora en una baja.
 export function crearAnimalDirecto(
   establecimientoId: string,
   numero: string,
@@ -63,6 +64,7 @@ export function crearAnimalDirecto(
     loteId?: string | null;
     madreId?: string | null;
     fechaNacimiento?: string | null; // AAAA-MM-DD
+    motivoBaja?: 'PARTO_ANULADO' | null;
   } = {},
 ) {
   const estado = opciones.estado ?? 'EN_ORDENE';
@@ -72,7 +74,8 @@ export function crearAnimalDirecto(
       numero,
       sexo: opciones.sexo ?? 'HEMBRA',
       estado,
-      loteId: opciones.loteId ?? null,
+      loteId: estado === 'BAJA' ? null : (opciones.loteId ?? null),
+      motivoBaja: estado === 'BAJA' ? (opciones.motivoBaja ?? null) : null,
       madreId: opciones.madreId ?? null,
       fechaNacimiento: opciones.fechaNacimiento ? new Date(`${opciones.fechaNacimiento}T00:00:00.000Z`) : null,
       fechaBaja: estado === 'BAJA' ? new Date('2026-11-01T00:00:00.000Z') : null,
@@ -116,7 +119,7 @@ type DatosEvento = {
 };
 
 // Columnas comunes del evento (con la anulación si la hay).
-function datosComunes(datos: DatosEvento, id: string, tipo: 'SERVICIO' | 'TACTO') {
+function datosComunes(datos: DatosEvento, id: string, tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO') {
   return {
     id,
     establecimientoId: datos.establecimientoId,
@@ -176,6 +179,149 @@ export async function crearTactoDirecto(
     });
     return evento;
   });
+}
+
+// ─── Partos, crías y secados (spec 004) ─────────────────────────────
+
+// Crea un animal dado de baja (sin lote), con o sin motivo de baja.
+export function crearBajaDirecta(
+  establecimientoId: string,
+  numero: string,
+  opciones: { madreId?: string | null; motivoBaja?: 'PARTO_ANULADO' | null; sexo?: 'HEMBRA' | 'MACHO' } = {},
+) {
+  return crearAnimalDirecto(establecimientoId, numero, { ...opciones, estado: 'BAJA' });
+}
+
+type CriaDirecta = {
+  sexo?: 'HEMBRA' | 'MACHO';
+  nacidaMuerta?: boolean;
+  observaciones?: string | null;
+  // Cría viva: o se pasa un animal existente (animalId) o un numero y el helper lo da de alta
+  // como cría recién nacida de la madre. Una cría nacida muerta no lleva ninguno.
+  animalId?: string | null;
+  numero?: string;
+};
+
+// Inserta un parto: el evento común, el detalle y sus crías, en una transacción. Por defecto
+// una cría viva hembra con número "C<n>". La vaca no se modifica (estado y lote quedan como estén).
+export async function crearPartoDirecto(
+  datos: DatosEvento & {
+    estadoAnterior?: 'VAQUILLONA' | 'EN_ORDENE' | 'SECA';
+    tuvoLoteAnterior?: boolean;
+    loteAnteriorId?: string | null;
+    servicioId?: string | null;
+    crias?: CriaDirecta[];
+  },
+) {
+  const id = crypto.randomUUID();
+  const crias = datos.crias ?? [{ sexo: 'HEMBRA' }];
+  return prisma.$transaction(async (tx) => {
+    const evento = await tx.evento.create({ data: datosComunes(datos, id, 'PARTO') });
+    await tx.parto.create({
+      data: {
+        eventoId: id,
+        establecimientoId: datos.establecimientoId,
+        tipo: 'PARTO',
+        madreId: datos.animalId,
+        estadoAnterior: datos.estadoAnterior ?? 'EN_ORDENE',
+        tuvoLoteAnterior: datos.tuvoLoteAnterior ?? datos.loteAnteriorId != null,
+        loteAnteriorId: datos.loteAnteriorId ?? null,
+        servicioId: datos.servicioId ?? null,
+        servicioTipo: datos.servicioId ? 'SERVICIO' : null,
+      },
+    });
+    let orden = 0;
+    for (const cria of crias) {
+      orden += 1;
+      let animalId: string | null = null;
+      if (!cria.nacidaMuerta) {
+        animalId =
+          cria.animalId ??
+          (
+            await tx.animal.create({
+              data: {
+                establecimientoId: datos.establecimientoId,
+                numero: cria.numero ?? `C${orden}-${id.slice(0, 6).toUpperCase()}`,
+                sexo: cria.sexo ?? 'HEMBRA',
+                estado: 'RECIEN_NACIDO',
+                madreId: datos.animalId,
+                fechaNacimiento: aFecha(datos.fecha),
+              },
+            })
+          ).id;
+      }
+      await tx.criaParto.create({
+        data: {
+          establecimientoId: datos.establecimientoId,
+          eventoId: id,
+          madreId: datos.animalId,
+          orden,
+          sexo: cria.sexo ?? 'HEMBRA',
+          nacidaMuerta: cria.nacidaMuerta ?? false,
+          observaciones: cria.observaciones ?? null,
+          animalId,
+        },
+      });
+    }
+    return evento;
+  });
+}
+
+// Inserta un secado: el evento común y su detalle, en una transacción.
+export async function crearSecadoDirecto(
+  datos: DatosEvento & { tuvoLoteAnterior?: boolean; loteAnteriorId?: string | null },
+) {
+  const id = crypto.randomUUID();
+  return prisma.$transaction(async (tx) => {
+    const evento = await tx.evento.create({ data: datosComunes(datos, id, 'SECADO') });
+    await tx.secado.create({
+      data: {
+        eventoId: id,
+        establecimientoId: datos.establecimientoId,
+        tipo: 'SECADO',
+        estadoAnterior: 'EN_ORDENE',
+        tuvoLoteAnterior: datos.tuvoLoteAnterior ?? datos.loteAnteriorId != null,
+        loteAnteriorId: datos.loteAnteriorId ?? null,
+      },
+    });
+    return evento;
+  });
+}
+
+/**
+ * Revisa en la base los invariantes que tienen que valer siempre, también tras operaciones
+ * simultáneas (RF-33). Devuelve la lista de violaciones encontradas (vacía si todo está bien),
+ * para usar así: `expect(await verificarInvariantes()).toEqual([])`.
+ */
+export async function verificarInvariantes(): Promise<string[]> {
+  const consultas: Array<[string, string]> = [
+    ['animal de baja con lote', `SELECT id FROM animales WHERE estado = 'BAJA' AND "loteId" IS NOT NULL`],
+    [
+      'dos animales activos con el mismo número en un tambo',
+      `SELECT "establecimientoId", numero FROM animales WHERE estado <> 'BAJA' GROUP BY 1, 2 HAVING count(*) > 1`,
+    ],
+    ['evento PARTO sin detalle', `SELECT e.id FROM eventos e LEFT JOIN partos p ON p."eventoId" = e.id WHERE e.tipo = 'PARTO' AND p."eventoId" IS NULL`],
+    ['evento SECADO sin detalle', `SELECT e.id FROM eventos e LEFT JOIN secados s ON s."eventoId" = e.id WHERE e.tipo = 'SECADO' AND s."eventoId" IS NULL`],
+    ['parto sin crías', `SELECT p."eventoId" FROM partos p LEFT JOIN crias_parto c ON c."eventoId" = p."eventoId" WHERE c.id IS NULL`],
+    [
+      'cría viva cuyo animal no es hijo de la madre del parto',
+      `SELECT c.id FROM crias_parto c JOIN animales a ON a.id = c."animalId" WHERE a."madreId" IS DISTINCT FROM c."madreId"`,
+    ],
+    [
+      'parto con lote previo sin indicador',
+      `SELECT "eventoId" FROM partos WHERE "loteAnteriorId" IS NOT NULL AND NOT "tuvoLoteAnterior"`,
+    ],
+    [
+      'animal activo con el motivo de baja cargado',
+      `SELECT id FROM animales WHERE estado <> 'BAJA' AND "motivoBaja" IS NOT NULL`,
+    ],
+  ];
+  const violaciones: string[] = [];
+  for (const [nombre, sql] of consultas) {
+    const filas = await prisma.$queryRawUnsafe<unknown[]>(sql);
+    if (filas.length > 0) violaciones.push(`${nombre} (${filas.length})`);
+  }
+  return violaciones;
 }
 
 // Registra un tambo con su dueño y le crea un animal (por defecto una vaca en ordeñe "101").
