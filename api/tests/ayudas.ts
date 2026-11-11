@@ -50,3 +50,32 @@ export async function crearUsuario(
     .expect(201);
   return iniciarSesion(email);
 }
+
+// Crea un animal directo con Prisma (sin pasar por la API), para preparar datos de
+// los tests. Por defecto: hembra en ordeñe, sin lote ni madre. La base exige que un
+// animal en BAJA tenga fechaBaja (y que solo él la tenga), así que se completa sola.
+export function crearAnimalDirecto(
+  establecimientoId: string,
+  numero: string,
+  opciones: {
+    sexo?: 'HEMBRA' | 'MACHO';
+    estado?: 'RECIEN_NACIDO' | 'VAQUILLONA' | 'EN_ORDENE' | 'SECA' | 'BAJA';
+    loteId?: string | null;
+    madreId?: string | null;
+    fechaNacimiento?: string | null; // AAAA-MM-DD
+  } = {},
+) {
+  const estado = opciones.estado ?? 'EN_ORDENE';
+  return prisma.animal.create({
+    data: {
+      establecimientoId,
+      numero,
+      sexo: opciones.sexo ?? 'HEMBRA',
+      estado,
+      loteId: opciones.loteId ?? null,
+      madreId: opciones.madreId ?? null,
+      fechaNacimiento: opciones.fechaNacimiento ? new Date(`${opciones.fechaNacimiento}T00:00:00.000Z`) : null,
+      fechaBaja: estado === 'BAJA' ? new Date('2026-11-01T00:00:00.000Z') : null,
+    },
+  });
+}

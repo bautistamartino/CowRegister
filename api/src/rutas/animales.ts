@@ -1,0 +1,216 @@
+import { Router } from 'express';
+import { z, ZodError } from 'zod';
+import { prisma } from '../db.js';
+import { HttpError, esErrorPrisma } from '../errores.js';
+import { normalizarNumero, numeroSchema } from '../validacion.js';
+import { requiereRol, requiereSesion, usuarioActual } from '../auth/middleware.js';
+import { ESTADOS_INICIALES, hoyArgentina, puedeTenerEstado, validarFechaNacimiento, fechaADate } from '../animales/reglas.js';
+import { compararNumeros } from '../animales/orden.js';
+
+// Animales del tambo (spec 002). Todos los usuarios pueden consultar; solo dueño y
+// encargado pueden dar de alta (RF-40). Toda consulta se filtra por el
+// establecimientoId de la sesión y nunca se acepta uno enviado por el cliente (RF-37).
+// Orden de controles: sesión (401) → rol (403) → validación (400) → búsqueda (404).
+export const rutasAnimales = Router();
+rutasAnimales.use(requiereSesion);
+
+// Middleware de la ruta de alta: va ANTES de leer el cuerpo, así el veterinario
+// recibe 403 aunque los datos sean inválidos (RF-40).
+const soloCarga = requiereRol('DUENO', 'ENCARGADO');
+
+const MAX_LISTADO = 2000; // RF-26
+
+// "Activo" = cualquier estado menos BAJA. Los dados de baja no se listan ni se buscan (spec 002).
+const ACTIVO = { not: 'BAJA' } as const;
+
+// Fecha AAAA-MM-DD a partir de una columna @db.Date (que Prisma entrega como Date UTC).
+const aTextoFecha = (fecha: Date | null) => (fecha ? fecha.toISOString().slice(0, 10) : null);
+
+// Error de validación de un campo, con el mismo formato (400 con "detalles") que
+// los errores de zod, así la web lo muestra debajo del campo correspondiente.
+function errorDeCampo(campo: string, mensaje: string): ZodError {
+  return new ZodError([{ code: 'custom', path: [campo], message: mensaje, input: undefined }]);
+}
+
+// La web puede mandar un campo opcional vacío (""): se trata como "no vino".
+const opcionalVacioANulo = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
+
+const altaSchema = z
+  .object({
+    numero: numeroSchema,
+    sexo: z.enum(['HEMBRA', 'MACHO'], { error: 'El sexo tiene que ser hembra o macho' }),
+    estado: z.enum(ESTADOS_INICIALES, {
+      error: 'El estado tiene que ser recién nacido, vaquillona, en ordeñe o seca',
+    }),
+    fechaNacimiento: z.preprocess(
+      opcionalVacioANulo,
+      z.string({ error: 'La fecha de nacimiento tiene que ser un texto AAAA-MM-DD' }).nullish(),
+    ),
+    madre: z.preprocess(opcionalVacioANulo, z.string({ error: 'El número de la madre tiene que ser un texto' }).nullish()),
+    // Cualquier otro campo (por ejemplo un establecimientoId) se descarta: z.object ignora lo que no declara.
+  })
+  // Un macho solo puede ser recién nacido (RF-5).
+  .refine((d) => puedeTenerEstado(d.sexo, d.estado), {
+    path: ['estado'],
+    error: 'Un macho solo puede tener el estado recién nacido',
+  });
+
+// Qué se lee del animal para armar las respuestas.
+const seleccionAnimal = {
+  id: true,
+  numero: true,
+  sexo: true,
+  estado: true,
+  fechaNacimiento: true,
+  lote: { select: { nombre: true } },
+} as const;
+
+// POST /api/animales — alta manual (RF-1 a RF-9).
+rutasAnimales.post('/', soloCarga, async (req, res) => {
+  const { establecimientoId } = usuarioActual(req);
+  const datos = altaSchema.parse(req.body);
+
+  // Madre (RF-7): hembra activa del mismo tambo y distinta del propio animal. Todos
+  // los casos inválidos dan el mismo mensaje, sin revelar nada de otros tambos.
+  let madre: { id: string; fechaNacimiento: Date | null } | null = null;
+  if (datos.madre) {
+    const numeroMadre = normalizarNumero(datos.madre);
+    const mensaje = `No hay una hembra activa con el número ${numeroMadre ?? datos.madre.trim()}`;
+    if (numeroMadre === null || numeroMadre === datos.numero) throw errorDeCampo('madre', mensaje);
+    madre = await prisma.animal.findFirst({
+      where: { establecimientoId, numero: numeroMadre, sexo: 'HEMBRA', estado: ACTIVO },
+      select: { id: true, fechaNacimiento: true },
+    });
+    if (!madre) throw errorDeCampo('madre', mensaje);
+  }
+
+  // Fecha de nacimiento (RF-6): hoy según la hora de Argentina y, si la madre tiene fecha, posterior.
+  if (datos.fechaNacimiento) {
+    const error = validarFechaNacimiento(datos.fechaNacimiento, hoyArgentina(), aTextoFecha(madre?.fechaNacimiento ?? null));
+    if (error) throw errorDeCampo('fechaNacimiento', error);
+  }
+
+  // Lote destino del estado (RF-1). Sin regla, el animal queda sin lote (RF-8).
+  const regla = await prisma.reglaLote.findFirst({
+    where: { establecimientoId, estado: datos.estado },
+    select: { loteId: true },
+  });
+
+  try {
+    const animal = await prisma.animal.create({
+      data: {
+        establecimientoId, // siempre el tambo de la sesión
+        numero: datos.numero,
+        sexo: datos.sexo,
+        estado: datos.estado,
+        fechaNacimiento: datos.fechaNacimiento ? fechaADate(datos.fechaNacimiento) : null,
+        madreId: madre?.id ?? null,
+        loteId: regla?.loteId ?? null,
+      },
+      select: seleccionAnimal,
+    });
+    res.status(201).json({
+      animal: { ...animal, fechaNacimiento: aTextoFecha(animal.fechaNacimiento) },
+      avisoSinLote: regla ? null : { estado: datos.estado },
+    });
+  } catch (err) {
+    // Los dos choques los detecta la base (así valen también con operaciones simultáneas):
+    // P2002 = el índice único del número entre activos (RF-3, RF-4);
+    // P2003 = la clave foránea compuesta del lote: se eliminó justo antes (RF-9).
+    if (esErrorPrisma(err, 'P2002')) throw new HttpError(409, 'Ya existe un animal activo con ese número');
+    if (esErrorPrisma(err, 'P2003')) throw new HttpError(409, 'El lote destino ya no existe, volvé a intentar');
+    throw err;
+  }
+});
+
+// GET /api/animales?estado=&loteId= — activos del tambo (RF-23 a RF-26).
+rutasAnimales.get('/', async (req, res) => {
+  const { establecimientoId } = usuarioActual(req);
+
+  // Estado: uno de los 4 activos. Cualquier otro valor (incluido BAJA o vacío) da 400.
+  let estado: (typeof ESTADOS_INICIALES)[number] | undefined;
+  if (req.query.estado !== undefined) {
+    const r = z.enum(ESTADOS_INICIALES).safeParse(req.query.estado);
+    if (!r.success) throw new HttpError(400, 'El estado tiene que ser recién nacido, vaquillona, en ordeñe o seca');
+    estado = r.data;
+  }
+
+  // Lote: un UUID de un lote del tambo o "sin-lote". Mal formado, inexistente o de
+  // otro tambo dan el mismo 404, sin distinguir (RF-25).
+  let loteId: string | null | undefined;
+  if (req.query.loteId !== undefined) {
+    if (req.query.loteId === 'sin-lote') {
+      loteId = null;
+    } else {
+      const uuid = z.uuid().safeParse(req.query.loteId);
+      const lote = uuid.success
+        ? await prisma.lote.findFirst({ where: { id: uuid.data, establecimientoId }, select: { id: true } })
+        : null;
+      if (!lote) throw new HttpError(404, 'Lote no encontrado');
+      loteId = lote.id;
+    }
+  }
+
+  const animales = await prisma.animal.findMany({
+    where: { establecimientoId, estado: estado ?? ACTIVO, ...(loteId !== undefined && { loteId }) },
+    select: { id: true, numero: true, sexo: true, estado: true, lote: { select: { nombre: true } } },
+  });
+
+  // Orden natural en JavaScript (la base ordenaría "10" antes que "9"), y recién
+  // después el recorte: el total se cuenta antes (RF-26).
+  animales.sort((a, b) => compararNumeros(a.numero, b.numero));
+  const mostrados = animales.slice(0, MAX_LISTADO);
+  res.json({ total: animales.length, mostrados: mostrados.length, truncado: animales.length > MAX_LISTADO, animales: mostrados });
+});
+
+// GET /api/animales/buscar?numero= — búsqueda exacta para el buscador y el bastón (RF-33 a RF-36).
+// Se declara ANTES de /:id, si no Express tomaría "buscar" como un id.
+rutasAnimales.get('/buscar', async (req, res) => {
+  const { establecimientoId } = usuarioActual(req);
+
+  // Ausente, repetido o vacío al limpiar los extremos: 400 (el buscador no llama en ese caso).
+  if (typeof req.query.numero !== 'string' || req.query.numero.trim() === '') {
+    throw new HttpError(400, 'Indicá el número a buscar');
+  }
+  // Un número con caracteres no permitidos recibe la misma respuesta que uno inexistente.
+  const numero = normalizarNumero(req.query.numero);
+  const animal = numero
+    ? await prisma.animal.findFirst({
+        where: { establecimientoId, numero, estado: ACTIVO },
+        select: { id: true, numero: true },
+      })
+    : null;
+  if (!animal) throw new HttpError(404, 'No hay un animal activo con ese número');
+  res.json(animal);
+});
+
+// GET /api/animales/:id — ficha (RF-28 a RF-30, RF-38).
+rutasAnimales.get('/:id', async (req, res) => {
+  const { establecimientoId } = usuarioActual(req);
+
+  // Mal formado, inexistente, de otro tambo o dado de baja: siempre el mismo 404.
+  const id = z.uuid().safeParse(req.params.id);
+  const animal = id.success
+    ? await prisma.animal.findFirst({
+        where: { id: id.data, establecimientoId, estado: ACTIVO },
+        select: {
+          ...seleccionAnimal,
+          madre: { select: { id: true, numero: true, estado: true } },
+          crias: { where: { estado: ACTIVO }, select: { id: true, numero: true } },
+        },
+      })
+    : null;
+  if (!animal) throw new HttpError(404, 'Animal no encontrado');
+
+  res.json({
+    id: animal.id,
+    numero: animal.numero,
+    sexo: animal.sexo,
+    estado: animal.estado,
+    fechaNacimiento: aTextoFecha(animal.fechaNacimiento),
+    lote: animal.lote,
+    // La madre puede haber sido dada de baja: se muestra el número, sin acceso a su ficha.
+    madre: animal.madre ? { id: animal.madre.id, numero: animal.madre.numero, activa: animal.madre.estado !== 'BAJA' } : null,
+    crias: animal.crias.sort((a, b) => compararNumeros(a.numero, b.numero)),
+  });
+});
