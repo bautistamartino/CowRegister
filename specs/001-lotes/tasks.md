@@ -38,6 +38,6 @@ Plan: [plan.md](plan.md) · Spec: [spec.md](spec.md)
   - RF: RF-1 a RF-17, RF-21, RF-26, RF-27
   - Hecho cuando: en el navegador, a 768 px y 375 px y en modo claro y oscuro, un dueño crea, renombra, borra la descripción y elimina lotes, ve el mensaje 409 al eliminar uno que es destino, cambia y quita destinos y ve aparecer el aviso; un veterinario ve todo sin controles de edición; todos los controles miden al menos 48 px y no hay scroll horizontal; `npm run typecheck` sin errores.
 
-- [ ] **T10** — Cierre: correr `npm test` y `npm run typecheck`, repasar los criterios de aceptación de la spec uno por uno, actualizar `MEMORY.md` (estado, decisiones de esta spec y la nota sobre los índices hechos a mano y `migrate diff`) y marcar 1.4 en `docs/plan.md`.
+- [x] **T10** — Cierre: correr `npm test` y `npm run typecheck`, repasar los criterios de aceptación de la spec uno por uno, actualizar `MEMORY.md` (estado, decisiones de esta spec y la nota sobre los índices hechos a mano y `migrate diff`) y marcar 1.4 en `docs/plan.md`.
   - RF: todos (verificación final)
   - Hecho cuando: los tests y el chequeo de tipos están en verde, todos los criterios de aceptación de `spec.md` están verificados, `MEMORY.md` está actualizado y `docs/plan.md` tiene `[x] 1.4`.
