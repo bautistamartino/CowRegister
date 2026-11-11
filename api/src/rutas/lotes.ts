@@ -4,7 +4,7 @@ import { prisma } from '../db.js';
 import { HttpError, esErrorPrisma } from '../errores.js';
 import { descripcionLoteSchema, nombreLoteSchema } from '../validacion.js';
 import { requiereRol, requiereSesion, usuarioActual } from '../auth/middleware.js';
-import { ESTADOS_CON_DESTINO } from '../lotes/estados.js';
+import { ESTADOS_CON_DESTINO, NOMBRE_ESTADO } from '../lotes/estados.js';
 import type { EstadoAnimal } from '../generated/prisma/client.js';
 
 // Lotes del tambo. Todos los usuarios pueden verlos; solo dueño y encargado
@@ -111,4 +111,115 @@ rutasLotes.post('/', soloAdministra, async (req, res) => {
     if (esErrorPrisma(err, 'P2002')) throw new HttpError(409, 'Ya existe un lote con ese nombre');
     throw err;
   }
+});
+
+// Al editar, los dos campos son opcionales, pero tiene que venir al menos uno.
+// descripcion: null o un texto vacío la borra (RF-27).
+const editarSchema = z
+  .object({
+    nombre: nombreLoteSchema.optional(),
+    descripcion: descripcionLoteSchema.optional(),
+  })
+  .refine((datos) => datos.nombre !== undefined || datos.descripcion !== undefined, {
+    error: 'Indicá el nombre o la descripción a cambiar',
+  });
+
+// PATCH /api/lotes/:id — dueño o encargado cambia el nombre y/o la descripción.
+// No toca los animales ni los destinos del lote (RF-3).
+rutasLotes.patch('/:id', soloAdministra, async (req, res) => {
+  const { establecimientoId } = usuarioActual(req);
+  const id = idDeLote(req.params.id);
+  const datos = editarSchema.parse(req.body);
+
+  try {
+    // updateMany (y no update) para poder filtrar también por establecimientoId:
+    // si el lote es de otro tambo, no existe o ya se eliminó, actualiza 0 filas
+    // y respondemos 404 sin distinguir el motivo (RF-20, RF-32).
+    const { count } = await prisma.lote.updateMany({
+      where: { id, establecimientoId },
+      // Si un campo no vino (undefined), Prisma no lo cambia.
+      data: { nombre: datos.nombre, descripcion: datos.descripcion },
+    });
+    if (count === 0) throw new HttpError(404, 'Lote no encontrado');
+  } catch (err) {
+    // Otro lote del tambo ya tiene ese nombre (sin distinguir mayúsculas).
+    // Renombrar "Secas" a "secas" no choca: el índice compara contra las OTRAS filas.
+    if (esErrorPrisma(err, 'P2002')) throw new HttpError(409, 'Ya existe un lote con ese nombre');
+    throw err;
+  }
+
+  // Se vuelve a leer para devolver el lote completo (cantidad de animales y destinos).
+  const lote = await prisma.lote.findFirst({ where: { id, establecimientoId }, select: seleccionLote });
+  if (!lote) throw new HttpError(404, 'Lote no encontrado'); // se eliminó justo entre las dos consultas
+  res.json(aRespuesta(lote));
+});
+
+// Une una lista en español: ["A"] → "A", ["A","B"] → "A y B", ["A","B","C"] → "A, B y C".
+function unirConY(partes: string[]): string {
+  if (partes.length <= 1) return partes.join('');
+  return `${partes.slice(0, -1).join(', ')} y ${partes[partes.length - 1]}`;
+}
+
+// Arma el mensaje de por qué no se puede eliminar un lote (RF-8, RF-9), o null
+// si se puede. Ejemplos:
+//   "El lote tiene 3 animales" · "El lote tiene 1 animal"
+//   "El lote es destino de En ordeñe y Seca"
+//   "El lote tiene 3 animales y es destino de En ordeñe"
+function motivoDeBloqueo(cantidadAnimales: number, estados: EstadoAnimal[]): string | null {
+  const motivos: string[] = [];
+  if (cantidadAnimales > 0) {
+    motivos.push(`tiene ${cantidadAnimales} ${cantidadAnimales === 1 ? 'animal' : 'animales'}`);
+  }
+  // Los estados se nombran en el orden de pantalla, no en el que vienen de la base.
+  const nombres = ESTADOS_CON_DESTINO.filter((e) => estados.includes(e)).map((e) => NOMBRE_ESTADO[e]);
+  if (nombres.length > 0) motivos.push(`es destino de ${unirConY(nombres)}`);
+
+  return motivos.length === 0 ? null : `El lote ${motivos.join(' y ')}`;
+}
+
+// Lee de la base lo necesario para decidir si se puede eliminar.
+// Recibe `tx` para poder usarse dentro de la transacción o fuera de ella.
+async function leerBloqueo(tx: Pick<typeof prisma, 'lote'>, id: string, establecimientoId: string) {
+  const lote = await tx.lote.findFirst({ where: { id, establecimientoId }, select: seleccionLote });
+  if (!lote) return { existe: false as const };
+  return {
+    existe: true as const,
+    motivo: motivoDeBloqueo(
+      lote._count.animales,
+      lote.reglas.map((r) => r.estado),
+    ),
+  };
+}
+
+// DELETE /api/lotes/:id — dueño o encargado elimina un lote sin animales
+// activos y que no sea destino de ningún estado (RF-7 a RF-9).
+rutasLotes.delete('/:id', soloAdministra, async (req, res) => {
+  const { establecimientoId } = usuarioActual(req);
+  const id = idDeLote(req.params.id);
+
+  try {
+    // La revisión y el borrado van juntos en una transacción.
+    await prisma.$transaction(async (tx) => {
+      const estado = await leerBloqueo(tx, id, establecimientoId);
+      if (!estado.existe) throw new HttpError(404, 'Lote no encontrado');
+      if (estado.motivo) throw new HttpError(409, estado.motivo);
+
+      // Los animales dados de baja que tuviera quedan con loteId null
+      // (ON DELETE SET NULL): se conservan con todo su historial.
+      const { count } = await tx.lote.deleteMany({ where: { id, establecimientoId } });
+      if (count === 0) throw new HttpError(404, 'Lote no encontrado'); // otro usuario lo eliminó recién
+    });
+  } catch (err) {
+    // P2003: entre la revisión y el borrado otro usuario eligió este lote como
+    // destino, y la clave foránea de reglas_lote (ON DELETE RESTRICT) frenó el
+    // borrado. Se vuelve a consultar para responder con el motivo real (RF-31).
+    if (esErrorPrisma(err, 'P2003')) {
+      const estado = await leerBloqueo(prisma, id, establecimientoId);
+      if (!estado.existe) throw new HttpError(404, 'Lote no encontrado');
+      throw new HttpError(409, estado.motivo ?? 'El lote no se puede eliminar');
+    }
+    throw err;
+  }
+
+  res.status(204).end();
 });
