@@ -13,7 +13,7 @@ Objetivo: un dueño registra su tambo, inicia sesión, crea sus lotes, carga sus
 - [x] 1.4 Lotes: alta, edición y baja; configuración estado → lote
 - [x] 1.5 Animales: alta con estado inicial, número único entre activos, asignación automática de lote, listado y ficha
 - [x] 1.6 Buscador: número o bastón + Enter abre la ficha
-- [ ] 1.7 Cierre: tests de login, aislamiento y número único; subir a GitHub
+- [x] 1.7 Cierre: tests de login, aislamiento y número único; rama `main` (falta subir a GitHub)
 
 ## Etapa 2 — Reproducción
 Servicios, tactos con fecha probable de parto, partos con alta del ternero, secados.

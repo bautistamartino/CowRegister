@@ -6,7 +6,8 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
 
 - **Etapa 1 — Base del sistema** (ver [docs/plan.md](docs/plan.md))
   - Hecho: 1.0 preparación, 1.1 esqueleto, 1.2 base de datos, 1.3 login y seguridad, 1.4 lotes y destino de cada estado (spec [001-lotes](specs/001-lotes/spec.md)), 1.5 animales y 1.6 buscador (spec [002-animales-buscador](specs/002-animales-buscador/spec.md)): alta manual, carga desde planilla con vista previa, listado, ficha y buscador por número.
-  - Siguiente: 1.7 cierre de la Etapa 1 (tests de login, aislamiento y número único; subir a GitHub). Antes de la Etapa 3 hace falta una spec chica de **editar animal y mover de lote a mano** (la ficha es solo lectura).
+  - 1.7 cierre (2026-11-11): 275 tests y typecheck en verde; las ramas apiladas se juntaron en `main`. Falta que el usuario cree el repositorio en GitHub y haga el primer `git push` (los agentes no hacen push).
+- **Siguiente: Etapa 2 — Reproducción** con `/sdd` (servicios, tactos con fecha probable de parto, partos con alta del ternero, secados), en una sesión nueva. Antes de la Etapa 3 hace falta una spec chica de **editar animal y mover de lote a mano** (la ficha es solo lectura).
 - Hay una API de gestión de usuarios (`/api/usuarios`) **sin pantalla** todavía.
 
 ## Decisiones
@@ -37,7 +38,7 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
 
 ## Ramas
 
-Las ramas de la Etapa 1 están apiladas y todavía no existe `main`: `setup/estructura-inicial` → `etapa1/esqueleto` → `etapa1/base-de-datos` → `etapa1/login` → `config/agentes` → `spec/001-lotes`. Se juntan en `main` al cerrar la etapa.
+`main` tiene toda la Etapa 1 (las ramas apiladas `setup/...` → `spec/002-animales-buscador` quedaron contenidas en ella). Desde ahora cada spec sale de `main` en su propia rama y vuelve a `main` al terminar.
 
 ## Riesgos pendientes
 
