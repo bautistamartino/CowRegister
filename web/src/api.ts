@@ -123,3 +123,31 @@ export type AnimalFicha = {
   madre: { id: string; numero: string; activa: boolean } | null;
   crias: { id: string; numero: string }[];
 };
+
+// ─── Carga desde planilla (spec 002) ───
+
+export type FilaPlanilla = {
+  fila: number; // número de fila en el texto pegado (cuenta encabezado y filas vacías)
+  ok: boolean;
+  numero: string | null;
+  sexo: Sexo | null;
+  estado: EstadoAnimal | null;
+  fechaNacimiento: string | null;
+  madre: string | null;
+  motivo?: string; // solo cuando ok es false
+};
+
+export type SinLotePorEstado = { estado: EstadoAnimal; cantidad: number };
+
+// Respuesta de POST /api/animales/planilla/vista-previa.
+export type VistaPreviaPlanilla = {
+  filas: FilaPlanilla[];
+  resumen: { total: number; correctas: number; conError: number; sinLotePorEstado: SinLotePorEstado[] };
+};
+
+// Respuesta de POST /api/animales/planilla/confirmar.
+export type ResultadoPlanilla = {
+  guardados: number;
+  quedaronAfuera: { fila: number; motivo: string }[];
+  sinLotePorEstado: SinLotePorEstado[];
+};

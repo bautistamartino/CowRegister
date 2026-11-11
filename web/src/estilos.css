@@ -566,3 +566,39 @@ h1 {
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+
+/* ─── Carga desde planilla (paginas/AnimalesPlanilla.tsx) ─── */
+
+/* Letra de ancho fijo para que las columnas pegadas se lean alineadas. */
+.campo textarea.planilla-texto {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.95rem;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.resultado-ok {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+/* El motivo puede ser largo: puede bajar de línea, con un ancho mínimo. */
+.tabla td.celda-motivo,
+.tabla-motivos td:last-child {
+  white-space: normal;
+  min-width: 18rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+/* Las etiquetas llevan texto además del color, para que no dependan solo de él. */
+.etiqueta-ok,
+.etiqueta-error {
+  font-weight: 600;
+}
+
+.etiqueta-error,
+.fila-error td:first-child {
+  color: var(--error);
+}

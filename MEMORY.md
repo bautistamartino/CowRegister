@@ -5,12 +5,21 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
 ## Estado
 
 - **Etapa 1 — Base del sistema** (ver [docs/plan.md](docs/plan.md))
-  - Hecho: 1.0 preparación, 1.1 esqueleto, 1.2 base de datos, 1.3 login y seguridad, 1.4 lotes y destino de cada estado (spec [001-lotes](specs/001-lotes/spec.md)).
-  - Siguiente: 1.5 animales + 1.6 buscador, en una sola spec (`/sdd`). Carga decidida: alta manual de a una y pegar desde planilla con vista previa (ver [docs/requerimientos.md](docs/requerimientos.md) › Carga de animales). El rodeo existente está en papel o en una planilla digital.
+  - Hecho: 1.0 preparación, 1.1 esqueleto, 1.2 base de datos, 1.3 login y seguridad, 1.4 lotes y destino de cada estado (spec [001-lotes](specs/001-lotes/spec.md)), 1.5 animales y 1.6 buscador (spec [002-animales-buscador](specs/002-animales-buscador/spec.md)): alta manual, carga desde planilla con vista previa, listado, ficha y buscador por número.
+  - Siguiente: 1.7 cierre de la Etapa 1 (tests de login, aislamiento y número único; subir a GitHub). Antes de la Etapa 3 hace falta una spec chica de **editar animal y mover de lote a mano** (la ficha es solo lectura).
 - Hay una API de gestión de usuarios (`/api/usuarios`) **sin pantalla** todavía.
 
 ## Decisiones
 
+- **2026-11-11 — Animales y buscador (spec 002):**
+  - `animales` → `lotes` y madre → animal con claves foráneas compuestas (establecimientoId, id) y `ON DELETE RESTRICT`: un animal nunca apunta a un lote o madre de otro tambo, y no se borra un lote con animales ni una madre con crías. Para eso `Animal` tiene `@@unique([establecimientoId, id])`.
+  - `DELETE /api/lotes/:id` primero desasigna a los animales dados de baja y después borra; un lote con animales activos sigue dando 409. Con esto queda resuelto el riesgo del lote en paralelo (alta y borrado simultáneos: la base lo impide).
+  - Hechos **a mano** en el SQL de la migración (Prisma no los modela): CHECK de número normalizado (mayúsculas, solo letras sin tildes, dígitos, guion y punto, 1 a 20) y CHECK de que un animal no sea su propia madre, más el índice único parcial de número entre activos. Antes de cada migración nueva, `migrate diff` tiene que dar vacío y no proponer ningún `DROP` de esto.
+  - El número se guarda y se busca **en mayúsculas**; el orden del listado es **natural** (A2 antes que A10), con tope de 2.000 resultados y aviso.
+  - La carga desde planilla usa un parser de JSON de 1 MB **solo en sus rutas** (el resto de la API sigue con el límite chico); el texto crudo se revalida entero al confirmar y se guardan las filas correctas de ese instante en una transacción, con hasta 3 reintentos si otro usuario ocupa un número (después 409).
+  - En la planilla, las madres que están en la misma planilla se resuelven con **un único `createMany` con ids generados de antemano**, sin actualizar fila por fila.
+  - La web de la planilla bloquea el botón de confirmar si no hay filas correctas o si el texto cambió después de la vista previa (hay que volver a revisarlo); lo pegado nunca se pierde al corregir.
+  - **Conocido, sin corregir:** un veterinario que manda un JSON mal formado recibe 400 y no 403, porque el parser de JSON corre antes del control de rol. No filtra datos; se puede ordenar en una pasada de seguridad.
 - **2026-11-10 — Lotes (spec 001):**
   - `reglas_lote` → `lotes` con clave foránea compuesta (establecimientoId, loteId) y `ON DELETE RESTRICT`: un destino nunca apunta a otro tambo y no se puede borrar un lote que es destino.
   - Hechos **a mano** en el SQL de la migración (Prisma no los modela): índice único sobre `lower(nombre)` por tambo y CHECK que impide una regla para BAJA. Antes de cada migración nueva, `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` (en `api/`) tiene que dar una migración vacía; si propone un `DROP` de esos objetos, no aplicarla.
@@ -32,9 +41,9 @@ Las ramas de la Etapa 1 están apiladas y todavía no existe `main`: `setup/estr
 
 ## Riesgos pendientes
 
-- **Paso 1.5 (animales), sugerido por el revisor en la spec 001:** en `DELETE /api/lotes/:id` (`api/src/rutas/lotes.ts`), el conteo de animales activos y el borrado no se bloquean entre sí (READ COMMITTED). Cuando exista la API de animales, un animal asignado en paralelo podría quedar con `loteId` null. Resolverlo en el plan de 1.5 (por ejemplo, `SELECT … FOR UPDATE` sobre el lote en el DELETE y en la asignación de animales).
-
 - **Etapa 3 (bajas):** agregar `CHECK (estado <> 'BAJA' OR "loteId" IS NULL)` en `animales` junto con las bajas. Hoy la spec 001 asume que un animal dado de baja no tiene lote, pero la base no lo garantiza.
+
+- **Spec chica antes de la Etapa 3:** editar un animal (número, sexo, fecha, madre) y moverlo de lote a mano; hoy la ficha es solo lectura.
 
 ## Pendiente de definir con el responsable
 

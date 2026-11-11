@@ -53,7 +53,9 @@ export function Animales() {
       <Link to="/animales/nuevo" className="boton enlace-boton">
         Nuevo animal
       </Link>
-      {/* El acceso a la planilla se suma en la tarea siguiente (T5), cuando exista la pantalla. */}
+      <Link to="/animales/planilla" className="boton-secundario enlace-boton">
+        Cargar desde planilla
+      </Link>
     </div>
   );
 

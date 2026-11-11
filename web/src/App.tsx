@@ -9,6 +9,7 @@ import { Lotes } from './paginas/Lotes';
 import { Animales } from './paginas/Animales';
 import { AnimalNuevo } from './paginas/AnimalNuevo';
 import { AnimalFicha } from './paginas/AnimalFicha';
+import { AnimalesPlanilla } from './paginas/AnimalesPlanilla';
 
 export function App() {
   return (
@@ -25,6 +26,7 @@ export function App() {
             <Route path="animales" element={<Animales />} />
             {/* "nuevo" va antes que ":id" (React Router igual prioriza la ruta fija). */}
             <Route path="animales/nuevo" element={<AnimalNuevo />} />
+            <Route path="animales/planilla" element={<AnimalesPlanilla />} />
             <Route path="animales/:id" element={<AnimalFicha />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
