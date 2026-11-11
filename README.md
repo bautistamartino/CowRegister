@@ -43,6 +43,7 @@ docs/   → requerimientos y plan
 |---|---|
 | `npm run dev` | Levanta API y web juntas |
 | `npm run typecheck` | Revisa los tipos de todo el proyecto |
+| `npm test` | Corre los tests de la API (usa la base `cowregister_test`) |
 | `npm run build` | Genera la versión de producción |
 | `npm run db:migrate -w api` | Aplica migraciones (o crea una nueva si cambió el esquema) |
 | `npm run db:studio -w api` | Abre Prisma Studio para ver y editar los datos |

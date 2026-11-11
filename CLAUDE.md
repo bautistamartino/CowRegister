@@ -2,7 +2,24 @@
 
 Sistema web para tambos argentinos: registro de vacas y sus eventos (pariciones, secados, servicios, tactos, ventas y muertes), lotes personalizables, buscador por número (compatible con bastón lector RFID) e informes productivos. Es multi-tambo: cada establecimiento ve solo sus datos.
 
-Requisitos completos: [docs/requerimientos.md](docs/requerimientos.md) · Plan por etapas: [docs/plan.md](docs/plan.md)
+Requisitos completos: [docs/requerimientos.md](docs/requerimientos.md) · Plan por etapas: [docs/plan.md](docs/plan.md) · Principios obligatorios: [docs/constitution.md](docs/constitution.md) · Estado y decisiones: [MEMORY.md](MEMORY.md)
+
+## Sistema de agentes (SDD)
+
+- `/sdd <petición>`: funcionalidades nuevas o cambios de requisitos. El agente principal actúa como **coordinador** (no edita código) y delega en los subagentes de `.claude/agents/`:
+  - `planificador`: spec, plan y tareas en `specs/NNN-nombre/`. Solo escribe en `specs/` (hook).
+  - `implementador`: una tarea por vez, tests primero, verifica en el navegador.
+  - `revisor`: QA de la spec y validación RF por RF. No edita; solo corre tests y comandos de lectura de Git (hook).
+- `/feature <cambio>`: cambios chicos sin spec.
+- Plantillas y formato EARS: `.claude/skills/sdd/plantillas.md`.
+- Nadie hace `git push` ni lee o edita `.env` (`.claude/settings.json`).
+
+## Comandos
+
+- `npm run dev`: API (3000) y web (5173).
+- `npm test`: tests de la API (Vitest + supertest) sobre la base `cowregister_test`.
+- `npm run typecheck`: tipos de API y web.
+- `npm run db:migrate -w api -- --name <nombre>`: nueva migración. `npm run db:generate -w api` regenera el cliente.
 
 ## Stack
 

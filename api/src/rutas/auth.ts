@@ -11,9 +11,10 @@ import { requiereSesion, usuarioActual } from '../auth/middleware.js';
 export const rutasAuth = Router();
 
 // Máximo 10 intentos de login/registro cada 15 minutos por IP (frena la fuerza bruta).
+// LIMITE_INTENTOS_LOGIN permite cambiarlo (los tests lo suben para no bloquearse).
 const limiteIntentos = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: () => Number(process.env.LIMITE_INTENTOS_LOGIN ?? 10),
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: { error: 'Demasiados intentos. Probá de nuevo en unos minutos.' },
