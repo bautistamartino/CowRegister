@@ -126,3 +126,59 @@ export const numeroSchema = z
       }),
   )
   .transform((n) => n.toUpperCase());
+
+// ---------------------------------------------------------------------------
+// Catálogo de semen y toros y anulación de eventos (spec 003)
+// ---------------------------------------------------------------------------
+
+const MAX_NOMBRE_SEMEN = 50;
+const MAX_RAZA_SEMEN = 50;
+const MAX_MOTIVO_ANULACION = 200;
+
+// Nombre de una entrada del catálogo: se normaliza igual que el de los lotes
+// (RF-3) y se valida el resultado, que es lo que se guarda y se compara.
+export const nombreSemenSchema = z
+  .string({ error: 'El nombre del semen o toro es obligatorio' })
+  .transform(normalizarNombre)
+  .pipe(
+    z
+      .string()
+      .refine((nombre) => largo(nombre) >= 1, {
+        error: 'El nombre del semen o toro es obligatorio',
+        abort: true,
+      })
+      .refine((nombre) => largo(nombre) <= MAX_NOMBRE_SEMEN, {
+        error: `El nombre del semen o toro no puede superar los ${MAX_NOMBRE_SEMEN} caracteres`,
+      }),
+  );
+
+// Raza opcional. Texto o `null`; vacía o de solo espacios pasa a `null` ("sin raza"),
+// que es lo único que acepta la base para "sin raza" (CHECK semen_toros_raza_valida).
+// El "opcional" (que el campo no venga) lo agrega cada ruta con `.optional()`.
+export const razaSemenSchema = z
+  .string({ error: 'La raza debe ser un texto' })
+  .nullable()
+  .transform((texto) => {
+    if (texto === null) return null;
+    const limpio = normalizarNombre(texto);
+    return limpio === '' ? null : limpio;
+  })
+  .refine((texto) => texto === null || largo(texto) <= MAX_RAZA_SEMEN, {
+    error: `La raza no puede superar los ${MAX_RAZA_SEMEN} caracteres`,
+  });
+
+// Motivo de una anulación: obligatorio, hasta 200 caracteres sin contar los extremos (RF-19, RF-20).
+export const motivoAnulacionSchema = z
+  .string({ error: 'El motivo de la anulación es obligatorio' })
+  .transform((texto) => texto.normalize('NFC').trim())
+  .pipe(
+    z
+      .string()
+      .refine((motivo) => largo(motivo) >= 1, {
+        error: 'El motivo de la anulación es obligatorio',
+        abort: true,
+      })
+      .refine((motivo) => largo(motivo) <= MAX_MOTIVO_ANULACION, {
+        error: `El motivo no puede superar los ${MAX_MOTIVO_ANULACION} caracteres`,
+      }),
+  );

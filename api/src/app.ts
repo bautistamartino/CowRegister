@@ -7,6 +7,7 @@ import { rutasUsuarios } from './rutas/usuarios.js';
 import { rutasLotes } from './rutas/lotes.js';
 import { rutasReglasLote } from './rutas/reglas-lote.js';
 import { rutasAnimales } from './rutas/animales.js';
+import { rutasSemen } from './rutas/semen.js';
 import { requiereRol, requiereSesion } from './auth/middleware.js';
 
 // Crea la aplicación Express sin levantar el servidor.
@@ -25,6 +26,11 @@ export function createApp() {
     requiereSesion,
     requiereRol('DUENO', 'ENCARGADO'),
   );
+  // Catálogo de semen y toros (spec 003, RF-28): sin sesión 401 y sin permiso 403, también con
+  // JSON roto, así que sesión y rol van antes de los parsers. El GET lo ven los tres roles.
+  app.use('/api/semen', requiereSesion);
+  app.post('/api/semen', requiereRol('DUENO', 'ENCARGADO'));
+  app.patch('/api/semen/:id', requiereRol('DUENO', 'ENCARGADO'));
   // La carga desde planilla recibe un texto de hasta 100.000 caracteres: con las tabulaciones y los
   // saltos de línea escapados en el JSON puede pasar los 100 kb. Este parser de 1 MB va ANTES del
   // global y solo para esas dos rutas (Express no vuelve a leer un cuerpo ya leído); el límite de
@@ -42,6 +48,7 @@ export function createApp() {
   app.use('/api/lotes', rutasLotes);
   app.use('/api/reglas-lote', rutasReglasLote);
   app.use('/api/animales', rutasAnimales);
+  app.use('/api/semen', rutasSemen);
 
   // Cualquier otra ruta de la API no existe.
   app.use('/api', () => {

@@ -48,6 +48,8 @@ model Establecimiento {
   lotes      Lote[]
   reglasLote ReglaLote[]
   animales   Animal[]
+  semenToros SemenToro[]
+  eventos    Evento[]
 
   @@map("establecimientos")
 }
@@ -63,9 +65,14 @@ model Usuario {
   creadoEn          DateTime @default(now())
   actualizadoEn     DateTime @updatedAt
 
-  establecimiento Establecimiento @relation(fields: [establecimientoId], references: [id])
-  sesiones        Sesion[]
+  establecimiento    Establecimiento @relation(fields: [establecimientoId], references: [id])
+  sesiones           Sesion[]
+  eventosRegistrados Evento[]        @relation("EventoRegistradoPor")
+  eventosAnulados    Evento[]        @relation("EventoAnuladoPor")
 
+  // Destino de las claves foráneas compuestas de Evento (registradoPor y anuladoPor):
+  // quien registró o anuló un evento tiene que ser del mismo tambo.
+  @@unique([establecimientoId, id])
   @@index([establecimientoId])
   @@map("usuarios")
 }
@@ -152,6 +159,7 @@ model Animal {
   lote            Lote?           @relation(fields: [establecimientoId, loteId], references: [establecimientoId, id], onDelete: Restrict)
   madre           Animal?         @relation("MadreCrias", fields: [establecimientoId, madreId], references: [establecimientoId, id], onDelete: Restrict)
   crias           Animal[]        @relation("MadreCrias")
+  eventos         Evento[]
 
   // Destino de la clave foránea compuesta de la madre (igual que en Lote).
   @@unique([establecimientoId, id])
@@ -160,4 +168,106 @@ model Animal {
   @@index([establecimientoId, numero]) // búsqueda rápida por número
   @@index([loteId])
   @@map("animales")
+}
+
+// ─── Reproducción (spec 003) ────────────────────────────────────────
+
+// Tipo de evento. La spec 004 agrega PARTO y SECADO (ALTER TYPE ... ADD VALUE).
+enum TipoEvento {
+  SERVICIO
+  TACTO
+}
+
+enum TipoServicio {
+  INSEMINACION
+  MONTA_NATURAL
+}
+
+enum ResultadoTacto {
+  PRENADA
+  VACIA
+}
+
+// Catálogo de semen y toros de cada tambo. No se borra: se desactiva.
+model SemenToro {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  establecimientoId String   @db.Uuid
+  nombre            String
+  raza              String? // null = "sin raza"
+  activo            Boolean  @default(true)
+  creadoEn          DateTime @default(now())
+  actualizadoEn     DateTime @updatedAt
+
+  establecimiento Establecimiento @relation(fields: [establecimientoId], references: [id])
+  servicios       Servicio[]
+
+  // Destino de la clave foránea compuesta de Servicio.
+  @@unique([establecimientoId, id])
+  // A mano en la migración reproduccion_base: índice único sobre lower(nombre) por
+  // tambo (semen_toros_nombre_unico_sin_mayusculas) y CHECK de nombre y raza.
+  @@map("semen_toros")
+}
+
+// Evento reproductivo de un animal. Tabla común: el detalle de cada tipo vive en
+// su propia tabla (Servicio, Tacto; la 004 suma Parto y Secado). Los eventos solo
+// se agregan: nunca se editan ni se borran; si se cargó mal, se anula.
+model Evento {
+  id                String     @id @default(uuid(7)) @db.Uuid
+  establecimientoId String     @db.Uuid
+  animalId          String     @db.Uuid
+  tipo              TipoEvento
+  fecha             DateTime   @db.Date
+  registradoPorId   String     @db.Uuid
+  // Momento de registro: además de ser la fecha de creación, desempata el orden
+  // entre eventos de la misma fecha. La API lo hace estrictamente creciente por animal.
+  creadoEn          DateTime   @default(now())
+  // Anulación: las tres columnas van juntas (CHECK eventos_anulacion_completa).
+  anuladoEn         DateTime?
+  anuladoPorId      String?    @db.Uuid
+  motivoAnulacion   String?
+
+  establecimiento Establecimiento @relation(fields: [establecimientoId], references: [id])
+  animal          Animal          @relation(fields: [establecimientoId, animalId], references: [establecimientoId, id], onDelete: Restrict)
+  registradoPor   Usuario         @relation("EventoRegistradoPor", fields: [establecimientoId, registradoPorId], references: [establecimientoId, id], onDelete: Restrict)
+  anuladoPor      Usuario?        @relation("EventoAnuladoPor", fields: [establecimientoId, anuladoPorId], references: [establecimientoId, id], onDelete: Restrict)
+  servicio        Servicio?
+  tacto           Tacto?
+
+  // Destino de las claves compuestas de los detalles (con el tipo, para que un
+  // servicio solo pueda colgar de un evento de tipo SERVICIO).
+  @@unique([establecimientoId, id, tipo])
+  // Nunca dos eventos de un animal con el mismo momento de registro.
+  @@unique([animalId, creadoEn])
+  @@index([animalId, fecha, creadoEn]) // lectura en orden total
+  @@map("eventos")
+}
+
+model Servicio {
+  eventoId          String       @id @db.Uuid
+  establecimientoId String       @db.Uuid
+  tipo              TipoEvento   @default(SERVICIO) // CHECK: siempre SERVICIO
+  tipoServicio      TipoServicio
+  semenId           String?      @db.Uuid
+
+  evento Evento     @relation(fields: [establecimientoId, eventoId, tipo], references: [establecimientoId, id, tipo], onDelete: Restrict)
+  // Con semenId nulo ("No especificado") no se controla la clave foránea.
+  semen  SemenToro? @relation(fields: [establecimientoId, semenId], references: [establecimientoId, id], onDelete: Restrict)
+
+  @@unique([establecimientoId, eventoId, tipo])
+  @@index([semenId])
+  @@map("servicios")
+}
+
+model Tacto {
+  eventoId              String         @id @db.Uuid
+  establecimientoId     String         @db.Uuid
+  tipo                  TipoEvento     @default(TACTO) // CHECK: siempre TACTO
+  resultado             ResultadoTacto
+  fechaProbableIndicada DateTime?      @db.Date // la que escribió el usuario (solo si PRENADA)
+  anomalias             String?
+
+  evento Evento @relation(fields: [establecimientoId, eventoId, tipo], references: [establecimientoId, id, tipo], onDelete: Restrict)
+
+  @@unique([establecimientoId, eventoId, tipo])
+  @@map("tactos")
 }
