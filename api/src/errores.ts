@@ -64,3 +64,10 @@ export const manejarErrores: ErrorRequestHandler = (err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ error: 'Error interno del servidor' });
 };
+
+// Error de validación de un campo, con el mismo formato (400 con "detalles") que los errores
+// de zod: la web lo muestra debajo del campo correspondiente. Sirve para reglas que se
+// controlan después de leer la base (fecha contra el estado del animal, semen inexistente).
+export function errorDeCampo(campo: string, mensaje: string): ZodError {
+  return new ZodError([{ code: 'custom', path: [campo], message: mensaje, input: undefined }]);
+}

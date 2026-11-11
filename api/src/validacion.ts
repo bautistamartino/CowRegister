@@ -182,3 +182,18 @@ export const motivoAnulacionSchema = z
         error: `El motivo no puede superar los ${MAX_MOTIVO_ANULACION} caracteres`,
       }),
   );
+
+const MAX_ANOMALIAS = 200;
+
+// Anomalías detectadas en un tacto (RF-17): texto opcional de hasta 200 caracteres sin contar
+// los extremos. Vacío, de solo espacios o `null` se guarda como `null` ("sin anomalías").
+export const anomaliasSchema = z
+  .string({ error: 'Las anomalías tienen que ser un texto' })
+  .nullish()
+  .transform((texto) => {
+    const limpio = texto?.normalize('NFC').trim() ?? '';
+    return limpio === '' ? null : limpio;
+  })
+  .refine((texto) => texto === null || largo(texto) <= MAX_ANOMALIAS, {
+    error: `Las anomalías no pueden superar los ${MAX_ANOMALIAS} caracteres`,
+  });

@@ -177,3 +177,15 @@ export async function crearTactoDirecto(
     return evento;
   });
 }
+
+// Registra un tambo con su dueño y le crea un animal (por defecto una vaca en ordeñe "101").
+// Devuelve el agente del dueño, el id del tambo, el id del usuario y el animal.
+export async function prepararVaca(
+  opciones: Parameters<typeof crearAnimalDirecto>[2] & { numero?: string; nombreTambo?: string; email?: string } = {},
+) {
+  const { numero, nombreTambo, email, ...resto } = opciones;
+  const { agente, perfil } = await registrarTambo(nombreTambo, email);
+  const tambo = perfil.establecimiento.id;
+  const vaca = await crearAnimalDirecto(tambo, numero ?? '101', resto);
+  return { agente, tambo, usuarioId: perfil.id, vaca };
+}
