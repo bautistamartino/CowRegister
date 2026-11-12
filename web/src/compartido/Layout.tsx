@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router';
 import { useAuth } from '../sesion/auth';
 import { ApiError, type Rol } from './api';
 import { Buscador } from '../animales/Buscador';
+import { Confirmar } from '../sinconexion/Confirmar';
 import { CartelCopia } from '../sinconexion/CartelCopia';
 import { AvisoConexion } from '../sinconexion/AvisoConexion';
 import { TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
@@ -38,21 +39,35 @@ export function Layout() {
   const [error, setError] = useState<string | null>(null);
   // Se muestra al tocar una opción deshabilitada del menú (en una tablet no hay "tooltip").
   const [avisoMenu, setAvisoMenu] = useState(false);
+  // Confirmación de cierre de sesión cuando quedan litros pendientes (spec 009, RF-44).
+  const [confirmandoCierre, setConfirmandoCierre] = useState(false);
+  const [cerrando, setCerrando] = useState(false);
 
   // El aviso se va al cambiar de pantalla o al volver la conexión.
   useEffect(() => setAvisoMenu(false), [pathname, enLinea]);
 
   if (!usuario) return null;
 
-  // Cierra la sesión sin pedir confirmación (RF-28). No hace falta navegar a mano:
-  // logout() deja usuario = null y RutaPrivada (que envuelve a este Layout) redirige al login.
-  async function cerrarSesion() {
+  // Cierra la sesión: borra TODO lo guardado en la tablet (RF-43). Si quedan litros pendientes (esperando o
+  // rechazados) primero pide confirmación con la cantidad (RF-44); si cancela, no se cierra nada.
+  // Sin conexión igual se cierra y se borra; el aviso de que el servidor no se cerró lo muestra el ingreso (RF-45).
+  // No hace falta navegar a mano: logout() deja usuario = null y RutaPrivada redirige al login.
+  async function ejecutarCierre() {
     setError(null);
+    setCerrando(true);
     try {
       await logout();
     } catch (err) {
+      setConfirmandoCierre(false);
       setError(err instanceof ApiError ? err.message : 'No se pudo cerrar la sesión');
+    } finally {
+      setCerrando(false);
     }
+  }
+
+  function cerrarSesion() {
+    if (pendientes > 0) setConfirmandoCierre(true);
+    else void ejecutarCierre();
   }
 
   return (
@@ -131,6 +146,25 @@ export function Layout() {
           <p className="aviso" role="status">
             {TEXTO_NECESITA_CONEXION}
           </p>
+        </div>
+      )}
+
+      {confirmandoCierre && (
+        <div className="contenido">
+          <Confirmar
+            titulo="¿Cerrar sesión con litros sin enviar?"
+            confirmarTexto="Cerrar sesión y borrar"
+            alConfirmar={() => void ejecutarCierre()}
+            alCancelar={() => setConfirmandoCierre(false)}
+            ocupado={cerrando}
+          >
+            <p>
+              Se van a perder {pendientes} {pendientes === 1 ? 'litro cargado' : 'litros cargados'} que todavía no se{' '}
+              {pendientes === 1 ? 'envió' : 'enviaron'} al servidor
+              {rechazados > 0 ? ` (${rechazados} ${rechazados === 1 ? 'rechazado' : 'rechazados'})` : ''}. Al cerrar sesión se borran todos los datos
+              guardados en la tablet.
+            </p>
+          </Confirmar>
         </div>
       )}
 

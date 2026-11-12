@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from './auth';
+import { ConfirmarIngreso } from './ConfirmarIngreso';
 import { ApiError } from '../compartido/api';
 import { Campo } from '../compartido/Campo';
 
 export function Registro() {
-  const { registro } = useAuth();
+  const { registro, ingresoPendiente } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [errores, setErrores] = useState<Record<string, string>>({});
@@ -25,13 +26,14 @@ export function Registro() {
 
     setEnviando(true);
     try {
-      await registro({
+      // false = quedó esperando la confirmación de ConfirmarIngreso (no se entra todavía).
+      const entro = await registro({
         nombreEstablecimiento: String(form.get('nombreEstablecimiento')),
         nombre: String(form.get('nombre')),
         email: String(form.get('email')),
         password,
       });
-      navigate('/', { replace: true });
+      if (entro) navigate('/', { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.detalles.length) {
         // Errores de validación: se muestran debajo de cada campo.
@@ -42,6 +44,18 @@ export function Registro() {
     } finally {
       setEnviando(false);
     }
+  }
+
+  // Hay datos de otro usuario con pendientes: solo se muestra el aviso, sin formulario ni ningún dato (RF-46).
+  if (ingresoPendiente) {
+    return (
+      <main className="pantalla-auth">
+        <div className="tarjeta">
+          <h1>CowRegister</h1>
+          <ConfirmarIngreso />
+        </div>
+      </main>
+    );
   }
 
   return (

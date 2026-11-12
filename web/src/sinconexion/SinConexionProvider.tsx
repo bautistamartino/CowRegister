@@ -85,8 +85,9 @@ export function SinConexionProvider({ children }: { children: ReactNode }) {
     (async () => {
       const almacen = obtenerAlmacen();
       let meta = await almacen.leerMeta().catch(() => null);
-      // La copia es de OTRO usuario o tambo: nunca se muestra (RF-17). Se descarta y se descarga
-      // la propia como "primera vez". (La confirmación con aviso de pendientes llega en la T5.)
+      // La copia es de OTRO usuario o tambo: nunca se muestra (RF-17). Red de seguridad: AuthProvider ya
+      // decide esto ANTES de dar la sesión por abierta (con confirmación si hay pendientes, RF-46), así que
+      // acá no debería llegar; si llegara, se descarta y se descarga la propia como "primera vez".
       if (meta && (meta.propietario.usuarioId !== usuarioId || meta.propietario.establecimientoId !== establecimientoId)) {
         await almacen.borrarCopia().catch(() => undefined);
         meta = null;
