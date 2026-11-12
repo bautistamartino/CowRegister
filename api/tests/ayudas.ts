@@ -12,7 +12,7 @@ export async function limpiarBase() {
     throw new Error('limpiarBase() solo puede usarse con la base de tests');
   }
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "cambios_animal", "crias_parto", "partos", "secados", "bajas", "servicios", "tactos", "eventos", "semen_toros", "sesiones", "animales", "reglas_lote", "lotes", "usuarios", "establecimientos" CASCADE',
+    'TRUNCATE TABLE "cambios_animal", "crias_parto", "partos", "secados", "bajas", "producciones", "servicios", "tactos", "eventos", "semen_toros", "sesiones", "animales", "reglas_lote", "lotes", "usuarios", "establecimientos" CASCADE',
   );
 }
 
@@ -519,4 +519,44 @@ export async function prepararVaca(
   const tambo = perfil.establecimiento.id;
   const vaca = await crearAnimalDirecto(tambo, numero ?? '101', resto);
   return { agente, tambo, usuarioId: perfil.id, vaca };
+}
+
+// ─── Producción: litros por vaca (spec 008) ─────────────────────────
+
+/**
+ * Inserta un registro de producción directo en la base (sin pasar por la API). Los litros se pasan
+ * como número (12.5) y se guardan en décimas. Con `anulacion` el registro queda anulado.
+ */
+export function crearProduccionDirecta(datos: {
+  establecimientoId: string;
+  animalId: string;
+  registradoPorId: string;
+  fecha: string; // AAAA-MM-DD
+  turno?: 'MANANA' | 'TARDE';
+  litros?: number;
+  loteId?: string | null;
+  loteNombre?: string | null;
+  anulacion?: { porId: string; motivo: string; en?: Date };
+  creadoEn?: Date;
+  id?: string;
+}) {
+  return prisma.produccion.create({
+    data: {
+      ...(datos.id && { id: datos.id }),
+      establecimientoId: datos.establecimientoId,
+      animalId: datos.animalId,
+      fecha: aFecha(datos.fecha),
+      turno: datos.turno ?? 'MANANA',
+      litrosDecimas: Math.round((datos.litros ?? 10) * 10),
+      loteId: datos.loteId ?? null,
+      loteNombre: datos.loteNombre ?? null,
+      registradoPorId: datos.registradoPorId,
+      ...(datos.creadoEn && { creadoEn: datos.creadoEn }),
+      ...(datos.anulacion && {
+        anuladoEn: datos.anulacion.en ?? new Date(),
+        anuladoPorId: datos.anulacion.porId,
+        motivoAnulacion: datos.anulacion.motivo,
+      }),
+    },
+  });
 }

@@ -6,6 +6,7 @@ import { FormEditarAnimal } from '../componentes/FormEditarAnimal';
 import { FormMoverLote } from '../componentes/FormMoverLote';
 import { FormBaja } from '../componentes/FormBaja';
 import { Historial } from '../componentes/Historial';
+import { Produccion } from '../componentes/Produccion';
 import { useAuth } from '../auth';
 import { NOMBRE_ESTADO, NOMBRE_SEXO, TEXTO_NO_DISPONIBLE, formatearFecha } from '../animales';
 import { textoGenetica } from '../reproduccion';
@@ -306,6 +307,18 @@ export function AnimalFicha() {
         <Reproduccion animalId={ficha.id} sexo={ficha.sexo} estado={ficha.estado} alCambiarAnimal={recargarFicha} versionExterna={versionCambios} />
       ) : (
         <Historial animalId={ficha.id} contexto="animales" version={versionCambios} />
+      )}
+
+      {/* Producción de leche (spec 008): solo hembras. Después del historial; este no cambia. */}
+      {ficha.sexo === 'HEMBRA' && (
+        <Produccion
+          animalId={ficha.id}
+          contexto="animales"
+          numero={ficha.numero}
+          loteNombre={ficha.lote?.nombre ?? null}
+          enOrdene={ficha.estado === 'EN_ORDENE'}
+          estadoTexto={NOMBRE_ESTADO[ficha.estado]}
+        />
       )}
 
       <p>

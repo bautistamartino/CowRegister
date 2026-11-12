@@ -374,3 +374,51 @@ export type InformeNatalidad = {
   truncado: boolean;
   tope: number;
 };
+
+// ─── Producción: litros por vaca (spec 008) ───
+
+export type TurnoOrdeno = 'manana' | 'tarde';
+
+// Un registro de producción. `litros` es un número con un decimal; `anulado` null = vigente.
+export type RegistroProduccion = {
+  id: string;
+  animalId: string;
+  fecha: string; // AAAA-MM-DD
+  turno: TurnoOrdeno;
+  litros: number;
+  loteNombre: string | null; // null = "Sin lote"
+  registradoPor: string;
+  registradoEn: string;
+  anulado: { por: string | null; en: string; motivo: string | null } | null;
+};
+
+// GET /api/animales/:id/produccion y /api/bajas/:id/produccion. `sugerencia` solo viene en la ficha activa.
+export type FichaProduccion = {
+  registros: RegistroProduccion[];
+  total: number;
+  mostrados: number;
+  truncado: boolean;
+  tope: number;
+  promedio30Dias: number | null; // null = "—"
+  ultimoRegistro: { fecha: string; turno: TurnoOrdeno; litros: number } | null;
+  sugerencia?: { fecha: string; turno: TurnoOrdeno };
+};
+
+// GET /api/informes/leche?desde&hasta (spec 008). Litros y promedios con un decimal; null = "—".
+export type InformeLeche = {
+  periodo: { desde: string; hasta: string };
+  resumen: {
+    totalLitros: number;
+    ordenos: number;
+    vacas: number;
+    vacaDias: number;
+    promedioPorVacaDia: number | null;
+    promedioPorOrdeno: number | null;
+  };
+  porLote: { loteId: string | null; nombre: string | null; litros: number; vacas: number; vacaDias: number; promedioPorVacaDia: number | null }[]; // nombre null = "Sin lote"
+  porVaca: { animal: AnimalDeInforme; litros: number; dias: number; promedioPorVacaDia: number | null }[];
+  totalVacas: number;
+  truncado: boolean;
+  tope: number;
+  porDia: { fecha: string; litros: number; vacas: number; litrosManana: number; litrosTarde: number }[];
+};

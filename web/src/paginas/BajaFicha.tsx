@@ -5,6 +5,7 @@ import { useAuth } from '../auth';
 import { NOMBRE_ESTADO, NOMBRE_SEXO, TEXTO_NO_DISPONIBLE, formatearFecha, nombreMotivo, puedeCargar } from '../animales';
 import { fechaArgentinaIso } from '../reproduccion';
 import { Historial } from '../componentes/Historial';
+import { Produccion } from '../componentes/Produccion';
 import { FormRevertirBaja } from '../componentes/FormRevertirBaja';
 
 // Ficha de baja (spec 006, RF-13): solo lectura. Los tres roles la ven; dueño y encargado
@@ -228,6 +229,11 @@ export function BajaFicha() {
 
       {/* Historial único en solo lectura: sin "Anular" (la baja se revierte con el botón de arriba). */}
       <Historial animalId={ficha.id} contexto="bajas" version={0} />
+
+      {/* Producción en solo lectura (spec 008, RF-33): sin formulario ni "Anular". */}
+      {ficha.sexo === 'HEMBRA' && (
+        <Produccion animalId={ficha.id} contexto="bajas" numero={ficha.numero} loteNombre={null} enOrdene={false} estadoTexto="" />
+      )}
 
       <p>
         <Link to="/bajas" className="enlace-fila">

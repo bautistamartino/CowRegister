@@ -52,12 +52,13 @@ model Establecimiento {
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
-  usuarios   Usuario[]
-  lotes      Lote[]
-  reglasLote ReglaLote[]
-  animales   Animal[]
-  semenToros SemenToro[]
-  eventos    Evento[]
+  usuarios     Usuario[]
+  lotes        Lote[]
+  reglasLote   ReglaLote[]
+  animales     Animal[]
+  semenToros   SemenToro[]
+  eventos      Evento[]
+  producciones Produccion[]
 
   @@map("establecimientos")
 }
@@ -73,10 +74,12 @@ model Usuario {
   creadoEn          DateTime @default(now())
   actualizadoEn     DateTime @updatedAt
 
-  establecimiento    Establecimiento @relation(fields: [establecimientoId], references: [id])
-  sesiones           Sesion[]
-  eventosRegistrados Evento[]        @relation("EventoRegistradoPor")
-  eventosAnulados    Evento[]        @relation("EventoAnuladoPor")
+  establecimiento         Establecimiento @relation(fields: [establecimientoId], references: [id])
+  sesiones                Sesion[]
+  eventosRegistrados      Evento[]        @relation("EventoRegistradoPor")
+  eventosAnulados         Evento[]        @relation("EventoAnuladoPor")
+  produccionesRegistradas Produccion[]    @relation("ProduccionRegistradaPor")
+  produccionesAnuladas    Produccion[]    @relation("ProduccionAnuladaPor")
 
   // Destino de las claves foráneas compuestas de Evento (registradoPor y anuladoPor):
   // quien registró o anuló un evento tiene que ser del mismo tambo.
@@ -173,6 +176,8 @@ model Animal {
   criaDeParto     CriaParto?
   // Cambios hechos a mano (spec 005).
   cambios         CambioAnimal[]
+  // Litros de leche cargados (spec 008).
+  producciones    Produccion[]
 
   // Destino de la clave foránea compuesta de la madre (igual que en Lote).
   @@unique([establecimientoId, id])
@@ -441,4 +446,47 @@ model CambioAnimal {
 
   @@index([animalId, creadoEn])
   @@map("cambios_animal")
+}
+
+// ─── Producción: litros por vaca (spec 008) ─────────────────────────
+
+// Turno de ordeñe. El orden del enum hace que ORDER BY turno DESC ponga la tarde antes que la mañana.
+enum TurnoOrdeno {
+  MANANA
+  TARDE
+}
+
+// Litros de UNA vaca en UN ordeñe (fecha + turno). Solo se agrega: se anula con motivo, nunca se
+// edita ni se borra. Los litros se guardan como entero en décimas (litros x 10): las sumas y
+// comparaciones son exactas, sin errores de coma flotante.
+// El lote es una COPIA (loteId sin clave foránea + loteNombre): si se renombra o elimina el lote,
+// el registro conserva el que tenía la vaca al cargar (igual que CambioAnimal, spec 005).
+// A mano en la migración produccion_base (Prisma no lo modela): índice único parcial
+// producciones_un_vigente_por_ordeno (una carga vigente por vaca, fecha y turno), CHECK de litros,
+// fecha, anulación, motivo y lote, y el disparador producciones_solo_agregar.
+model Produccion {
+  id                String      @id @default(uuid(7)) @db.Uuid
+  establecimientoId String      @db.Uuid
+  animalId          String      @db.Uuid
+  fecha             DateTime    @db.Date
+  turno             TurnoOrdeno
+  litrosDecimas     Int // litros x 10, de 0 a 999 (CHECK producciones_litros_rango)
+  loteId            String?     @db.Uuid // sin clave foránea: nulo = "Sin lote"
+  loteNombre        String? // nombre copiado: nulo = "Sin lote"
+  registradoPorId   String      @db.Uuid
+  creadoEn          DateTime    @default(now())
+  actualizadoEn     DateTime    @updatedAt
+  // Anulación: las tres columnas van juntas (CHECK producciones_anulacion_completa).
+  anuladoEn         DateTime?
+  anuladoPorId      String?     @db.Uuid
+  motivoAnulacion   String?
+
+  establecimiento Establecimiento @relation(fields: [establecimientoId], references: [id])
+  animal          Animal          @relation(fields: [establecimientoId, animalId], references: [establecimientoId, id], onDelete: Restrict)
+  registradoPor   Usuario         @relation("ProduccionRegistradaPor", fields: [establecimientoId, registradoPorId], references: [establecimientoId, id], onDelete: Restrict)
+  anuladoPor      Usuario?        @relation("ProduccionAnuladaPor", fields: [establecimientoId, anuladoPorId], references: [establecimientoId, id], onDelete: Restrict)
+
+  @@index([establecimientoId, fecha]) // informe de leche
+  @@index([animalId, fecha, turno]) // ficha de la vaca
+  @@map("producciones")
 }

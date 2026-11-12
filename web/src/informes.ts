@@ -23,6 +23,13 @@ export function periodoPorDefecto(ahora: Date = new Date()): { desde: string; ha
   return { desde: sumarDiasIso(aniversario, 1), hasta };
 }
 
+// Período por defecto del informe de leche (spec 008): del día 1 del mes en curso hasta hoy,
+// siempre en hora de Argentina (no la zona del navegador).
+export function periodoPorDefectoLeche(ahora: Date = new Date()): { desde: string; hasta: string } {
+  const hasta = fechaArgentinaIso(ahora);
+  return { desde: `${hasta.slice(0, 8)}01`, hasta };
+}
+
 // Último día de un período que empieza en `desde`: el día anterior al quinto aniversario.
 function hastaMaximo(desde: string): string {
   const [a, m, d] = desde.split('-');

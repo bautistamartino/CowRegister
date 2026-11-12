@@ -5,8 +5,10 @@
 // afuera en producción.
 const HISTORIAL = 500;
 const INFORME = 2000;
+const PRODUCCION_FICHA = 200; // registros de producción en la ficha de una vaca (spec 008)
 
-let fijos: { historial?: number; informe?: number } | null = null;
+type Topes = { historial?: number; informe?: number; produccionFicha?: number };
+let fijos: Topes | null = null;
 
 // Máximo de entradas del historial de un animal.
 export function topeHistorial(): number {
@@ -18,7 +20,12 @@ export function topeInforme(): number {
   return fijos?.informe ?? INFORME;
 }
 
+// Máximo de registros de producción que muestra la ficha de una vaca (los más recientes).
+export function topeProduccionFicha(): number {
+  return fijos?.produccionFicha ?? PRODUCCION_FICHA;
+}
+
 // Fija los topes (o los suelta con null). Solo para tests.
-export function fijarTopes(topes: { historial?: number; informe?: number } | null): void {
+export function fijarTopes(topes: Topes | null): void {
   fijos = topes;
 }
