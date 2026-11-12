@@ -888,3 +888,33 @@ h1 .etiqueta-baja {
 .rotulo-campo {
   font-weight: 600;
 }
+
+/* ─── Copia local y modo sin conexión (spec 009) ─── */
+
+/* Pantalla de la primera descarga: reutiliza .pantalla-auth y .tarjeta (centrada y angosta). */
+.pantalla-descarga p {
+  margin: 0;
+}
+
+/* Cartel bajo el menú: estado de la copia ("Actualizando…", "Datos al día de…"). */
+.cartel-copia {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 1rem;
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borde);
+  font-size: 0.95rem;
+  overflow-wrap: anywhere; /* el motivo del error puede ser largo: no desborda en celular */
+}
+
+.cartel-copia-texto {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.cartel-copia-falla {
+  color: var(--error);
+}

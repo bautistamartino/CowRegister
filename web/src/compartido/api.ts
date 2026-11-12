@@ -422,3 +422,22 @@ export type InformeLeche = {
   tope: number;
   porDia: { fecha: string; litros: number; vacas: number; litrosManana: number; litrosTarde: number }[];
 };
+
+// ─── Copia local del tambo para el modo sin conexión (spec 009) ───
+
+// Un animal activo con todo lo que muestra su ficha, igual a lo que dan las rutas individuales
+// (`/animales/:id`, `/eventos`, `/historial` y `/produccion`; esta última sin `sugerencia`).
+export type AnimalCopia = {
+  ficha: AnimalFicha;
+  eventos: RespuestaEventos;
+  historial: RespuestaHistorial;
+  produccion: Omit<FichaProduccion, 'sugerencia'>;
+};
+
+// Respuesta de GET /api/copia-local: foto del tambo en un único instante (`generadaEn`, reloj del servidor).
+export type CopiaLocal = {
+  generadaEn: string; // instante ISO
+  totalAnimales: number;
+  lotes: Lote[];
+  animales: AnimalCopia[];
+};

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
@@ -10,5 +10,18 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:3000',
     },
+  },
+  // `vite preview` sirve la versión compilada (necesaria para probar el service worker, que
+  // en desarrollo no se registra). Reenvía /api a la API igual que el servidor de desarrollo.
+  preview: {
+    port: 4173,
+    proxy: {
+      '/api': 'http://localhost:3000',
+    },
+  },
+  // Tests de la lógica pura de la web (sin navegador: entorno Node).
+  test: {
+    include: ['tests/**/*.test.ts'],
+    environment: 'node',
   },
 });

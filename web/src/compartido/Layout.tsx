@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router';
 import { useAuth } from '../sesion/auth';
 import { ApiError, type Rol } from './api';
 import { Buscador } from '../animales/Buscador';
+import { CartelCopia } from '../sinconexion/CartelCopia';
 
 const nombresRol: Record<Rol, string> = {
   DUENO: 'Dueño',
@@ -77,6 +78,9 @@ export function Layout() {
         {/* Buscador por número: en todas las pantallas con sesión (RF-31). */}
         <Buscador />
       </header>
+
+      {/* Estado de la copia local: "Actualizando…" / "Datos al día de…" (spec 009). */}
+      <CartelCopia />
 
       {error && (
         <div className="contenido">
