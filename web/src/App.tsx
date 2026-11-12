@@ -15,12 +15,16 @@ import { Bajas } from './bajas/Bajas';
 import { BajaFicha } from './bajas/BajaFicha';
 import { Informes } from './informes/Informes';
 import { SinConexionProvider } from './sinconexion/SinConexionProvider';
+import { ColaProvider } from './sinconexion/ColaProvider';
+import { Pendientes } from './sinconexion/Pendientes';
 
 export function App() {
   return (
     <AuthProvider>
       {/* Copia local del tambo: bloquea con la primera descarga y la mantiene al día (spec 009). */}
       <SinConexionProvider>
+        {/* Litros pendientes de sincronizar y su envío automático (spec 009). */}
+        <ColaProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<RutaPublica><Login /></RutaPublica>} />
@@ -38,11 +42,13 @@ export function App() {
               <Route path="animales/:id" element={<AnimalFicha />} />
               <Route path="bajas" element={<RutaConConexion><Bajas /></RutaConConexion>} />
               <Route path="bajas/:id" element={<RutaConConexion><BajaFicha /></RutaConConexion>} />
+              <Route path="pendientes" element={<Pendientes />} />
               <Route path="informes" element={<RutaConConexion><Informes /></RutaConConexion>} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
+        </ColaProvider>
       </SinConexionProvider>
     </AuthProvider>
   );

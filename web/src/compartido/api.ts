@@ -29,6 +29,11 @@ export function alVencerSesion(fn: () => void): () => void {
   };
 }
 
+// Avisa que la sesión venció. Lo usa también el envío de litros pendientes (envio.ts), que no pasa por api().
+export function avisarSesionVencida(): void {
+  manejadorSesionVencida?.();
+}
+
 // En estas rutas un 401 es una respuesta normal, no una sesión vencida:
 // /auth/yo responde 401 al abrir la app sin sesión y /auth/login con datos incorrectos.
 const rutasSin401Global = ['/auth/yo', '/auth/login'];

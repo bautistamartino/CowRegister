@@ -956,3 +956,93 @@ h1 .etiqueta-baja {
   margin: 0;
   align-self: center;
 }
+
+/* ─── Litros pendientes de sincronizar (spec 009, T4) ─── */
+
+/* Número de pendientes junto a "Pendientes" en el menú (RF-42). Con rechazados se destaca con el color de
+   error Y con un "!" en el texto, así no depende solo del color. */
+.menu-enlace .contador {
+  margin-left: 0.5rem;
+  min-width: 1.5rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--primario);
+  color: var(--primario);
+  font-size: 0.9rem;
+  line-height: 1.5rem;
+  text-align: center;
+}
+
+.menu-enlace .contador-alerta {
+  border-color: var(--error);
+  background: var(--error-fondo);
+  color: var(--error);
+}
+
+/* Estado de un litro: texto corto con borde (no solo color). */
+.etiqueta-estado {
+  display: inline-block;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--primario);
+  color: var(--primario);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.etiqueta-estado.etiqueta-rechazado {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.etiqueta-estado.etiqueta-enviado {
+  border-color: var(--borde);
+  color: var(--texto-suave);
+}
+
+/* Etiqueta dentro de un valor de la ficha ("Último registro"): separada del texto. */
+.ficha dd .etiqueta-estado {
+  margin-left: 0.5rem;
+}
+
+/* Un pendiente rechazado se distingue por el borde, además del texto "Rechazado:". */
+.evento.pendiente-rechazado {
+  border-color: var(--error);
+}
+
+.pendiente-rechazo {
+  color: var(--error);
+}
+
+.pendiente .acciones {
+  margin-top: 0.25rem;
+}
+
+/* "Enviando 3 de 12" */
+.progreso-envio {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: var(--superficie);
+  border: 1px solid var(--primario);
+  border-radius: var(--radio);
+  font-weight: 600;
+}
+
+/* Panel de confirmación (Confirmar.tsx): destaca con el borde de error y los botones de abajo. */
+.confirmar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--error-fondo);
+  border: 1px solid var(--error);
+  border-radius: var(--radio);
+}
+
+.confirmar p {
+  margin: 0;
+}
+
+.confirmar-titulo {
+  font-weight: 700;
+}

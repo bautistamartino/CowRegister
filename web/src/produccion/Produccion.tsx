@@ -1,13 +1,25 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router';
 import { api, ApiError, type FichaProduccion, type RegistroProduccion, type TurnoOrdeno } from '../compartido/api';
+import type { Pendiente } from '../sinconexion/almacen';
 import { useAuth } from '../sesion/auth';
 import { formatearFecha, puedeCargar } from '../animales/animalesDatos';
 import { FECHA_MINIMA, fechaArgentinaIso, hoyIso, interpretar } from '../reproduccion/reproduccionDatos';
 import { formatearLitros, litrosParaApi, NOMBRE_TURNO, textoMomento } from './produccionDatos';
 import { Campo } from '../compartido/Campo';
 import { useEnLinea } from '../sinconexion/useConexion';
+import { useSinConexion } from '../sinconexion/SinConexionProvider';
+import { useCola } from '../sinconexion/ColaProvider';
+import { registrosParaFicha, ultimoRegistro, type FilaFicha, type Marca } from '../sinconexion/cola';
+import { fechaYTurnoArgentina } from '../sinconexion/horaArgentina';
 import { NotaNecesitaConexion, TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
+
+// Textos de estado de una fila (RF-56).
+const TEXTO_MARCA: Record<NonNullable<Marca>, string> = {
+  pendiente: 'Pendiente de sincronizar',
+  rechazado: 'Rechazado',
+  enviado: 'Enviado: se confirma al actualizar',
+};
 
 type Props = {
   animalId: string;
@@ -27,6 +39,9 @@ export function Produccion({ animalId, contexto, numero, loteNombre, enOrdene, e
   const { usuario } = useAuth();
   // Sin conexión la producción sale de la copia local; al cambiar la conexión se relee (spec 009).
   const enLinea = useEnLinea();
+  const { generadaEn } = useSinConexion();
+  // Litros pendientes y enviados que la copia todavía no trae (spec 009).
+  const { pendientes, enviados } = useCola();
   const [datos, setDatos] = useState<FichaProduccion | null>(null);
   const [error, setError] = useState<string | null>(null);
   const editable = contexto === 'animales' && !!usuario && puedeCargar(usuario.rol);
@@ -55,7 +70,22 @@ export function Produccion({ animalId, contexto, numero, loteNombre, enOrdene, e
     return () => {
       vigente = false;
     };
-  }, [animalId, contexto, enLinea]);
+    // Se relee también al cambiar la copia o la cantidad de enviados: un litro recién aceptado ya viene del servidor.
+  }, [animalId, contexto, enLinea, generadaEn, enviados.length]);
+
+  // Solo la ficha de una vaca activa mezcla pendientes y enviados (la ficha de baja es de solo lectura).
+  const filas = useMemo(
+    () =>
+      datos
+        ? registrosParaFicha({
+            animalId,
+            registros: datos.registros,
+            pendientes: contexto === 'animales' ? pendientes : [],
+            enviados: contexto === 'animales' ? enviados : [],
+          })
+        : [],
+    [datos, animalId, contexto, pendientes, enviados],
+  );
 
   return (
     <section className="seccion">
@@ -77,20 +107,21 @@ export function Produccion({ animalId, contexto, numero, loteNombre, enOrdene, e
             </div>
           </dl>
 
-          {contexto === 'animales' && editable && enOrdene && datos.sugerencia && (
+          {/* Sin conexión la copia no trae la sugerencia: el formulario la calcula con la hora del dispositivo. */}
+          {contexto === 'animales' && editable && enOrdene && (
             <FormCarga key={animalId} animalId={animalId} numero={numero} loteNombre={loteNombre} datos={datos} />
           )}
           {contexto === 'animales' && !enOrdene && (
             <p className="subtitulo">Solo se carga producción de vacas en ordeñe; esta vaca está {estadoTexto.toLowerCase()}.</p>
           )}
 
-          {datos.registros.length === 0 ? (
+          {filas.length === 0 ? (
             <p className="subtitulo">Todavía no hay producción registrada</p>
           ) : (
             <>
               <ul className="lista-eventos">
-                {datos.registros.map((r) => (
-                  <FilaRegistro key={r.id} registro={r} animalId={animalId} anulable={editable} alCambiar={recargar} />
+                {filas.map((f) => (
+                  <FilaRegistro key={f.id} fila={f} animalId={animalId} anulable={editable} alCambiar={recargar} />
                 ))}
               </ul>
               {datos.truncado && (
@@ -110,12 +141,17 @@ export function Produccion({ animalId, contexto, numero, loteNombre, enOrdene, e
 
 function FormCarga({ animalId, numero, loteNombre, datos }: { animalId: string; numero: string; loteNombre: string | null; datos: FichaProduccion }) {
   const navigate = useNavigate();
-  // Fecha y turno propuestos por la API (hora de Argentina): el turno se puede cambiar antes de guardar.
-  const [turno, setTurno] = useState<TurnoOrdeno>(datos.sugerencia?.turno ?? 'manana');
+  const enLinea = useEnLinea();
+  const { cargar, pendientes, enviados } = useCola();
+  // Fecha y turno propuestos por la API (hora de Argentina). Sin conexión la copia no trae la sugerencia y se
+  // calcula con la hora del dispositivo convertida a Argentina (spec 009, RF-21). Se pueden cambiar antes de guardar.
+  const [sugerencia] = useState(() => datos.sugerencia ?? fechaYTurnoArgentina(new Date()));
+  const [turno, setTurno] = useState<TurnoOrdeno>(sugerencia.turno);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const ultimo = datos.ultimoRegistro;
+  // Último registro: el más reciente por fecha y turno entre la copia (o el servidor), los pendientes y los enviados (RF-23).
+  const ultimo = ultimoRegistro({ animalId, ultimoServidor: datos.ultimoRegistro, pendientes, enviados });
 
   async function guardar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -126,10 +162,25 @@ function FormCarga({ animalId, numero, loteNombre, datos }: { animalId: string; 
     const fecha = String(d.get('fecha'));
     const litros = litrosParaApi(String(d.get('litros')));
     try {
-      await api(`/animales/${encodeURIComponent(animalId)}/produccion`, { method: 'POST', body: { fecha, turno, litros } });
-      // Vuelta al buscador por número (RF-7): la pantalla de Animales enfoca el campo para la vaca siguiente.
+      // Con señal envía enseguida; sin señal (o con señal mala) queda pendiente en la tablet (spec 009).
+      // La validación de formato y rango (mismos mensajes que la API) la hace cargar().
+      const r = await cargar({ animalId, numero, fecha, turno, litros }, datos.registros);
+      if (r.tipo === 'invalido') {
+        // Validación local, duplicado local o rechazo del servidor (los 409 se muestran tal cual).
+        setErrores(r.errores);
+        setError(r.general);
+        setEnviando(false);
+        return;
+      }
+      if (r.tipo === 'sinLugar') {
+        setError(r.mensaje);
+        setEnviando(false);
+        return;
+      }
+      const detalle = `vaca ${numero}, ${formatearLitros(Number(litros))} litros (${NOMBRE_TURNO[turno].toLowerCase()} del ${formatearFecha(fecha)})`;
+      // Vuelta al buscador por número (RF-7, RF-23): la pantalla de Animales enfoca el campo para la vaca siguiente.
       navigate('/animales', {
-        state: { mensaje: `Producción guardada: vaca ${numero}, ${formatearLitros(Number(litros))} litros (${NOMBRE_TURNO[turno].toLowerCase()} del ${formatearFecha(fecha)})` },
+        state: { mensaje: r.tipo === 'enviado' ? `Producción guardada: ${detalle}` : `Guardado en la tablet: pendiente de sincronizar. ${detalle}` },
       });
     } catch (err) {
       const r = interpretar(err);
@@ -155,9 +206,11 @@ function FormCarga({ animalId, numero, loteNombre, datos }: { animalId: string; 
           <dt>Último registro</dt>
           <dd className={ultimo ? undefined : 'texto-suave'}>
             {ultimo ? `${formatearFecha(ultimo.fecha)} · ${NOMBRE_TURNO[ultimo.turno]} · ${formatearLitros(ultimo.litros)} L` : '—'}
+            {ultimo?.marca && <span className={`etiqueta-estado etiqueta-${ultimo.marca}`}>{TEXTO_MARCA[ultimo.marca]}</span>}
           </dd>
         </div>
       </dl>
+      {!enLinea && <p className="aviso">Sin conexión: se guarda en la tablet y se envía sola cuando vuelva la señal.</p>}
       {error && (
         <div className="alerta" role="alert">
           {error}
@@ -169,7 +222,7 @@ function FormCarga({ animalId, numero, loteNombre, datos }: { animalId: string; 
         id="produccion-fecha"
         type="date"
         required
-        defaultValue={datos.sugerencia?.fecha ?? hoyIso()}
+        defaultValue={sugerencia.fecha}
         min={FECHA_MINIMA}
         max={hoyIso()}
         error={errores.fecha}
@@ -210,7 +263,48 @@ function FormCarga({ animalId, numero, loteNombre, datos }: { animalId: string; 
 
 // ─── Una fila de registro, con "Anular" (RF-9, RF-15, RF-30) ───
 
-function FilaRegistro({ registro, animalId, anulable, alCambiar }: { registro: RegistroProduccion; animalId: string; anulable: boolean; alCambiar: () => Promise<void> }) {
+function FilaRegistro({ fila, animalId, anulable, alCambiar }: { fila: FilaFicha; animalId: string; anulable: boolean; alCambiar: () => Promise<void> }) {
+  // Un pendiente (todavía sin registro del servidor) se dibuja aparte, con sus datos y su estado.
+  if (fila.pendiente) return <FilaPendiente p={fila.pendiente} />;
+  return <FilaDelServidor registro={fila.registro!} enviado={fila.marca === 'enviado'} animalId={animalId} anulable={anulable} alCambiar={alCambiar} />;
+}
+
+// Pendiente de la tablet en la ficha: "Pendiente de sincronizar" o "Rechazado: motivo" (RF-36, RF-56).
+function FilaPendiente({ p }: { p: Pendiente }) {
+  return (
+    <li className="evento pendiente">
+      <p className="evento-titulo">
+        <strong>{formatearFecha(p.fecha)}</strong> · {NOMBRE_TURNO[p.turno]} · {formatearLitros(Number(p.litros))} L
+      </p>
+      {p.estado === 'rechazado' ? (
+        <p role="alert">
+          <span className="etiqueta-estado etiqueta-rechazado">Rechazado:</span> {p.motivo} <Link to="/pendientes">Ver en Pendientes</Link>
+        </p>
+      ) : (
+        <p>
+          <span className="etiqueta-estado etiqueta-pendiente">{p.estado === 'enviando' ? 'Enviando…' : TEXTO_MARCA.pendiente}</span>
+        </p>
+      )}
+      <p className="texto-suave">Cargado en la tablet · {textoMomento(p.cargadoEnDispositivo)}</p>
+    </li>
+  );
+}
+
+// Registro del servidor. Si es un "enviado" (aceptado pero todavía no en la copia) lleva su etiqueta y no se anula
+// hasta que la copia lo incluya (anular necesita conexión y la copia al día).
+function FilaDelServidor({
+  registro,
+  enviado,
+  animalId,
+  anulable,
+  alCambiar,
+}: {
+  registro: RegistroProduccion;
+  enviado: boolean;
+  animalId: string;
+  anulable: boolean;
+  alCambiar: () => Promise<void>;
+}) {
   const [anulando, setAnulando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorMotivo, setErrorMotivo] = useState<string | undefined>();
@@ -246,6 +340,11 @@ function FilaRegistro({ registro, animalId, anulable, alCambiar }: { registro: R
         <strong>{formatearFecha(registro.fecha)}</strong> · {NOMBRE_TURNO[registro.turno]} · {formatearLitros(registro.litros)} L
         {anulado && <span className="etiqueta-anulado">Anulado</span>}
       </p>
+      {enviado && (
+        <p>
+          <span className="etiqueta-estado etiqueta-enviado">{TEXTO_MARCA.enviado}</span>
+        </p>
+      )}
       <p className="texto-suave">
         Cargado por {registro.registradoPor} · {textoMomento(registro.registradoEn)}
       </p>
@@ -260,7 +359,7 @@ function FilaRegistro({ registro, animalId, anulable, alCambiar }: { registro: R
           {error}
         </div>
       )}
-      {anulable && !anulado && !anulando && (
+      {anulable && !anulado && !anulando && !enviado && (
         <div className="acciones">
           <button
             type="button"

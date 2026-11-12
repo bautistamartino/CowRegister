@@ -1,5 +1,5 @@
 import type { AnimalCopia, CopiaLocal, Perfil } from '../compartido/api';
-import { ErrorSinEspacio, type Almacen, type MetaCopia, type Propietario } from './almacen';
+import { ErrorSinEspacio, type Almacen, type Enviado, type MetaCopia, type Pendiente, type Propietario } from './almacen';
 
 // Almacén en memoria: solo para los tests. Imita lo importante del real: reemplazar la copia es
 // "todo o nada", y se pueden simular fallas.
@@ -14,9 +14,16 @@ export class AlmacenMemoria implements Almacen {
   private capacidad = Infinity;
   private fallarEnAnimal: number | null = null;
 
-  configurar(fallas: { capacidad?: number; fallarEnAnimal?: number }): void {
+  // Pendientes y enviados (por id; Map conserva el orden de inserción).
+  private pendientes = new Map<string, Pendiente>();
+  private enviados = new Map<string, Enviado>();
+  // capacidadPendientes: cuántos pendientes entran; el siguiente da "no hay espacio" (navegador lleno).
+  private capacidadPendientes = Infinity;
+
+  configurar(fallas: { capacidad?: number; fallarEnAnimal?: number; capacidadPendientes?: number }): void {
     this.capacidad = fallas.capacidad ?? Infinity;
     this.fallarEnAnimal = fallas.fallarEnAnimal ?? null;
+    this.capacidadPendientes = fallas.capacidadPendientes ?? Infinity;
   }
 
   async leerMeta(): Promise<MetaCopia | null> {
@@ -57,5 +64,37 @@ export class AlmacenMemoria implements Almacen {
     this.meta = null;
     this.animales = [];
     this.perfil = null;
+    this.pendientes.clear();
+    this.enviados.clear();
+  }
+
+  async listarPendientes(): Promise<Pendiente[]> {
+    return [...this.pendientes.values()].map((p) => ({ ...p })); // copias: quien lee no cambia lo guardado
+  }
+
+  async guardarPendiente(pendiente: Pendiente): Promise<void> {
+    if (!this.pendientes.has(pendiente.id) && this.pendientes.size >= this.capacidadPendientes) throw new ErrorSinEspacio();
+    this.pendientes.set(pendiente.id, { ...pendiente });
+  }
+
+  async borrarPendiente(id: string): Promise<void> {
+    this.pendientes.delete(id);
+  }
+
+  async aceptarPendiente(id: string, enviado: Enviado): Promise<void> {
+    this.pendientes.delete(id);
+    this.enviados.set(enviado.id, { ...enviado });
+  }
+
+  async listarEnviados(): Promise<Enviado[]> {
+    return [...this.enviados.values()].map((e) => ({ ...e }));
+  }
+
+  async guardarEnviado(enviado: Enviado): Promise<void> {
+    this.enviados.set(enviado.id, { ...enviado });
+  }
+
+  async borrarEnviados(ids: string[]): Promise<void> {
+    for (const id of ids) this.enviados.delete(id);
   }
 }

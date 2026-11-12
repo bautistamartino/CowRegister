@@ -7,6 +7,8 @@ import { CartelCopia } from '../sinconexion/CartelCopia';
 import { AvisoConexion } from '../sinconexion/AvisoConexion';
 import { TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
 import { useEnLinea } from '../sinconexion/useConexion';
+import { useCola } from '../sinconexion/ColaProvider';
+import { puedeCargar } from '../animales/animalesDatos';
 
 const nombresRol: Record<Rol, string> = {
   DUENO: 'Dueño',
@@ -31,6 +33,7 @@ const SECCIONES: { a: string; texto: string; end?: boolean; sinConexion: boolean
 export function Layout() {
   const { usuario, logout } = useAuth();
   const enLinea = useEnLinea();
+  const { total: pendientes, rechazados } = useCola(); // litros pendientes de sincronizar (RF-42)
   const { pathname } = useLocation();
   const [error, setError] = useState<string | null>(null);
   // Se muestra al tocar una opción deshabilitada del menú (en una tablet no hay "tooltip").
@@ -90,6 +93,23 @@ export function Layout() {
                   {s.texto}
                 </button>
               ),
+            )}
+            {/* Pendientes de sincronizar (spec 009): solo dueño y encargado cargan litros. Se puede abrir sin
+                conexión. El número se ve también con conexión; con rechazados se destaca (color y "!"). */}
+            {puedeCargar(usuario.rol) && (
+              <NavLink
+                to="/pendientes"
+                className="menu-enlace"
+                aria-label={pendientes > 0 ? `Pendientes de sincronizar: ${pendientes}${rechazados > 0 ? `, ${rechazados} rechazados` : ''}` : undefined}
+              >
+                Pendientes
+                {pendientes > 0 && (
+                  <span className={rechazados > 0 ? 'contador contador-alerta' : 'contador'} aria-hidden="true">
+                    {pendientes}
+                    {rechazados > 0 && ' !'}
+                  </span>
+                )}
+              </NavLink>
             )}
           </nav>
           <button type="button" className="boton-secundario" onClick={cerrarSesion}>
