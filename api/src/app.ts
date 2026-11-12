@@ -8,6 +8,7 @@ import { rutasLotes } from './rutas/lotes.js';
 import { rutasReglasLote } from './rutas/reglas-lote.js';
 import { rutasAnimales } from './rutas/animales.js';
 import { rutasAnimalesEdicion } from './rutas/animales-edicion.js';
+import { rutasBajas, rutasBajasAnimal } from './rutas/bajas.js';
 import { rutasSemen } from './rutas/semen.js';
 import { rutasReproduccion } from './rutas/reproduccion.js';
 import { rutasPartos } from './rutas/partos.js';
@@ -49,6 +50,10 @@ export function createApp() {
   // Editar un animal (spec 005, RF-19): solo dueño y encargado; el veterinario recibe 403 y sin sesión 401
   // aunque el JSON venga roto. Leer el historial (GET) lo hacen los tres roles y no tiene cuerpo.
   app.patch(['/api/animales/:id', '/api/animales/:id/lote'], requiereSesion, requiereRol('DUENO', 'ENCARGADO'));
+  // Bajas por venta o muerte (spec 006, RF-17): dar de baja y revertir solo dueño y encargado, con
+  // 403 y 401 aunque el JSON venga roto. El listado y la ficha de bajas (GET) los ven los tres roles.
+  app.post(['/api/animales/:id/baja', '/api/animales/:id/revertir-baja'], requiereSesion, requiereRol('DUENO', 'ENCARGADO'));
+  app.use('/api/bajas', requiereSesion);
   // La carga desde planilla recibe un texto de hasta 100.000 caracteres: con las tabulaciones y los
   // saltos de línea escapados en el JSON puede pasar los 100 kb. Este parser de 1 MB va ANTES del
   // global y solo para esas dos rutas (Express no vuelve a leer un cuerpo ya leído); el límite de
@@ -67,6 +72,8 @@ export function createApp() {
   app.use('/api/reglas-lote', rutasReglasLote);
   app.use('/api/animales', rutasReproduccion); // /:id/eventos, /:id/servicios, /:id/tactos
   app.use('/api/animales', rutasPartos); // /:id/partos, /:id/secados
+  app.use('/api/animales', rutasBajasAnimal); // POST /:id/baja, /:id/revertir-baja
+  app.use('/api/bajas', rutasBajas); // GET /, GET /:id
   app.use('/api/animales', rutasAnimalesEdicion); // PATCH /:id, GET /:id/cambios
   app.use('/api/animales', rutasAnimales);
   app.use('/api/servicios', rutasAnulacionServicios);

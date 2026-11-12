@@ -32,6 +32,8 @@ export type FilaEvento = EventoCalculo & {
   anomalias: string | null; // solo en tactos
   parto: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior; servicioId: string | null; crias: CriaDeParto[] } | null;
   secado: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior } | null;
+  // Detalle de una baja por venta o muerte (spec 006). El motivo va como lo habla la API.
+  baja: { motivo: 'venta' | 'muerte'; observaciones: string | null; estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior } | null;
 };
 
 const aTexto = (fecha: Date) => fecha.toISOString().slice(0, 10);
@@ -70,6 +72,7 @@ export async function leerEventos(tx: Prisma.TransactionClient, animalId: string
         },
       },
       secado: { select: { estadoAnterior: true, tuvoLoteAnterior: true, loteAnteriorId: true } },
+      baja: { select: { motivo: true, observaciones: true, estadoAnterior: true, tuvoLoteAnterior: true, loteAnteriorId: true } },
     },
   });
 
@@ -77,7 +80,7 @@ export async function leerEventos(tx: Prisma.TransactionClient, animalId: string
   // ON DELETE SET NULL), así que se leen con una consulta aparte, del mismo tambo.
   const idsLotes = new Set<string>();
   for (const f of filas) {
-    const id = f.parto?.loteAnteriorId ?? f.secado?.loteAnteriorId;
+    const id = f.parto?.loteAnteriorId ?? f.secado?.loteAnteriorId ?? f.baja?.loteAnteriorId;
     if (id) idsLotes.add(id);
   }
   const lotes = idsLotes.size
@@ -118,6 +121,14 @@ export async function leerEventos(tx: Prisma.TransactionClient, animalId: string
         }
       : null,
     secado: f.secado ? { estadoAnterior: f.secado.estadoAnterior, loteAnterior: loteAnterior(f.secado) } : null,
+    baja: f.baja
+      ? {
+          motivo: f.baja.motivo === 'MUERTE' ? 'muerte' : 'venta', // la base solo admite venta o muerte en una baja registrada
+          observaciones: f.baja.observaciones,
+          estadoAnterior: f.baja.estadoAnterior,
+          loteAnterior: loteAnterior(f.baja),
+        }
+      : null,
   }));
 }
 
@@ -157,6 +168,7 @@ export function armarEvento(fila: FilaEvento, fechasTactos: Map<string, string>,
         }
       : null,
     secado: fila.secado ? { estadoAnterior: fila.secado.estadoAnterior, loteAnterior: fila.secado.loteAnterior } : null,
+    baja: fila.baja,
   };
 }
 
@@ -165,7 +177,8 @@ export function armarEvento(fila: FilaEvento, fechasTactos: Map<string, string>,
  * `hoy` es el "hoy" de Argentina del reloj inyectable.
  */
 export function armarRespuesta(filas: FilaEvento[], hoy: string) {
-  const s = calcularSituacion(filas, hoy);
+  // La baja (spec 006) figura en la lista pero NO cuenta para la situación, el ciclo ni la genética.
+  const s = calcularSituacion(filas.filter((f) => f.tipo !== 'BAJA'), hoy);
   const situacion = {
     estado: s.estado,
     // `cicloAnterior`: el servicio o tacto es anterior al último parto no anulado (spec 004, RF-40).

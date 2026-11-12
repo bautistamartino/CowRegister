@@ -48,3 +48,27 @@ export async function siguienteRegistro(tx: Prisma.TransactionClient, animalId: 
   const minimo = _max.creadoEn ? _max.creadoEn.getTime() + 1 : 0;
   return new Date(Math.max(Date.now(), minimo));
 }
+
+// Animal de baja por venta o muerte, bloqueado (spec 006, revertir una baja).
+export type AnimalDeBajaBloqueado = { numero: string; estado: EstadoAnimal; fechaBaja: string | null };
+
+/**
+ * Bloquea (`FOR UPDATE`) la fila de un animal del tambo que esté de baja POR VENTA O MUERTE y
+ * devuelve su número, o `null` si no existe, es de otro tambo, está activo (también uno ya
+ * revertido) o está de baja por "parto anulado" (el llamador responde el mismo 404 en todos los casos).
+ */
+export async function bloquearAnimalDeBaja(
+  tx: Prisma.TransactionClient,
+  animalId: string,
+  establecimientoId: string,
+): Promise<AnimalDeBajaBloqueado | null> {
+  const filas = await tx.$queryRaw<AnimalDeBajaBloqueado[]>`
+    SELECT "numero", "estado"::text AS "estado", "fechaBaja"::text AS "fechaBaja"
+    FROM "animales"
+    WHERE "id" = ${animalId}::uuid
+      AND "establecimientoId" = ${establecimientoId}::uuid
+      AND "estado" = 'BAJA'
+      AND "motivoBaja" IN ('VENTA', 'MUERTE')
+    FOR UPDATE`;
+  return filas[0] ?? null;
+}
