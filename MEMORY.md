@@ -11,11 +11,24 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
   - Hecho: 2.1 semen, servicios y tactos (spec [003-reproduccion](specs/003-reproduccion/spec.md)): catálogo "Semen y toros", servicios, tactos con fecha probable de parto, situación reproductiva en la ficha y anulación del último evento (con motivo, sin borrar).
   - Hecho: 2.2 partos, crías y secados (spec [004-partos-secados](specs/004-partos-secados/spec.md)): registro y anulación de partos y secados (dueño y encargado), alta de las crías vivas, genética de la cría, lote previo, avisos de la lista cerrada y reinicio del ciclo reproductivo. Anular un parto da de baja a las crías vivas (`PARTO_ANULADO`).
   - Hecho: 2.3 editar animal y mover de lote a mano (spec [005-editar-animal](specs/005-editar-animal/spec.md)): edición de número, sexo, fecha de nacimiento y madre (dueño y encargado), mover de lote o dejar sin lote, historial de cambios manuales en la ficha (los tres roles) y aviso 8 al anular un parto o secado tras un movimiento manual.
-  - **Siguiente:** Etapa 3 de [docs/plan.md](docs/plan.md) (reglas y bajas por venta o muerte).
+- **Etapa 3 — Bajas** (ver [docs/plan.md](docs/plan.md))
+  - Hecho: 3.1 bajas por venta o muerte (spec [006-bajas](specs/006-bajas/spec.md), T1 a T5): dar de baja y revertir (dueño y encargado), listado `/bajas` y ficha de baja (los tres roles), vínculos madre–cría hacia animales de baja, aviso al reutilizar el número de un animal de baja (alta, edición y planilla).
+  - **Siguiente:** Etapa 4 de [docs/plan.md](docs/plan.md) (historial e informes).
+  - **Pendiente de limpieza:** los tambos de prueba "Tambo Prueba T4" y "Tambo Prueba T5" (emails `@prueba.test`) siguen en la base de desarrollo; borrarlos cuando ya no hagan falta.
 - Hay una API de gestión de usuarios (`/api/usuarios`) **sin pantalla** todavía.
 
 ## Decisiones
 
+- **2026-11-12 — Bajas por venta o muerte (spec 006):**
+  - **La baja es un evento** (`TipoEvento.BAJA`, tabla `bajas` con clave compuesta al evento y al animal) con columna `vigente`: un índice único parcial permite una sola baja vigente por animal. Revertir marca la baja como anulada (quién, cuándo y motivo) y no borra nada. Un disparador diferido (`bajas_solo_agregar` y coherencia animal–baja–evento) garantiza que fecha y motivo del animal coincidan con su baja vigente; un test usa `session_replication_role = replica` para saltearlo y probar los CHECK directo.
+  - **`BAJA` queda fuera de los cálculos** de situación reproductiva, ciclo, aviso 8, sexo y eventos propios. "Parto anulado" sigue siendo un motivo interno (no se pide por la API, no aparece en listados ni tiene ficha).
+  - **Revertir se hace por id del animal** y responde 404 para todo lo demás (activo, ajeno, inexistente, mal formado, "parto anulado", ya revertido). Orden de rechazos: 401, 403, 400, 404, 409 (número ocupado).
+  - **Lecturas de bajas solo por `/api/bajas`** (listado y ficha de baja); las rutas de animales activos siguen dando 404 para un animal de baja.
+  - **El alta manual bloquea a la madre** (`FOR UPDATE` en una transacción): cierra el riesgo de la 002.
+  - **CHECK `animales_baja_con_fecha_y_motivo` creado `NOT VALID`** (no revisa las filas viejas, solo las nuevas) y `animales_activo_sin_baja`.
+  - **`migrate diff` esperado ahora:** da solo TRES claves foráneas de lote previo (`SET NULL (columna)`: bajas, partos y secados). No aplicar esa propuesta.
+  - **Avisos de número (RF-14):** la API devuelve datos (`avisoNumeroDeBaja`, `avisosDeNumero` por fila, `avisos` al editar) y la web arma el texto "El número X perteneció a un animal dado de baja por <venta|muerte> el dd/mm/aaaa". Es un aviso (`role="status"`, estilo `.aviso`), nunca un error, y no persiste.
+  - **Web:** madre y crías de baja con la marca "dada de baja" y enlace a `/bajas/:id` solo si fue venta o muerte; los avisos del alta y de la reversión llegan por el estado de navegación (un refresco de la página con ese estado los repite: límite conocido).
 - **2026-11-11 — Editar animal y mover de lote (spec 005):**
   - **`CambioAnimal` (historial) con texto copiado y sin claves** a lote, madre ni usuario: un lote del historial se puede eliminar y el historial se lee siempre. Una fila por dato, con el mismo `creadoEn` por guardado (`siguienteRegistro`). Un trigger en la base impide `UPDATE` y `DELETE` (solo se agrega); `TRUNCATE` no lo dispara, así que `limpiarBase` sigue andando.
   - **Madre y ciclos:** las ediciones de madre se serializan con un bloqueo por tambo (`pg_advisory_xact_lock`); después `FOR UPDATE` de la nueva madre y luego del animal (mismo orden que la anulación del parto). Ciclos por consulta recursiva, solo en el código.
@@ -72,9 +85,6 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
 
 ## Riesgos pendientes
 
-- **Menú del encabezado en celular:** `.menu-acciones` del Layout desborda a 375 px (el ancho de la página supera el de la pantalla). Viene de antes de la spec 004; arreglarlo en una pasada chica de estilos.
-
-- **Alta con madre sin bloqueo (spec 002):** `POST /api/animales` con madre no bloquea a la madre. Una carrera con "madre pasa a macho" (spec 005) podría dejar una madre macho con crías. Bloquear a la madre en el alta.
 - **Reloj (spec 005):** si el reloj del servidor retrocede, un evento podría quedar con `creadoEn` menor al de un movimiento manual previo y el aviso 8 fallaría. Retomar en la Etapa 6.
 
 ## Pendiente de definir con el responsable

@@ -800,3 +800,12 @@ h1 .etiqueta-baja {
   margin-left: 0.5rem;
   vertical-align: middle;
 }
+
+/* Aviso por fila en la vista previa de la planilla (spec 006, RF-14): informa, no marca error. */
+.aviso-fila {
+  display: block;
+  margin-top: 0.35rem;
+  padding-left: 0.5rem;
+  border-left: 3px solid var(--error);
+  font-weight: 600;
+}

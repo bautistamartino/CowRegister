@@ -47,6 +47,11 @@ export function textoAnimales(cantidad: number): string {
 export const TEXTO_NO_DISPONIBLE =
   'El animal ya no está disponible para esta acción: otra persona pudo haberlo dado de baja o revertido. Se actualizó la pantalla.';
 
+// Aviso de RF-14 (spec 006): el texto exacto lo arma la web con lo que devuelve la API.
+export function textoAvisoNumeroDeBaja(numero: string, aviso: { motivo: string; fecha: string }): string {
+  return `El número ${numero} perteneció a un animal dado de baja por ${aviso.motivo} el ${formatearFecha(aviso.fecha)}`;
+}
+
 // "venta" -> "Venta", "muerte" -> "Muerte" (el motivo de las bajas viene en minúsculas).
 export function nombreMotivo(motivo: string): string {
   return motivo === 'venta' ? 'Venta' : motivo === 'muerte' ? 'Muerte' : motivo;

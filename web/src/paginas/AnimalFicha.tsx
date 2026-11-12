@@ -21,6 +21,8 @@ export function AnimalFicha() {
   // Tras revertir una baja (spec 006): "Baja revertida" y los avisos de lote (RF-9), una sola vez.
   const estadoNav = location.state as { mensaje?: string; avisos?: string[] } | null;
   const avisosReversion = estadoNav?.avisos ?? [];
+  // Aviso de número de un animal de baja tras el alta (spec 006, RF-14): AnimalNuevo ya lo manda armado.
+  const avisoNumeroInicial = (location.state as { avisoNumero?: string | null } | null)?.avisoNumero ?? null;
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [noEncontrado, setNoEncontrado] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +35,10 @@ export function AnimalFicha() {
   const [avisoNoDisponible, setAvisoNoDisponible] = useState(false);
   // Sube cada vez que se guarda algo, para que el historial vuelva a leerse.
   const [versionCambios, setVersionCambios] = useState(0);
+  // Avisos de la edición (spec 006, RF-14): se muestran una sola vez y no persisten.
+  const [avisosEdicion, setAvisosEdicion] = useState<string[]>([]);
+  // Aviso del alta: se reemplaza al editar (si no, quedaría uno viejo junto al nuevo).
+  const [avisoNumeroAlta, setAvisoNumeroAlta] = useState<string | null>(avisoNumeroInicial);
 
   useEffect(() => {
     let vigente = true;
@@ -42,6 +48,8 @@ export function AnimalFicha() {
     setPanel(null);
     setConfirmacion(estadoNav?.mensaje ?? null);
     setAvisoNoDisponible(false);
+    setAvisosEdicion([]);
+    setAvisoNumeroAlta(avisoNumeroInicial);
     api<Ficha>(`/animales/${encodeURIComponent(id ?? '')}`)
       .then((f) => {
         if (vigente) setFicha(f);
@@ -68,7 +76,9 @@ export function AnimalFicha() {
   }
 
   // Tras editar o mover: se usa la ficha que devolvió la API, se cierra el panel y se confirma.
-  async function alGuardar(nueva: Ficha, mensaje: string) {
+  async function alGuardar(nueva: Ficha, mensaje: string, avisos: string[] = []) {
+    setAvisosEdicion(avisos);
+    setAvisoNumeroAlta(null);
     setFicha(nueva);
     setPanel(null);
     setConfirmacion(mensaje);
@@ -149,6 +159,18 @@ export function AnimalFicha() {
         </div>
       )}
 
+      {avisoNumeroAlta && (
+        <p className="aviso" role="status">
+          {avisoNumeroAlta}
+        </p>
+      )}
+
+      {avisosEdicion.map((a) => (
+        <p key={a} className="aviso" role="status">
+          {a}
+        </p>
+      ))}
+
       {avisosReversion.map((a) => (
         <p key={a} className="aviso" role="status">
           {a}
@@ -186,8 +208,17 @@ export function AnimalFicha() {
                 {ficha.madre.numero}
               </Link>
             ) : (
-              // Una madre dada de baja no tiene ficha accesible: solo se muestra el número.
-              ficha.madre.numero
+              // Madre de baja: con ficha de baja si fue venta o muerte; si no, solo el número.
+              <span className="lista-enlaces">
+                {ficha.madre.motivoBaja === 'venta' || ficha.madre.motivoBaja === 'muerte' ? (
+                  <Link to={`/bajas/${ficha.madre.id}`} className="enlace-fila">
+                    {ficha.madre.numero}
+                  </Link>
+                ) : (
+                  ficha.madre.numero
+                )}
+                <span className="etiqueta-baja">dada de baja</span>
+              </span>
             )}
           </dd>
         </div>
@@ -207,7 +238,7 @@ export function AnimalFicha() {
         <div>
           <dt>Crías</dt>
           <dd>
-            {ficha.crias.length === 0 ? (
+            {ficha.crias.length === 0 && !ficha.criasDeBaja?.length ? (
               <span className="texto-suave">sin dato</span>
             ) : (
               <span className="lista-enlaces">
@@ -215,6 +246,18 @@ export function AnimalFicha() {
                   <Link key={c.id} to={`/animales/${c.id}`} className="enlace-fila">
                     {c.numero}
                   </Link>
+                ))}
+                {(ficha.criasDeBaja ?? []).map((c) => (
+                  <span key={c.id} className="cria-de-baja">
+                    {c.motivo === 'venta' || c.motivo === 'muerte' ? (
+                      <Link to={`/bajas/${c.id}`} className="enlace-fila">
+                        {c.numero}
+                      </Link>
+                    ) : (
+                      c.numero
+                    )}
+                    <span className="etiqueta-baja">dada de baja</span>
+                  </span>
                 ))}
               </span>
             )}
@@ -250,7 +293,7 @@ export function AnimalFicha() {
             />
           )}
           {panel === 'editar' && (
-            <FormEditarAnimal key={ficha.id} ficha={ficha} alCancelar={() => setPanel(null)} alGuardar={(f) => alGuardar(f, 'Cambios guardados')} />
+            <FormEditarAnimal key={ficha.id} ficha={ficha} alCancelar={() => setPanel(null)} alGuardar={(f, avisos) => alGuardar(f, 'Cambios guardados', avisos)} />
           )}
           {panel === 'mover' && (
             <FormMoverLote key={ficha.id} ficha={ficha} alCancelar={() => setPanel(null)} alGuardar={(f) => alGuardar(f, 'Animal movido de lote')} />

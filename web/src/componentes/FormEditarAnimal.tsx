@@ -7,7 +7,7 @@ import { Campo } from './Campo';
 type Props = {
   ficha: AnimalFicha;
   alCancelar: () => void;
-  alGuardar: (ficha: AnimalFicha) => Promise<void>;
+  alGuardar: (ficha: AnimalFicha, avisos: string[]) => Promise<void>;
 };
 
 // Formulario de edición (spec 005): número, sexo, fecha de nacimiento y madre (por número).
@@ -44,8 +44,12 @@ export function FormEditarAnimal({ ficha, alCancelar, alGuardar }: Props) {
 
     setEnviando(true);
     try {
-      const nueva = await api<AnimalFicha>(`/animales/${encodeURIComponent(ficha.id)}`, { method: 'PATCH', body: cuerpo });
-      await alGuardar(nueva);
+      // La respuesta es la ficha más `avisos` (textos ya armados, p. ej. el número de un animal de baja).
+      const { avisos, ...nueva } = await api<AnimalFicha & { avisos?: string[] }>(`/animales/${encodeURIComponent(ficha.id)}`, {
+        method: 'PATCH',
+        body: cuerpo,
+      });
+      await alGuardar(nueva, avisos ?? []);
     } catch (err) {
       const r = interpretar(err);
       setErrores(r.campos);

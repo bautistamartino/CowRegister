@@ -606,9 +606,17 @@ function DetalleParto({ parto }: { parto: NonNullable<EventoReproductivo['parto'
                 </Link>
               </>
             ) : (
-              // Dada de baja (parto anulado): se ve el número, sin acceso a su ficha.
+              // Dada de baja: por venta o muerte tiene ficha de baja (enlace); por parto anulado, solo el número.
               <>
-                Cría {NOMBRE_SEXO[c.sexo].toLowerCase()} · {c.animal.numero} · <span className="etiqueta-baja">dada de baja</span>
+                Cría {NOMBRE_SEXO[c.sexo].toLowerCase()} ·{' '}
+                {c.animal.motivoBaja === 'venta' || c.animal.motivoBaja === 'muerte' ? (
+                  <Link to={`/bajas/${c.animal.id}`} className="enlace-fila">
+                    {c.animal.numero}
+                  </Link>
+                ) : (
+                  c.animal.numero
+                )}{' '}
+                · <span className="etiqueta-baja">dada de baja</span>
               </>
             )}
             {c.observaciones && <span className="texto-suave"> · {c.observaciones}</span>}

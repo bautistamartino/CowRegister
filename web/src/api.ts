@@ -110,7 +110,12 @@ export type ListadoAnimales = {
 export type AltaAnimal = {
   animal: { id: string; numero: string; sexo: Sexo; estado: EstadoAnimal; fechaNacimiento: string | null; lote: { nombre: string } | null };
   avisoSinLote: { estado: EstadoAnimal } | null;
+  // Spec 006 (RF-14): el número perteneció a un animal de baja por venta o muerte. Es un aviso, no un error.
+  avisoNumeroDeBaja: AvisoNumeroDeBaja | null;
 };
+
+// Baja más reciente (venta o muerte) del número que se acaba de usar. fecha = AAAA-MM-DD.
+export type AvisoNumeroDeBaja = { motivo: 'venta' | 'muerte'; fecha: string };
 
 // Respuesta de GET /api/animales/:id. Las fechas vienen como AAAA-MM-DD.
 export type AnimalFicha = {
@@ -120,8 +125,11 @@ export type AnimalFicha = {
   estado: EstadoAnimal;
   fechaNacimiento: string | null;
   lote: { id: string; nombre: string } | null;
-  madre: { id: string; numero: string; activa: boolean } | null;
+  // motivoBaja: si la madre está de baja, "venta" o "muerte" tienen ficha de baja; "parto_anulado" no.
+  madre: { id: string; numero: string; activa: boolean; motivoBaja?: 'venta' | 'muerte' | 'parto_anulado' | null } | null;
   crias: { id: string; numero: string }[];
+  // Crías de baja (spec 006): con ficha de baja si el motivo es venta o muerte.
+  criasDeBaja?: { id: string; numero: string; motivo: 'venta' | 'muerte' | 'parto_anulado' }[];
   // Parto del que nació (spec 004). null si el animal no nació de un parto cargado.
   parto: { eventoId: string; fecha: string; genetica: Genetica | null } | null;
 };
@@ -137,6 +145,8 @@ export type FilaPlanilla = {
   fechaNacimiento: string | null;
   madre: string | null;
   motivo?: string; // solo cuando ok es false
+  // Spec 006: la fila es correcta, pero su número perteneció a un animal de baja (aviso, no error).
+  avisoNumeroDeBaja?: AvisoNumeroDeBaja | null;
 };
 
 export type SinLotePorEstado = { estado: EstadoAnimal; cantidad: number };
@@ -152,6 +162,7 @@ export type ResultadoPlanilla = {
   guardados: number;
   quedaronAfuera: { fila: number; motivo: string }[];
   sinLotePorEstado: SinLotePorEstado[];
+  avisosDeNumero?: { fila: number; numero: string; avisoNumeroDeBaja: AvisoNumeroDeBaja }[];
 };
 
 // ─── Semen y toros, servicios y tactos (spec 003) ───
@@ -194,7 +205,8 @@ export type CriaDeParto = {
   sexo: Sexo;
   nacidaMuerta: boolean;
   observaciones: string | null;
-  animal: { id: string; numero: string; activo: boolean } | null;
+  // motivoBaja (spec 006): "venta" o "muerte" tienen ficha de baja; "parto_anulado" no.
+  animal: { id: string; numero: string; activo: boolean; motivoBaja?: 'venta' | 'muerte' | 'parto_anulado' | null } | null;
 };
 
 // Aviso de la operación recién hecha (no persiste: se muestra una sola vez).
