@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../db.js';
 import { HttpError, errorDeCampo, esErrorPrisma } from '../errores.js';
 import { criasPartoSchema } from '../validacion.js';
 import { requiereRol, usuarioActual } from '../auth/middleware.js';
-import { fechaADate, hoyArgentina } from '../animales/reglas.js';
-import { ahora } from '../reloj.js';
+import { fechaADate } from '../animales/reglas.js';
+import { horaTabletSchema } from '../horaTablet.js';
 import { puedeParir, puedeSecarse } from '../reproduccion/aptitud.js';
 import {
   avisoSinGeneticaFueraDeRango,
@@ -15,11 +14,13 @@ import {
   avisoSinLoteMadre,
   type Aviso,
 } from '../reproduccion/avisos.js';
-import { bloquearAnimal, siguienteRegistro } from '../reproduccion/bloqueo.js';
+import { siguienteRegistro } from '../reproduccion/bloqueo.js';
 import { resolverLotesDestino } from '../reproduccion/destinos.js';
 import { eventoPorId, leerEventos } from '../reproduccion/eventos.js';
 import { fechaEventoSchema, validarFechaEvento } from '../reproduccion/fechas.js';
 import { evaluarGenetica, servicioParaGenetica } from '../reproduccion/genetica.js';
+import { idPropioSchema } from '../idPropio.js';
+import { ejecutarCarga } from '../reproduccion/idempotencia.js';
 import { validarSeparacionPartos } from '../reproduccion/partos.js';
 import { ultimoNoAnulado } from '../reproduccion/situacion.js';
 
@@ -38,8 +39,9 @@ const MENSAJE_NUMERO_EXISTENTE = 'Ya existe un animal activo con ese número';
 const MENSAJE_LOTE_INEXISTENTE = 'El lote destino ya no existe, volvé a intentar';
 
 // Cualquier otro campo del cuerpo (por ejemplo un establecimientoId) se descarta: z.object ignora lo no declarado.
-const partoSchema = z.object({ fecha: fechaEventoSchema, crias: criasPartoSchema });
-const secadoSchema = z.object({ fecha: fechaEventoSchema });
+// Spec 010: `id` propio de la tablet (reenvío idempotente) y la hora en que se cargó (solo informativa).
+const partoSchema = z.object({ fecha: fechaEventoSchema, crias: criasPartoSchema, id: idPropioSchema, cargadoEnDispositivo: horaTabletSchema });
+const secadoSchema = z.object({ fecha: fechaEventoSchema, id: idPropioSchema, cargadoEnDispositivo: horaTabletSchema });
 
 // Un id de animal mal formado responde 404, igual que uno inexistente o de otro tambo.
 function idAnimal(texto: string | string[] | undefined): string {
@@ -53,21 +55,24 @@ const errorNumeroExistente = (indice: number) =>
   new HttpError(409, MENSAJE_NUMERO_EXISTENTE, [{ campo: `crias.${indice}.numero`, mensaje: MENSAJE_NUMERO_EXISTENTE }]);
 
 // POST /api/animales/:id/partos — { fecha, crias: [{ sexo, nacidaMuerta?, numero?, observaciones? }] }.
-// 201 con { evento, avisos }.
+// 201 con { evento, avisos }. Spec 010: acepta `id` propio y `cargadoEnDispositivo`; si ya estaba
+// guardado (mismo `id` y mismos datos) responde 200 con { evento, avisos, yaExistia: true }, con los
+// avisos que se dieron la primera vez (se guardan en `eventos.avisosAlAceptar`).
 rutasPartos.post('/:id/partos', soloCarga, async (req, res) => {
   const { establecimientoId, id: usuarioId } = usuarioActual(req);
   const datos = partoSchema.parse(req.body);
   const animalId = idAnimal(req.params.id);
 
   try {
-    const resultado = await prisma.$transaction(
-      async (tx) => {
-        // 1. Bloqueo del animal: desde acá nadie más registra ni anula nada sobre esta vaca, y
-        //    todo lo que se lea es firme hasta el final de la transacción (RF-31).
-        const madre = await bloquearAnimal(tx, animalId, establecimientoId);
-        if (!madre) throw new HttpError(404, NO_ENCONTRADO);
+    const resultado = await ejecutarCarga({
+      idPropio: datos.id,
+      establecimientoId,
+      animalId,
+      pedido: { tipo: 'PARTO', animalId, usuarioId, fecha: datos.fecha, crias: datos.crias },
+      // (El animal ya quedó bloqueado, FOR UPDATE: desde acá nadie más registra ni anula nada sobre esta
+      // vaca y todo lo que se lea es firme hasta el final de la transacción, RF-31.)
+      crear: async (tx, { id: eventoId, animal: madre, hoy }) => {
         const filas = await leerEventos(tx, animalId, establecimientoId);
-        const hoy = hoyArgentina(ahora());
 
         // 2. Fechas (400): las de la 003 y, además, estrictamente posterior al nacimiento de la madre.
         const errorFecha = validarFechaEvento(datos.fecha, {
@@ -108,9 +113,22 @@ rutasPartos.post('/:id/partos', soloCarga, async (req, res) => {
         const servicio = servicioParaGenetica(filas);
         const genetica = evaluarGenetica(servicio, datos.fecha);
 
-        // 5. Se guarda todo en esta misma transacción. El evento común y el detalle del parto,
+        // 5. Avisos, siempre en el orden fijo de la spec: 1, 3 (uno por cría viva), 4 o 5. Se calculan ANTES
+        //    de insertar porque se guardan en el mismo INSERT del evento (spec 010, RF-5): el reenvío los
+        //    devuelve tal cual, aunque después cambien los lotes o la vaca.
+        const avisos: Aviso[] = [];
+        if (!loteMadre) avisos.push(avisoSinLoteMadre('EN_ORDENE'));
+        if (!loteCrias) for (const { cria } of vivas) avisos.push(avisoSinLoteCria(cria.numero!));
+        if (!genetica.vinculado) {
+          avisos.push(
+            genetica.motivo === 'SIN_SERVICIO'
+              ? avisoSinGeneticaSinServicio(filas.some((f) => f.tipo === 'PARTO' && !f.anulado))
+              : avisoSinGeneticaFueraDeRango(genetica.fechaServicio),
+          );
+        }
+
+        // 6. Se guarda todo en esta misma transacción. El evento común y el detalle del parto,
         //    con el estado y el lote previos de la madre para poder volver atrás al anularlo.
-        const eventoId = randomUUID();
         await tx.evento.create({
           data: {
             id: eventoId,
@@ -120,6 +138,8 @@ rutasPartos.post('/:id/partos', soloCarga, async (req, res) => {
             fecha: fechaADate(datos.fecha),
             registradoPorId: usuarioId,
             creadoEn: await siguienteRegistro(tx, animalId),
+            cargadoEnDispositivo: datos.cargadoEnDispositivo ?? null,
+            avisosAlAceptar: avisos,
           },
         });
         await tx.parto.create({
@@ -186,23 +206,10 @@ rutasPartos.post('/:id/partos', soloCarga, async (req, res) => {
           data: { estado: 'EN_ORDENE', loteId: loteMadre },
         });
 
-        // 6. Avisos, siempre en el orden fijo de la spec: 1, 3 (uno por cría viva), 4 o 5.
-        const avisos: Aviso[] = [];
-        if (!loteMadre) avisos.push(avisoSinLoteMadre('EN_ORDENE'));
-        if (!loteCrias) for (const { cria } of vivas) avisos.push(avisoSinLoteCria(cria.numero!));
-        if (!genetica.vinculado) {
-          avisos.push(
-            genetica.motivo === 'SIN_SERVICIO'
-              ? avisoSinGeneticaSinServicio(filas.some((f) => f.tipo === 'PARTO' && !f.anulado))
-              : avisoSinGeneticaFueraDeRango(genetica.fechaServicio),
-          );
-        }
-
         return { evento: eventoPorId(await leerEventos(tx, animalId, establecimientoId), eventoId, hoy), avisos };
       },
-      { timeout: 15_000 },
-    );
-    res.status(201).json(resultado);
+    });
+    res.status(resultado.status).json(resultado.cuerpo);
   } catch (err) {
     // Defensa: una clave foránea falló al escribir (el lote destino desapareció a último momento).
     if (esErrorPrisma(err, 'P2003')) throw new HttpError(409, MENSAJE_LOTE_INEXISTENTE);
@@ -210,7 +217,7 @@ rutasPartos.post('/:id/partos', soloCarga, async (req, res) => {
   }
 });
 
-// POST /api/animales/:id/secados — { fecha }. 201 con { evento, avisos }.
+// POST /api/animales/:id/secados — { fecha }. 201 con { evento, avisos }; idempotente como el parto (spec 010).
 // Es libre: solo exige que sea una hembra "en ordeñe" (RF-18). No toca la situación reproductiva.
 rutasPartos.post('/:id/secados', soloCarga, async (req, res) => {
   const { establecimientoId, id: usuarioId } = usuarioActual(req);
@@ -218,12 +225,13 @@ rutasPartos.post('/:id/secados', soloCarga, async (req, res) => {
   const animalId = idAnimal(req.params.id);
 
   try {
-    const resultado = await prisma.$transaction(
-      async (tx) => {
-        const vaca = await bloquearAnimal(tx, animalId, establecimientoId);
-        if (!vaca) throw new HttpError(404, NO_ENCONTRADO);
+    const resultado = await ejecutarCarga({
+      idPropio: datos.id,
+      establecimientoId,
+      animalId,
+      pedido: { tipo: 'SECADO', animalId, usuarioId, fecha: datos.fecha },
+      crear: async (tx, { id: eventoId, animal: vaca, hoy }) => {
         const filas = await leerEventos(tx, animalId, establecimientoId);
-        const hoy = hoyArgentina(ahora());
 
         // Fechas (400) y después conflictos (409).
         const errorFecha = validarFechaEvento(datos.fecha, {
@@ -236,7 +244,8 @@ rutasPartos.post('/:id/secados', soloCarga, async (req, res) => {
         if (!aptitud.ok) throw new HttpError(409, aptitud.motivo);
         const loteSeca = (await resolverLotesDestino(tx, establecimientoId, ['SECA'])).get('SECA') ?? null;
 
-        const eventoId = randomUUID();
+        // El aviso se calcula antes de insertar: se guarda en el mismo INSERT del evento (spec 010, RF-5).
+        const avisos: Aviso[] = loteSeca ? [] : [avisoSinLoteMadre('SECA')];
         await tx.evento.create({
           data: {
             id: eventoId,
@@ -246,6 +255,8 @@ rutasPartos.post('/:id/secados', soloCarga, async (req, res) => {
             fecha: fechaADate(datos.fecha),
             registradoPorId: usuarioId,
             creadoEn: await siguienteRegistro(tx, animalId),
+            cargadoEnDispositivo: datos.cargadoEnDispositivo ?? null,
+            avisosAlAceptar: avisos,
           },
         });
         await tx.secado.create({
@@ -263,12 +274,10 @@ rutasPartos.post('/:id/secados', soloCarga, async (req, res) => {
           data: { estado: 'SECA', loteId: loteSeca },
         });
 
-        const avisos: Aviso[] = loteSeca ? [] : [avisoSinLoteMadre('SECA')];
         return { evento: eventoPorId(await leerEventos(tx, animalId, establecimientoId), eventoId, hoy), avisos };
       },
-      { timeout: 15_000 },
-    );
-    res.status(201).json(resultado);
+    });
+    res.status(resultado.status).json(resultado.cuerpo);
   } catch (err) {
     if (esErrorPrisma(err, 'P2003')) throw new HttpError(409, MENSAJE_LOTE_INEXISTENTE);
     throw err;

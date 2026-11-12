@@ -38,14 +38,21 @@ export async function bloquearAnimal(
 }
 
 /**
- * Momento de registro del próximo evento del animal: el mayor entre la hora real y 1 ms después
- * del último momento ya usado por CUALQUIER evento del animal (anulados incluidos). Con la
- * fila bloqueada y `UNIQUE (animalId, creadoEn)`, nunca hay empates en el orden, aunque el
- * reloj del servidor se atrase.
+ * Momento de registro del próximo evento (o cambio manual) del animal: el mayor entre la hora real y
+ * 1 ms después del último momento ya usado por CUALQUIER evento del animal (anulados incluidos) o
+ * CUALQUIER cambio manual suyo (spec 010, RF-2). Con la fila bloqueada y `UNIQUE (animalId, creadoEn)`,
+ * nunca hay empates en el orden de los eventos, aunque el reloj del servidor se atrase. Que también
+ * mire los cambios manuales asegura que un evento nunca quede "antes" de un cambio de lote anterior
+ * (el aviso 8 de la spec 005 compara justo esos dos momentos). Son dos agregados con índice
+ * (`eventos (animalId, creadoEn)` y `cambios_animal (animalId, creadoEn)`).
  */
 export async function siguienteRegistro(tx: Prisma.TransactionClient, animalId: string): Promise<Date> {
-  const { _max } = await tx.evento.aggregate({ where: { animalId }, _max: { creadoEn: true } });
-  const minimo = _max.creadoEn ? _max.creadoEn.getTime() + 1 : 0;
+  const [eventos, cambios] = await Promise.all([
+    tx.evento.aggregate({ where: { animalId }, _max: { creadoEn: true } }),
+    tx.cambioAnimal.aggregate({ where: { animalId }, _max: { creadoEn: true } }),
+  ]);
+  const ultimo = Math.max(eventos._max.creadoEn?.getTime() ?? -Infinity, cambios._max.creadoEn?.getTime() ?? -Infinity);
+  const minimo = Number.isFinite(ultimo) ? ultimo + 1 : 0;
   return new Date(Math.max(Date.now(), minimo));
 }
 

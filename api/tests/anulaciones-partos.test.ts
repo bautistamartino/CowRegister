@@ -252,14 +252,14 @@ describe('ya anulado y último evento (RF-25, RF-26)', () => {
   it('un parto ya anulado: 409', async () => {
     const t = await vacaConParto();
     await anularParto(t.agente, t.partoId).expect(200);
-    expect((await anularParto(t.agente, t.partoId).expect(409)).body.error).toBe('Este parto ya fue anulado');
+    expect((await anularParto(t.agente, t.partoId, 'Otro motivo').expect(409)).body.error).toBe('Este parto ya fue anulado');
   });
 
   it('un secado ya anulado: 409', async () => {
     const t = await prepararVaca();
     const secadoId = await registrarSecado(t.agente, t.vaca.id, '2026-11-05');
     await anularSecado(t.agente, secadoId).expect(200);
-    expect((await anularSecado(t.agente, secadoId).expect(409)).body.error).toBe('Este secado ya fue anulado');
+    expect((await anularSecado(t.agente, secadoId, 'Otro motivo').expect(409)).body.error).toBe('Este secado ya fue anulado');
   });
 
   it.each([
@@ -304,7 +304,7 @@ describe('orden de los rechazos 409 (RF-25 a RF-28)', () => {
     const t = await vacaConParto();
     await anularParto(t.agente, t.partoId).expect(200);
     await crearServicioDirecto({ establecimientoId: t.tambo, animalId: t.vaca.id, registradoPorId: t.usuarioId, fecha: '2026-11-10' });
-    expect((await anularParto(t.agente, t.partoId).expect(409)).body.error).toBe('Este parto ya fue anulado');
+    expect((await anularParto(t.agente, t.partoId, 'Otro motivo').expect(409)).body.error).toBe('Este parto ya fue anulado');
   });
 
   it('(2) no es el último gana a (3) estado actual distinto', async () => {

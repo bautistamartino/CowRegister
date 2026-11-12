@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../src/db.js';
 import { fijarGanchoCopia } from '../src/copia/copiaLocal.js';
 import { fijarReloj } from '../src/reloj.js';
-import { crearAnimalDirecto, crearProduccionDirecta, limpiarBase, prepararVaca } from './ayudas.js';
+import { crearAnimalDirecto, crearProduccionDirecta, crearSemenDirecto, limpiarBase, prepararVaca } from './ayudas.js';
 
 // Spec 009, RF-6: la copia es UNA foto del tambo en un instante. Un cambio hecho por otra persona
 // MIENTRAS se arma la copia (entre dos lecturas) no puede aparecer, ni a medias ni entero.
@@ -51,5 +51,22 @@ describe('foto consistente (RF-6)', () => {
     expect(despues.totalAnimales).toBe(2);
     expect(despues.lotes.find((l: any) => l.id === lote.id).nombre).toBe('Lote renombrado');
     expect(despues.animales.find((a: any) => a.ficha.numero === '101').produccion.total).toBe(2);
+  });
+
+  // Spec 010, RF-8: el semen se lee en la misma foto que el resto.
+  it('un semen desactivado entre las lecturas no cambia la foto, y la copia siguiente ya no lo trae', async () => {
+    const { agente, tambo } = await prepararVaca({ numero: '101' });
+    const semen = await crearSemenDirecto(tambo, 'Toro Pampa', { raza: 'Holando' });
+    const etapas: string[] = [];
+    fijarGanchoCopia(async (etapa) => {
+      etapas.push(etapa);
+      if (etapas.length === 1) await prisma.semenToro.update({ where: { id: semen.id }, data: { activo: false } });
+    });
+    const foto = (await agente.get('/api/copia-local').expect(200)).body;
+    expect(etapas).toContain('semen'); // el semen es una etapa más de la copia
+    expect(foto.semen).toEqual([{ id: semen.id, nombre: 'Toro Pampa', raza: 'Holando' }]);
+
+    fijarGanchoCopia(null);
+    expect((await agente.get('/api/copia-local').expect(200)).body.semen).toEqual([]);
   });
 });

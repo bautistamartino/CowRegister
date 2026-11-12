@@ -1,7 +1,9 @@
 import { aFechaCorta } from './fechas.js';
 
 // Avisos de las operaciones de la spec 004 (lista cerrada de 8). Viajan con la respuesta de
-// la operación y la pantalla los muestra una sola vez: NO se guardan en la base.
+// la operación y la pantalla los muestra una sola vez. Desde la spec 010 los de un parto o secado
+// también se guardan en `eventos.avisosAlAceptar`, solo para devolverlos idénticos si la tablet
+// reenvía el mismo evento (la respuesta pudo cortarse).
 // Los textos viven acá, en un solo lugar, igual que los códigos.
 
 export type CodigoAviso =

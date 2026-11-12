@@ -20,7 +20,10 @@ function rutasAnulacion(tipo: 'PARTO' | 'SECADO') {
     const id = z.uuid().safeParse(req.params.id);
     if (!id.success) throw new HttpError(404, 'Evento no encontrado');
 
-    res.json(await anularEvento({ tipo, id: id.data, establecimientoId, usuarioId, rol, motivo }));
+    const { evento, avisos, yaEstabaAnulado } = await anularEvento({ tipo, id: id.data, establecimientoId, usuarioId, rol, motivo });
+    // Spec 010, RF-7: en la repetición de una anulación ya hecha (mismo usuario y motivo) los avisos van
+    // vacíos (los de lote se dieron la primera vez) y se suma `yaEstabaAnulado: true`.
+    res.json(yaEstabaAnulado ? { evento, avisos, yaEstabaAnulado: true } : { evento, avisos });
   });
   return router;
 }

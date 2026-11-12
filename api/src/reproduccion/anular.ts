@@ -31,6 +31,13 @@ const nombreEstado = (estado: EstadoAnimal) => NOMBRE_ESTADO[estado].toLowerCase
  * vivas. Todo en una sola transacción: se guarda completo o no se guarda nada.
  *
  * Devuelve el evento ya armado y los avisos (solo los de lote al volver atrás: 6, 7 y 8).
+ *
+ * Spec 010, RF-7: es IDEMPOTENTE por evento + usuario + motivo. Si el evento ya está anulado por el
+ * mismo usuario con el mismo motivo (ya limpio de espacios), no cambia nada y devuelve el evento con
+ * `yaEstabaAnulado: true` y `avisos: []` (los avisos de lote solo se dan la primera vez). Esa comprobación
+ * va ANTES del 404 por animal que ya no está activo, y se repite después de bloquear (un reenvío que
+ * esperó el bloqueo de la primera anulación tiene que contestar "ya estaba anulado", no 409). Anulado por
+ * otro usuario u otro motivo: 409 como siempre (también si el animal ya está de baja).
  */
 export async function anularEvento(datos: {
   tipo: TipoAnulable;
@@ -39,31 +46,58 @@ export async function anularEvento(datos: {
   usuarioId: string;
   rol: Rol;
   motivo: string;
-}): Promise<{ evento: ReturnType<typeof eventoPorId>; avisos: Aviso[] }> {
+}): Promise<{ evento: ReturnType<typeof eventoPorId>; avisos: Aviso[]; yaEstabaAnulado: boolean }> {
   const { tipo, id, establecimientoId, usuarioId, rol, motivo } = datos;
   const nombre = NOMBRE_TIPO[tipo];
 
   return prisma.$transaction(
     async (tx) => {
-      // 1. Búsqueda sin bloqueo: del tambo, del tipo de la ruta y de un animal activo.
+      // Si el evento ya está anulado: lo mismo (mismo usuario y motivo) se acepta; otra cosa es 409.
+      const yaAnulado = async (anuladoEn: Date | null, anuladoPorId: string | null, motivoAnulacion: string | null, animalId: string) => {
+        if (!anuladoEn) return null;
+        if (anuladoPorId !== usuarioId || motivoAnulacion !== motivo) throw new HttpError(409, `Este ${nombre} ya fue anulado`);
+        const filas = await leerEventos(tx, animalId, establecimientoId);
+        return { evento: eventoPorId(filas, id, hoyArgentina(ahora())), avisos: [] as Aviso[], yaEstabaAnulado: true };
+      };
+
+      // 1. Búsqueda sin bloqueo: del tambo y del tipo de la ruta, SIN filtrar por animal activo (así un
+      //    reenvío de una anulación ya hecha se reconoce aunque el animal esté de baja).
       const evento = await tx.evento.findFirst({
-        where: { id, establecimientoId, tipo, animal: { estado: { not: 'BAJA' } } },
-        select: { animalId: true },
+        where: { id, establecimientoId, tipo },
+        select: { animalId: true, anuladoEn: true, anuladoPorId: true, motivoAnulacion: true, animal: { select: { estado: true } } },
       });
       if (!evento) throw new HttpError(404, NO_ENCONTRADO);
+      const repetida = await yaAnulado(evento.anuladoEn, evento.anuladoPorId, evento.motivoAnulacion, evento.animalId);
+      if (repetida) return repetida;
+      // No está anulado y el animal ya no está activo: el 404 de siempre.
+      if (evento.animal.estado === 'BAJA') throw new HttpError(404, NO_ENCONTRADO);
 
       // 2. Bloqueo del animal: desde acá nadie más registra ni anula sobre él.
       const animal = await bloquearAnimal(tx, evento.animalId, establecimientoId);
-      if (!animal) throw new HttpError(404, NO_ENCONTRADO);
+      if (!animal) {
+        // Lo dieron de baja mientras se esperaba el bloqueo: puede que la baja haya venido después de
+        // una anulación idéntica a esta.
+        const actual = await tx.evento.findFirst({
+          where: { id, establecimientoId, tipo },
+          select: { anuladoEn: true, anuladoPorId: true, motivoAnulacion: true },
+        });
+        const repetidaTarde = actual && (await yaAnulado(actual.anuladoEn, actual.anuladoPorId, actual.motivoAnulacion, evento.animalId));
+        if (repetidaTarde) return repetidaTarde;
+        throw new HttpError(404, NO_ENCONTRADO);
+      }
 
       // 3. Se RELEE todo con el bloqueo tomado: lo leído antes pudo cambiar mientras se esperaba.
       const filas = await leerEventos(tx, evento.animalId, establecimientoId);
       const fila = filas.find((f) => f.id === id);
       if (!fila) throw new HttpError(404, NO_ENCONTRADO);
+      // La repetición que esperó el bloqueo de la primera anulación ve el evento ya anulado.
+      if (fila.anulado) {
+        const anulacion = await tx.evento.findUniqueOrThrow({ where: { id }, select: { anuladoPorId: true, motivoAnulacion: true } });
+        if (anulacion.anuladoPorId !== usuarioId || anulacion.motivoAnulacion !== motivo) throw new HttpError(409, `Este ${nombre} ya fue anulado`);
+        return { evento: eventoPorId(filas, id, hoyArgentina(ahora())), avisos: [] as Aviso[], yaEstabaAnulado: true };
+      }
 
       // 4. Rechazos 409, en el orden de la spec: se informa siempre el PRIMERO que corresponda.
-      // (1) ya anulado
-      if (fila.anulado) throw new HttpError(409, `Este ${nombre} ya fue anulado`);
       // (2) no es el último evento no anulado
       const ultimo = ultimoNoAnulado(filas); // ignora el tipo BAJA (spec 006)
       if (ultimo && ultimo.id !== id) {
@@ -98,7 +132,7 @@ export async function anularEvento(datos: {
       if (count === 0) throw new HttpError(409, `Este ${nombre} ya fue anulado`);
 
       const despues = await leerEventos(tx, evento.animalId, establecimientoId);
-      return { evento: eventoPorId(despues, id, hoyArgentina(ahora())), avisos };
+      return { evento: eventoPorId(despues, id, hoyArgentina(ahora())), avisos, yaEstabaAnulado: false };
     },
     { timeout: 15_000 },
   );

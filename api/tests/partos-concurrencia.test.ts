@@ -252,10 +252,10 @@ describe('parto × cambio del lote destino (RF-14, RF-31)', () => {
 
 // ─── Operaciones simultáneas que incluyen una ANULACIÓN (RF-32, spec 004, T3) ───────────────
 
-const anularParto = (agente: Agente, id: string) =>
-  agente.post(`/api/partos/${id}/anular`).send({ motivo: 'Error de carga' }) as unknown as Promise<Respuesta>;
-const anularSecado = (agente: Agente, id: string) =>
-  agente.post(`/api/secados/${id}/anular`).send({ motivo: 'Error de carga' }) as unknown as Promise<Respuesta>;
+const anularParto = (agente: Agente, id: string, motivo = 'Error de carga') =>
+  agente.post(`/api/partos/${id}/anular`).send({ motivo }) as unknown as Promise<Respuesta>;
+const anularSecado = (agente: Agente, id: string, motivo = 'Error de carga') =>
+  agente.post(`/api/secados/${id}/anular`).send({ motivo }) as unknown as Promise<Respuesta>;
 const anularServicio = (agente: Agente, id: string) =>
   agente.post(`/api/servicios/${id}/anular`).send({ motivo: 'Error de carga' }) as unknown as Promise<Respuesta>;
 
@@ -273,7 +273,8 @@ describe('anular el mismo evento dos veces (RF-32)', () => {
     for (let ronda = 0; ronda < RONDAS; ronda++) {
       const vaca = await vacaNueva(ronda);
       const id = await cargarParto(agente, vaca.id, '2026-10-01', `AP${ronda}`);
-      const r = await Promise.all([anularParto(agente, id), anularParto(agente, id)]);
+      const r = await Promise.all([anularParto(agente, id), anularParto(agente, id, 'Otro motivo')]);
+      // Spec 010: con otro motivo no es una repetición idempotente, así que el segundo es 409.
       expect(estados(r).sort()).toEqual([200, 409]);
       expect(await prisma.animal.count({ where: { numero: `AP${ronda}`, estado: 'BAJA' } })).toBe(1);
       await invariantes();
@@ -285,7 +286,7 @@ describe('anular el mismo evento dos veces (RF-32)', () => {
     for (let ronda = 0; ronda < RONDAS; ronda++) {
       const vaca = await vacaNueva(ronda);
       const id = await cargarSecado(agente, vaca.id, '2026-10-01');
-      const r = await Promise.all([anularSecado(agente, id), anularSecado(agente, id)]);
+      const r = await Promise.all([anularSecado(agente, id), anularSecado(agente, id, 'Otro motivo')]);
       expect(estados(r).sort()).toEqual([200, 409]);
       expect((await prisma.animal.findUniqueOrThrow({ where: { id: vaca.id } })).estado).toBe('EN_ORDENE');
       await invariantes();
