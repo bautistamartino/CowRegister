@@ -35,6 +35,8 @@ Historial por animal; informes de resultado de inseminación y natalidad.
 ## Etapa 5 — Producción
 Litros por vaca en cada ordeño; informes de producción.
 
+- [x] 5.1 Producción: litros por vaca e informe de leche (spec [008-produccion](../specs/008-produccion/spec.md)): carga y anulación de litros por ordeño (dueño y encargado), sección "Producción" en las fichas de vaca y de baja (los tres roles) e informe "Litros de leche" por período con desglose por lote, por vaca y por día
+
 ## Etapa 6 — Modo sin conexión
 App instalable (PWA), datos locales en la tablet y sincronización al volver la conexión.
 
