@@ -228,34 +228,30 @@ rutasAnimales.get('/buscar', async (req, res) => {
   res.json(animal);
 });
 
-// Ficha de un animal activo del tambo (la usan GET /:id y la edición, spec 005). Devuelve `null` si
-// no existe, es de otro tambo o está de baja: el llamador responde siempre el mismo 404.
-export async function leerFicha(
-  cliente: Pick<typeof prisma, 'animal'>,
-  id: string,
-  establecimientoId: string,
-) {
-  const animal = await cliente.animal.findFirst({
-    where: { id, establecimientoId, estado: ACTIVO },
+// Qué se lee de un animal para armar su ficha (la usan la ficha individual y la copia local).
+export const SELECCION_FICHA = {
+  ...seleccionAnimal,
+  madre: { select: { id: true, numero: true, estado: true, motivoBaja: true } },
+  // Todas las crías: las activas con acceso y las de baja con su marca según el motivo (spec 006).
+  crias: { select: { id: true, numero: true, estado: true, motivoBaja: true } },
+  // Parto del que nació (spec 004): su fecha y la genética (servicio y semen o toro).
+  criaDeParto: {
     select: {
-      ...seleccionAnimal,
-      madre: { select: { id: true, numero: true, estado: true, motivoBaja: true } },
-      // Todas las crías: las activas con acceso y las de baja con su marca según el motivo (spec 006).
-      crias: { select: { id: true, numero: true, estado: true, motivoBaja: true } },
-      // Parto del que nació (spec 004): su fecha y la genética (servicio y semen o toro).
-      criaDeParto: {
+      parto: {
         select: {
-          parto: {
-            select: {
-              evento: { select: { id: true, fecha: true } },
-              servicio: { select: { fecha: true, servicio: { select: { semen: { select: { id: true, nombre: true } } } } } },
-            },
-          },
+          evento: { select: { id: true, fecha: true } },
+          servicio: { select: { fecha: true, servicio: { select: { semen: { select: { id: true, nombre: true } } } } } },
         },
       },
     },
-  });
-  if (!animal) return null;
+  },
+} as const satisfies Prisma.AnimalSelect;
+
+export type FilaFicha = Prisma.AnimalGetPayload<{ select: typeof SELECCION_FICHA }>;
+
+// Arma la ficha pública desde la fila leída. Es PURA: la ficha individual y la copia local (spec 009)
+// pasan por acá, así son idénticas.
+export function armarFicha(animal: FilaFicha) {
   return {
     id: animal.id,
     numero: animal.numero,
@@ -297,6 +293,21 @@ export async function leerFicha(
         }
       : null,
   };
+}
+
+
+// Ficha de un animal activo del tambo (la usan GET /:id y la edición, spec 005). Devuelve `null` si
+// no existe, es de otro tambo o está de baja: el llamador responde siempre el mismo 404.
+export async function leerFicha(
+  cliente: Pick<typeof prisma, 'animal'>,
+  id: string,
+  establecimientoId: string,
+) {
+  const animal = await cliente.animal.findFirst({
+    where: { id, establecimientoId, estado: ACTIVO },
+    select: SELECCION_FICHA,
+  });
+  return animal ? armarFicha(animal) : null;
 }
 
 // GET /api/animales/:id — ficha (RF-28 a RF-30, RF-38).

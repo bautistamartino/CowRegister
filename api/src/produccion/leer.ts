@@ -91,18 +91,36 @@ export async function leerFicha(animalId: string, establecimientoId: string, con
   // del día). Todo en décimas enteras; se redondea una sola vez al final.
   const sumaDecimas = ventana.reduce((s, r) => s + r.litrosDecimas, 0);
   const dias = new Set(ventana.map((r) => aTextoFecha(r.fecha))).size;
-  const promedio = redondearDecimas(sumaDecimas, dias);
 
   return {
-    registros: filas.map(armarRegistro),
-    total,
-    mostrados: filas.length,
-    truncado: total > tope,
-    tope,
-    promedio30Dias: promedio === null ? null : decimasALitros(promedio),
-    ultimoRegistro: ultimo
-      ? { fecha: aTextoFecha(ultimo.fecha), turno: turnoATexto(ultimo.turno), litros: decimasALitros(ultimo.litrosDecimas) }
-      : null,
+    ...armarFichaProduccion({ filas, total, sumaDecimas, dias, ultimo, tope }),
     ...(conSugerencia && { sugerencia: sugerirOrdeno(ahora()) }),
+  };
+}
+
+/**
+ * Arma la ficha de producción (sin sugerencia) desde lo ya leído. Es PURA y la comparten la ficha
+ * individual y la copia local (spec 009), que lee todo por tambo con consultas masivas: así las dos
+ * respuestas son idénticas. `sumaDecimas` y `dias` son los de los últimos 30 días (registros no anulados).
+ */
+export function armarFichaProduccion(d: {
+  filas: FilaRegistro[];
+  total: number;
+  sumaDecimas: number;
+  dias: number;
+  ultimo: { fecha: Date; turno: TurnoOrdeno; litrosDecimas: number } | null;
+  tope: number;
+}) {
+  const promedio = redondearDecimas(d.sumaDecimas, d.dias);
+  return {
+    registros: d.filas.map(armarRegistro),
+    total: d.total,
+    mostrados: d.filas.length,
+    truncado: d.total > d.tope,
+    tope: d.tope,
+    promedio30Dias: promedio === null ? null : decimasALitros(promedio),
+    ultimoRegistro: d.ultimo
+      ? { fecha: aTextoFecha(d.ultimo.fecha), turno: turnoATexto(d.ultimo.turno), litros: decimasALitros(d.ultimo.litrosDecimas) }
+      : null,
   };
 }

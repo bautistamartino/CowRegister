@@ -42,10 +42,26 @@ const aTexto = (fecha: Date) => fecha.toISOString().slice(0, 10);
 
 // Todos los eventos del animal (anulados incluidos), sin ordenar.
 export async function leerEventos(tx: Prisma.TransactionClient, animalId: string, establecimientoId: string): Promise<FilaEvento[]> {
+  return (await leerEventosDeAnimales(tx, [animalId], establecimientoId)).get(animalId) ?? [];
+}
+
+/**
+ * Los eventos de VARIOS animales del tambo en una sola lectura (spec 009: la copia local), agrupados
+ * por animal. Es el mismo código que usa `leerEventos` para uno solo, así el resultado es idéntico.
+ * Los animales sin eventos no aparecen en el mapa.
+ */
+export async function leerEventosDeAnimales(
+  tx: Prisma.TransactionClient,
+  animalIds: string[],
+  establecimientoId: string,
+): Promise<Map<string, FilaEvento[]>> {
+  const porAnimal = new Map<string, FilaEvento[]>();
+  if (animalIds.length === 0) return porAnimal;
   const filas = await tx.evento.findMany({
-    where: { animalId, establecimientoId },
+    where: { animalId: { in: animalIds }, establecimientoId },
     select: {
       id: true,
+      animalId: true,
       tipo: true,
       fecha: true,
       creadoEn: true,
@@ -94,7 +110,16 @@ export async function leerEventos(tx: Prisma.TransactionClient, animalId: string
     return lote ?? 'ELIMINADO'; // tenía lote y ya no existe
   };
 
-  return filas.map((f) => ({
+  for (const f of filas) {
+    const lista = porAnimal.get(f.animalId) ?? [];
+    lista.push(armarFila(f));
+    porAnimal.set(f.animalId, lista);
+  }
+  return porAnimal;
+
+  // Convierte una fila leída de la base en el `FilaEvento` que usa el cálculo.
+  function armarFila(f: (typeof filas)[number]): FilaEvento {
+    return {
     id: f.id,
     tipo: f.tipo,
     fecha: aTexto(f.fecha),
@@ -138,7 +163,8 @@ export async function leerEventos(tx: Prisma.TransactionClient, animalId: string
           loteAnterior: loteAnterior(f.baja),
         }
       : null,
-  }));
+    };
+  }
 }
 
 // Un evento como lo ve la web. `fechaProbable` es la fecha resuelta de un tacto "preñada"

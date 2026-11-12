@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { api, ApiError, type Aviso, type EstadoAnimal, type EventoReproductivo, type RespuestaEventos, type RespuestaRegistro, type SemenToro, type Sexo } from '../compartido/api';
 import { useAuth } from '../sesion/auth';
+import { useEnLinea } from '../sinconexion/useConexion';
+import { NotaNecesitaConexion, TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
 import { formatearFecha, NOMBRE_ESTADO, NOMBRE_SEXO } from '../animales/animalesDatos';
 import {
   fechaArgentinaIso,
@@ -41,6 +43,8 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionE
   // Sube cada vez que se relee la situación: el historial embebido se relee con ella.
   const [versionHistorial, setVersionHistorial] = useState(0);
   const { usuario } = useAuth();
+  // Sin conexión la situación sale de la copia local y registrar necesita conexión (spec 009).
+  const enLinea = useEnLinea();
   // El veterinario no registra partos ni secados (RF-43); la API igual responde 403.
   const puedeRegistrarPartos = !!usuario && usuario.rol !== 'VETERINARIO';
 
@@ -56,7 +60,7 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionE
 
   useEffect(() => {
     if (sexo === 'HEMBRA') void recargar();
-  }, [sexo, recargar]);
+  }, [sexo, recargar, enLinea]);
 
   // Los machos no tienen nada reproductivo (RF-25).
   if (sexo === 'MACHO') return null;
@@ -221,25 +225,26 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionE
             <div className="acciones">
               {/* Con una preñez vigente no se ofrece el servicio: primero hay que registrar un tacto vacía. */}
               {!prenada && (
-                <button type="button" className="boton" onClick={() => setFormulario(formulario === 'servicio' ? null : 'servicio')}>
+                <button type="button" className="boton necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setFormulario(formulario === 'servicio' ? null : 'servicio')}>
                   Registrar servicio
                 </button>
               )}
-              <button type="button" className="boton" onClick={() => setFormulario(formulario === 'tacto' ? null : 'tacto')}>
+              <button type="button" className="boton necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setFormulario(formulario === 'tacto' ? null : 'tacto')}>
                 Registrar tacto
               </button>
               {puedeRegistrarPartos && (
-                <button type="button" className="boton" onClick={() => setFormulario(formulario === 'parto' ? null : 'parto')}>
+                <button type="button" className="boton necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setFormulario(formulario === 'parto' ? null : 'parto')}>
                   Registrar parto
                 </button>
               )}
               {/* El secado solo tiene sentido en una vaca en ordeñe (RF-44). */}
               {puedeRegistrarPartos && estado === 'EN_ORDENE' && (
-                <button type="button" className="boton" onClick={() => setFormulario(formulario === 'secado' ? null : 'secado')}>
+                <button type="button" className="boton necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setFormulario(formulario === 'secado' ? null : 'secado')}>
                   Registrar secado
                 </button>
               )}
             </div>
+            {!enLinea && <NotaNecesitaConexion />}
             {prenada && <p className="campo-ayuda">Para registrar un nuevo servicio, primero registrá un tacto &quot;vacía&quot;.</p>}
             {formulario === 'servicio' && (
               <FormServicio animalId={animalId} alCancelar={() => setFormulario(null)} alRegistrar={alRegistrar} />

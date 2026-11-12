@@ -7,7 +7,9 @@ const HISTORIAL = 500;
 const INFORME = 2000;
 const PRODUCCION_FICHA = 200; // registros de producción en la ficha de una vaca (spec 008)
 
-type Topes = { historial?: number; informe?: number; produccionFicha?: number };
+const COPIA = 5000; // animales activos que entran en la copia local de la tablet (spec 009)
+
+type Topes = { historial?: number; informe?: number; produccionFicha?: number; copia?: number };
 let fijos: Topes | null = null;
 
 // Máximo de entradas del historial de un animal.
@@ -23,6 +25,12 @@ export function topeInforme(): number {
 // Máximo de registros de producción que muestra la ficha de una vaca (los más recientes).
 export function topeProduccionFicha(): number {
   return fijos?.produccionFicha ?? PRODUCCION_FICHA;
+}
+
+// Máximo de animales activos de un tambo para armar la copia local (spec 009). Si hay más, NO se
+// recorta: la copia se rechaza (422) para que la tablet nunca tenga una copia incompleta.
+export function topeCopia(): number {
+  return fijos?.copia ?? COPIA;
 }
 
 // Fija los topes (o los suelta con null). Solo para tests.

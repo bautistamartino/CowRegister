@@ -10,6 +10,24 @@ export function litrosParaApi(texto: string): string {
   return texto.trim().replace(',', '.');
 }
 
+export type ResultadoLitros = { ok: true; litros: string } | { ok: false; mensaje: string };
+
+// Mismas reglas y MISMOS mensajes que la API (api/src/produccion/validacion.ts, spec 008): sirve para
+// validar sin conexión (spec 009, RF-19). Devuelve los litros como texto con punto ("12.5"): nunca se
+// convierte a número, para no introducir errores de coma flotante.
+export function validarLitros(texto: string): ResultadoLitros {
+  const t = litrosParaApi(texto);
+  if (t === '') return { ok: false, mensaje: 'Los litros son obligatorios' };
+  if (/^(\d{1,2})(?:\.(\d))?$/.test(t)) return { ok: true, litros: t };
+  if (t.startsWith('-')) return { ok: false, mensaje: 'Los litros no pueden ser negativos' };
+  const numerico = /^\d+(?:\.(\d+))?$/.exec(t);
+  if (numerico) {
+    if ((numerico[1]?.length ?? 0) > 1) return { ok: false, mensaje: 'Los litros admiten un solo decimal (por ejemplo 12.5)' };
+    return { ok: false, mensaje: 'Los litros no pueden superar 99,9' };
+  }
+  return { ok: false, mensaje: 'Los litros tienen que ser un número con punto decimal, por ejemplo 12.5' };
+}
+
 // Litros con UN decimal y coma, como se habla en el tambo: 12.5 -> "12,5", 8 -> "8,0".
 export function formatearLitros(litros: number): string {
   return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(litros);

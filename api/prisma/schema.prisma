@@ -475,6 +475,8 @@ model Produccion {
   loteNombre        String? // nombre copiado: nulo = "Sin lote"
   registradoPorId   String      @db.Uuid
   creadoEn          DateTime    @default(now())
+  // Hora en que se cargó en la tablet (spec 009): solo informativa, nunca ordena ni valida. Nula si no vino.
+  cargadoEnDispositivo DateTime?
   actualizadoEn     DateTime    @updatedAt
   // Anulación: las tres columnas van juntas (CHECK producciones_anulacion_completa).
   anuladoEn         DateTime?

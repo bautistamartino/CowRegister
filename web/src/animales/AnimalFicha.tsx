@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { api, ApiError, type AnimalFicha as Ficha, type EstadoAnimal } from '../compartido/api';
 import { Reproduccion } from '../reproduccion/Reproduccion';
@@ -10,6 +10,9 @@ import { Produccion } from '../produccion/Produccion';
 import { useAuth } from '../sesion/auth';
 import { NOMBRE_ESTADO, NOMBRE_SEXO, TEXTO_NO_DISPONIBLE, formatearFecha } from './animalesDatos';
 import { textoGenetica } from '../reproduccion/reproduccionDatos';
+import { useEnLinea } from '../sinconexion/useConexion';
+import { AvisoDatosLocales } from '../sinconexion/AvisoConexion';
+import { NotaNecesitaConexion, TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
 
 // Ficha de un animal (RF-28, RF-29). Dueño y encargado pueden editarlo y moverlo de lote (spec 005).
 export function AnimalFicha() {
@@ -28,6 +31,10 @@ export function AnimalFicha() {
   const [noEncontrado, setNoEncontrado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { usuario } = useAuth();
+  // Sin conexión la ficha sale de la copia local (api.ts) y las acciones quedan deshabilitadas (spec 009).
+  const enLinea = useEnLinea();
+  // Animal que no está en la copia de la tablet (RF-16): el mensaje trae "al día de…". No se dice que no existe.
+  const [mensajeAusente, setMensajeAusente] = useState<string | null>(null);
   // Solo se esconden los botones; la API igual responde 403 al veterinario.
   const puedeEditar = !!usuario && usuario.rol !== 'VETERINARIO';
   const [panel, setPanel] = useState<'editar' | 'mover' | 'baja' | null>(null);
@@ -45,6 +52,7 @@ export function AnimalFicha() {
     let vigente = true;
     setFicha(null);
     setNoEncontrado(false);
+    setMensajeAusente(null);
     setError(null);
     setPanel(null);
     setConfirmacion(estadoNav?.mensaje ?? null);
@@ -57,13 +65,29 @@ export function AnimalFicha() {
       })
       .catch((err) => {
         if (!vigente) return;
-        if (err instanceof ApiError && err.status === 404) setNoEncontrado(true);
-        else setError(err instanceof ApiError ? err.message : 'No se pudo cargar el animal');
+        if (err instanceof ApiError && err.status === 404) {
+          setNoEncontrado(true);
+          // 404 desde la copia local: el texto propio de la tablet (RF-16).
+          setMensajeAusente(err.message.startsWith('No encontrado en los datos de la tablet') ? err.message : null);
+        } else setError(err instanceof ApiError ? err.message : 'No se pudo cargar el animal');
       });
     return () => {
       vigente = false;
     };
   }, [id]);
+
+  // Cuando se corta o vuelve la conexión se relee la ficha (de la copia o del servidor) sin tocar
+  // paneles ni avisos. La primera vez no hace falta: ya la leyó el efecto de arriba.
+  const primeraVez = useRef(true);
+  useEffect(() => {
+    if (primeraVez.current) {
+      primeraVez.current = false;
+      return;
+    }
+    api<Ficha>(`/animales/${encodeURIComponent(id ?? '')}`)
+      .then(setFicha)
+      .catch(() => undefined); // si falla, queda lo que ya se veía
+  }, [enLinea]);
 
   // Tras un parto o secado cambian el estado, el lote y las crías de la madre: se vuelve a leer
   // la ficha sin vaciarla (si no, Reproduccion se desmontaría y perdería los avisos recién recibidos).
@@ -111,7 +135,8 @@ export function AnimalFicha() {
   if (noEncontrado) {
     return (
       <main className="contenido">
-        <h1>Animal no encontrado</h1>
+        <h1>{mensajeAusente ? 'Animal no disponible' : 'Animal no encontrado'}</h1>
+        {mensajeAusente && <p role="status">{mensajeAusente}</p>}
         {alertaNoDisponible}
         <p>
           <Link to="/animales" className="enlace-fila">
@@ -141,6 +166,8 @@ export function AnimalFicha() {
   return (
     <main className="contenido pantalla-lotes">
       <h1>Animal {ficha.numero}</h1>
+
+      <AvisoDatosLocales />
 
       {alertaNoDisponible}
 
@@ -269,16 +296,17 @@ export function AnimalFicha() {
       {puedeEditar && (
         <>
           <div className="acciones">
-            <button type="button" className="boton" onClick={() => setPanel(panel === 'editar' ? null : 'editar')}>
+            <button type="button" className="boton necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setPanel(panel === 'editar' ? null : 'editar')}>
               Editar
             </button>
-            <button type="button" className="boton" onClick={() => setPanel(panel === 'mover' ? null : 'mover')}>
+            <button type="button" className="boton necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setPanel(panel === 'mover' ? null : 'mover')}>
               Mover de lote
             </button>
-            <button type="button" className="boton-secundario boton-peligro" onClick={() => setPanel(panel === 'baja' ? null : 'baja')}>
+            <button type="button" className="boton-secundario boton-peligro necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setPanel(panel === 'baja' ? null : 'baja')}>
               Dar de baja
             </button>
           </div>
+          {!enLinea && <NotaNecesitaConexion />}
           {panel === 'baja' && (
             <FormBaja
               key={ficha.id}

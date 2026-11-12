@@ -3,10 +3,15 @@ import { Link, useLocation } from 'react-router';
 import { useAuth } from '../sesion/auth';
 import { api, ApiError, type ListadoAnimales, type Lote } from '../compartido/api';
 import { ESTADOS_INICIALES, NOMBRE_ESTADO, NOMBRE_SEXO, puedeCargar, textoAnimales } from './animalesDatos';
+import { useEnLinea } from '../sinconexion/useConexion';
+import { AvisoDatosLocales } from '../sinconexion/AvisoConexion';
+import { NotaNecesitaConexion, TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
 
 // Listado de animales activos con filtros por estado y lote (RF-23 a RF-27).
 export function Animales() {
   const { usuario } = useAuth();
+  // Sin conexión el listado sale de la copia local (api.ts) y al volver la señal se relee del servidor.
+  const enLinea = useEnLinea();
   // Confirmación de una carga de producción (spec 008): llega por el estado de navegación y se cierra a mano.
   const [confirmacion, setConfirmacion] = useState<string | null>((useLocation().state as { mensaje?: string } | null)?.mensaje ?? null);
   const [estado, setEstado] = useState('');
@@ -20,7 +25,7 @@ export function Animales() {
     api<Lote[]>('/lotes')
       .then(setLotes)
       .catch(() => setLotes([])); // si falla, el filtro queda solo con "Todos" y "Sin lote"
-  }, []);
+  }, [enLinea]);
 
   // Cada vez que cambia un filtro se vuelve a pedir el listado. `vigente` descarta la
   // respuesta de un pedido viejo si el usuario ya cambió el filtro de nuevo.
@@ -43,21 +48,36 @@ export function Animales() {
     return () => {
       vigente = false;
     };
-  }, [estado, loteId]);
+  }, [estado, loteId, enLinea]);
 
   if (!usuario) return null;
   const puedeAgregar = puedeCargar(usuario.rol);
   const hayFiltro = estado !== '' || loteId !== '';
 
-  // Accesos de carga: solo para dueño y encargado (RF-27, RF-39).
+  // Accesos de carga: solo para dueño y encargado (RF-27, RF-39). Sin conexión quedan deshabilitados:
+  // el alta y la planilla necesitan conexión (spec 009, RF-13).
   const accesos = puedeAgregar && (
     <div className="acciones">
-      <Link to="/animales/nuevo" className="boton enlace-boton">
-        Nuevo animal
-      </Link>
-      <Link to="/animales/planilla" className="boton-secundario enlace-boton">
-        Cargar desde planilla
-      </Link>
+      {enLinea ? (
+        <>
+          <Link to="/animales/nuevo" className="boton enlace-boton">
+            Nuevo animal
+          </Link>
+          <Link to="/animales/planilla" className="boton-secundario enlace-boton">
+            Cargar desde planilla
+          </Link>
+        </>
+      ) : (
+        <>
+          <button type="button" className="boton necesita-conexion" disabled title={TEXTO_NECESITA_CONEXION}>
+            Nuevo animal
+          </button>
+          <button type="button" className="boton-secundario necesita-conexion" disabled title={TEXTO_NECESITA_CONEXION}>
+            Cargar desde planilla
+          </button>
+          <NotaNecesitaConexion />
+        </>
+      )}
     </div>
   );
 
@@ -67,6 +87,8 @@ export function Animales() {
         <h1>Animales</h1>
         {listado && listado.animales.length > 0 && accesos}
       </div>
+
+      <AvisoDatosLocales />
 
       {confirmacion && (
         <div className="resultado-registro" role="status">
