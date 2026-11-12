@@ -179,7 +179,7 @@ describe('aislamiento y errores (RF-27)', () => {
       fecha: '2026-10-01',
     });
     const baja = await prisma.animal.create({
-      data: { establecimientoId: tambo, numero: '555', sexo: 'HEMBRA', estado: 'BAJA', fechaBaja: new Date('2026-10-01') },
+      data: { establecimientoId: tambo, numero: '555', sexo: 'HEMBRA', estado: 'BAJA', fechaBaja: new Date('2026-10-01'), motivoBaja: 'PARTO_ANULADO' },
     });
     await crearServicioDirecto({ establecimientoId: tambo, animalId: baja.id, registradoPorId: usuarioId, fecha: '2026-05-01' });
     const respuestas = [];

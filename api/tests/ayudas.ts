@@ -12,7 +12,7 @@ export async function limpiarBase() {
     throw new Error('limpiarBase() solo puede usarse con la base de tests');
   }
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "cambios_animal", "crias_parto", "partos", "secados", "servicios", "tactos", "eventos", "semen_toros", "sesiones", "animales", "reglas_lote", "lotes", "usuarios", "establecimientos" CASCADE',
+    'TRUNCATE TABLE "cambios_animal", "crias_parto", "partos", "secados", "bajas", "servicios", "tactos", "eventos", "semen_toros", "sesiones", "animales", "reglas_lote", "lotes", "usuarios", "establecimientos" CASCADE',
   );
 }
 
@@ -53,8 +53,9 @@ export async function crearUsuario(
 
 // Crea un animal directo con Prisma (sin pasar por la API), para preparar datos de
 // los tests. Por defecto: hembra en ordeñe, sin lote ni madre. La base exige que un
-// animal en BAJA tenga fechaBaja (y que solo él la tenga) y no tenga lote (spec 004), así que
-// la fecha se completa sola y el lote se ignora en una baja.
+// animal en BAJA tenga fechaBaja y motivo (y que solo él los tenga) y no tenga lote (specs 004 y
+// 006), así que la fecha se completa sola, el motivo es PARTO_ANULADO si no se indica y el lote
+// se ignora en una baja.
 export function crearAnimalDirecto(
   establecimientoId: string,
   numero: string,
@@ -64,7 +65,9 @@ export function crearAnimalDirecto(
     loteId?: string | null;
     madreId?: string | null;
     fechaNacimiento?: string | null; // AAAA-MM-DD
-    motivoBaja?: 'PARTO_ANULADO' | null;
+    // Motivo de una baja sembrada a mano. Por defecto PARTO_ANULADO: es el único que no exige una
+    // baja registrada (evento BAJA). Para VENTA o MUERTE usar crearBajaRegistradaDirecta (spec 006).
+    motivoBaja?: 'PARTO_ANULADO' | 'VENTA' | 'MUERTE' | null;
   } = {},
 ) {
   const estado = opciones.estado ?? 'EN_ORDENE';
@@ -75,7 +78,8 @@ export function crearAnimalDirecto(
       sexo: opciones.sexo ?? 'HEMBRA',
       estado,
       loteId: estado === 'BAJA' ? null : (opciones.loteId ?? null),
-      motivoBaja: estado === 'BAJA' ? (opciones.motivoBaja ?? null) : null,
+      // La base exige motivo en toda baja nueva (CHECK animales_baja_con_fecha_y_motivo, spec 006).
+      motivoBaja: estado === 'BAJA' ? (opciones.motivoBaja ?? 'PARTO_ANULADO') : null,
       madreId: opciones.madreId ?? null,
       fechaNacimiento: opciones.fechaNacimiento ? new Date(`${opciones.fechaNacimiento}T00:00:00.000Z`) : null,
       fechaBaja: estado === 'BAJA' ? new Date('2026-11-01T00:00:00.000Z') : null,
@@ -119,7 +123,7 @@ type DatosEvento = {
 };
 
 // Columnas comunes del evento (con la anulación si la hay).
-function datosComunes(datos: DatosEvento, id: string, tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO') {
+function datosComunes(datos: DatosEvento, id: string, tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO' | 'BAJA') {
   return {
     id,
     establecimientoId: datos.establecimientoId,
@@ -190,6 +194,62 @@ export function crearBajaDirecta(
   opciones: { madreId?: string | null; motivoBaja?: 'PARTO_ANULADO' | null; sexo?: 'HEMBRA' | 'MACHO' } = {},
 ) {
   return crearAnimalDirecto(establecimientoId, numero, { ...opciones, estado: 'BAJA' });
+}
+
+// Animal dado de baja por "parto anulado" (spec 004): sin evento BAJA. Igual que crearBajaDirecta
+// con ese motivo explícito; existe para que los tests de la spec 006 digan lo que quieren.
+export function crearAnimalDeBajaPartoAnulado(
+  establecimientoId: string,
+  numero: string,
+  opciones: { madreId?: string | null; sexo?: 'HEMBRA' | 'MACHO' } = {},
+) {
+  return crearAnimalDirecto(establecimientoId, numero, { ...opciones, estado: 'BAJA', motivoBaja: 'PARTO_ANULADO' });
+}
+
+// ─── Bajas por venta o muerte (spec 006) ────────────────────────────
+
+/**
+ * Siembra una baja por venta o muerte directo en la base: el evento BAJA, su detalle y, si la
+ * baja queda vigente, pasa al animal a BAJA con la fecha y el motivo de la baja y sin lote (todo
+ * en una transacción, porque la base lo comprueba al confirmar). Con `anulacion` la baja se
+ * siembra ya revertida (vigente = false) y el animal NO se toca (queda como esté: activo).
+ * Devuelve el evento y el id del detalle (que es el mismo).
+ */
+export async function crearBajaRegistradaDirecta(
+  datos: DatosEvento & {
+    motivo?: 'VENTA' | 'MUERTE';
+    observaciones?: string | null;
+    estadoAnterior?: 'RECIEN_NACIDO' | 'VAQUILLONA' | 'EN_ORDENE' | 'SECA';
+    tuvoLoteAnterior?: boolean;
+    loteAnteriorId?: string | null;
+  },
+) {
+  const id = crypto.randomUUID();
+  const motivo = datos.motivo ?? 'VENTA';
+  return prisma.$transaction(async (tx) => {
+    const evento = await tx.evento.create({ data: datosComunes(datos, id, 'BAJA') });
+    await tx.baja.create({
+      data: {
+        eventoId: id,
+        establecimientoId: datos.establecimientoId,
+        tipo: 'BAJA',
+        animalId: datos.animalId,
+        motivo,
+        observaciones: datos.observaciones ?? null,
+        estadoAnterior: datos.estadoAnterior ?? 'EN_ORDENE',
+        tuvoLoteAnterior: datos.tuvoLoteAnterior ?? datos.loteAnteriorId != null,
+        loteAnteriorId: datos.loteAnteriorId ?? null,
+        vigente: !datos.anulacion,
+      },
+    });
+    if (!datos.anulacion) {
+      await tx.animal.update({
+        where: { id: datos.animalId },
+        data: { estado: 'BAJA', fechaBaja: aFecha(datos.fecha), motivoBaja: motivo, loteId: null },
+      });
+    }
+    return evento;
+  });
 }
 
 type CriaDirecta = {
@@ -381,6 +441,44 @@ export async function verificarInvariantes(opciones: { estadoVaca?: boolean } = 
     [
       'animal activo con el motivo de baja cargado',
       `SELECT id FROM animales WHERE estado <> 'BAJA' AND "motivoBaja" IS NOT NULL`,
+    ],
+    // ─── Spec 006 RF-16 (c): fecha y motivo de baja solo en los animales de baja ───
+    [
+      'animal de baja sin fecha o sin motivo, o activo con fecha de baja',
+      `SELECT id FROM animales WHERE (estado = 'BAJA' AND ("fechaBaja" IS NULL OR "motivoBaja" IS NULL))
+         OR (estado <> 'BAJA' AND ("fechaBaja" IS NOT NULL OR "motivoBaja" IS NOT NULL))`,
+    ],
+    // RF-16 (d): un animal de baja por venta o muerte tiene exactamente una baja no anulada, igual
+    // en fecha y motivo; un animal activo (o de baja por parto anulado) no tiene ninguna.
+    [
+      'animal de baja por venta o muerte sin exactamente una baja vigente igual en fecha y motivo',
+      `SELECT a.id FROM animales a
+       WHERE a.estado = 'BAJA' AND a."motivoBaja" IN ('VENTA', 'MUERTE')
+         AND (SELECT count(*) FROM bajas b WHERE b."animalId" = a.id AND b.vigente) <> 1
+       UNION ALL
+       SELECT a.id FROM animales a JOIN bajas b ON b."animalId" = a.id AND b.vigente JOIN eventos e ON e.id = b."eventoId"
+       WHERE a.estado = 'BAJA' AND (b.motivo::text <> a."motivoBaja"::text OR e.fecha <> a."fechaBaja")`,
+    ],
+    [
+      'animal activo o de baja por parto anulado con una baja vigente',
+      `SELECT a.id FROM animales a JOIN bajas b ON b."animalId" = a.id AND b.vigente
+       WHERE a.estado <> 'BAJA' OR a."motivoBaja" = 'PARTO_ANULADO'`,
+    ],
+    [
+      'baja vigente con su evento anulado, o anulada con su evento vigente',
+      `SELECT b."eventoId" FROM bajas b JOIN eventos e ON e.id = b."eventoId" WHERE b.vigente <> (e."anuladoEn" IS NULL)`,
+    ],
+    ['evento BAJA sin detalle', `SELECT e.id FROM eventos e LEFT JOIN bajas b ON b."eventoId" = e.id WHERE e.tipo = 'BAJA' AND b."eventoId" IS NULL`],
+    // RF-16 (e): toda cría vinculada a una madre de baja se vinculó (alta o cambio de madre) antes
+    // del momento de la baja de la madre. Se compara el momento de registro de la cría y de sus
+    // cambios de madre con el de la baja.
+    [
+      'cría vinculada a una madre después de la baja de esa madre',
+      `SELECT c.id FROM animales c
+       JOIN bajas b ON b."animalId" = c."madreId" AND b.vigente
+       JOIN eventos e ON e.id = b."eventoId"
+       WHERE c."creadoEn" > e."creadoEn"
+          OR EXISTS (SELECT 1 FROM cambios_animal x WHERE x."animalId" = c.id AND x.campo = 'MADRE' AND x."creadoEn" > e."creadoEn")`,
     ],
   ];
   // RF-33 (e): el estado de la vaca es el que dejó su último parto o secado no anulado; si todos

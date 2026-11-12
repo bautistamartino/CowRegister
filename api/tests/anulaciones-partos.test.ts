@@ -362,7 +362,7 @@ describe('defensas sembradas directo en la base (RF-27, RF-28)', () => {
     const a1 = await prisma.animal.findFirstOrThrow({ where: { establecimientoId: t.tambo, numero: 'A1' } });
     const a2 = await prisma.animal.findFirstOrThrow({ where: { establecimientoId: t.tambo, numero: 'A2' } });
     // Dada de baja "por otra vía" (hoy no existe, llegará en la Etapa 3).
-    await prisma.animal.update({ where: { id: a1.id }, data: { estado: 'BAJA', fechaBaja: new Date('2026-11-05'), loteId: null } });
+    await prisma.animal.update({ where: { id: a1.id }, data: { estado: 'BAJA', fechaBaja: new Date('2026-11-05'), motivoBaja: 'PARTO_ANULADO', loteId: null } });
     const res = await anularParto(t.agente, partoId).expect(409);
     expect(res.body.error).toBe('No se puede anular el parto: la cría N.º A1 ya no está activa');
     expect((await vacaDe(a2.id)).estado).toBe('RECIEN_NACIDO');
@@ -458,7 +458,7 @@ describe('"no encontrado" (RF-29, RF-41)', () => {
       (await anularSecado(t.agente, t.partoId).expect(404)).body, // un parto por la ruta de secados
       (await anularParto(t.agente, servicio.id).expect(404)).body, // un servicio
     ];
-    await prisma.animal.update({ where: { id: t.vaca.id }, data: { estado: 'BAJA', fechaBaja: new Date('2026-11-01'), loteId: null } });
+    await prisma.animal.update({ where: { id: t.vaca.id }, data: { estado: 'BAJA', fechaBaja: new Date('2026-11-01'), motivoBaja: 'PARTO_ANULADO', loteId: null } });
     respuestas.push((await anularParto(t.agente, t.partoId).expect(404)).body);
     expect(new Set(respuestas.map((r) => JSON.stringify(r))).size).toBe(1);
     // Nada de lo ajeno cambió.

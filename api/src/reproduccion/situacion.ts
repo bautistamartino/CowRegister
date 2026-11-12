@@ -10,7 +10,9 @@ import { DIAS_GESTACION, diasEntre, sumarDias } from './fechas.js';
 
 export type EventoCalculo = {
   id: string;
-  tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO';
+  // 'BAJA' se suma a nivel de tipos al crear el enum (spec 006, T1). Su exclusión de los cálculos
+  // (situación, ciclo, último evento a anular) la implementa la T3 en armarRespuesta.
+  tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO' | 'BAJA';
   fecha: string; // AAAA-MM-DD
   creadoEn: Date; // momento de registro: desempata el orden a igual fecha
   anulado: boolean;

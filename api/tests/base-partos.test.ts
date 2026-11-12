@@ -38,7 +38,7 @@ describe('Animal de baja sin lote (RF-34)', () => {
     const lote = await crearLote(tambo, 'Ordeñe');
     await expect(
       prisma.animal.create({
-        data: { establecimientoId: tambo, numero: '1', sexo: 'HEMBRA', estado: 'BAJA', fechaBaja: aFecha('2026-01-01'), loteId: lote.id },
+        data: { establecimientoId: tambo, numero: '1', sexo: 'HEMBRA', estado: 'BAJA', fechaBaja: aFecha('2026-01-01'), motivoBaja: 'PARTO_ANULADO', loteId: lote.id },
       }),
     ).rejects.toThrow();
     await expect(crearBajaDirecta(tambo, '2')).resolves.toBeDefined();
@@ -49,10 +49,10 @@ describe('Animal de baja sin lote (RF-34)', () => {
     const lote = await crearLote(tambo, 'Ordeñe');
     const animal = await crearAnimalDirecto(tambo, '5', { loteId: lote.id });
     await expect(
-      prisma.animal.update({ where: { id: animal.id }, data: { estado: 'BAJA', fechaBaja: aFecha('2026-01-01') } }),
+      prisma.animal.update({ where: { id: animal.id }, data: { estado: 'BAJA', fechaBaja: aFecha('2026-01-01'), motivoBaja: 'PARTO_ANULADO' } }),
     ).rejects.toThrow();
     await expect(
-      prisma.animal.update({ where: { id: animal.id }, data: { estado: 'BAJA', fechaBaja: aFecha('2026-01-01'), loteId: null } }),
+      prisma.animal.update({ where: { id: animal.id }, data: { estado: 'BAJA', fechaBaja: aFecha('2026-01-01'), motivoBaja: 'PARTO_ANULADO', loteId: null } }),
     ).resolves.toBeDefined();
   });
 
@@ -72,9 +72,12 @@ describe('Animal de baja sin lote (RF-34)', () => {
       .$transaction(async (tx) => {
         await tx.$executeRawUnsafe('ALTER TABLE "animales" DROP CONSTRAINT "animales_baja_sin_lote"');
         const baja = await tx.animal.create({
-          data: { establecimientoId: tambo, numero: '9', sexo: 'HEMBRA', estado: 'BAJA', fechaBaja: aFecha('2026-01-01'), loteId: lote.id },
+          data: { establecimientoId: tambo, numero: '9', sexo: 'HEMBRA', estado: 'BAJA', fechaBaja: aFecha('2026-01-01'), motivoBaja: 'PARTO_ANULADO', loteId: lote.id },
         });
         await tx.$executeRawUnsafe(update!);
+        // Desde la spec 006 hay un disparador diferido en animales: PostgreSQL no deja hacer un ALTER TABLE
+        // con eventos de disparador pendientes, así que se fuerza su control antes del ALTER.
+        await tx.$executeRawUnsafe('SET CONSTRAINTS ALL IMMEDIATE');
         await tx.$executeRawUnsafe(check!);
         expect((await tx.animal.findUniqueOrThrow({ where: { id: baja.id } })).loteId).toBeNull();
         throw DESHACER;
@@ -85,7 +88,7 @@ describe('Animal de baja sin lote (RF-34)', () => {
     // La estructura real no cambió: el CHECK sigue vigente.
     await expect(
       prisma.animal.create({
-        data: { establecimientoId: tambo, numero: '10', sexo: 'HEMBRA', estado: 'BAJA', fechaBaja: aFecha('2026-01-01'), loteId: lote.id },
+        data: { establecimientoId: tambo, numero: '10', sexo: 'HEMBRA', estado: 'BAJA', fechaBaja: aFecha('2026-01-01'), motivoBaja: 'PARTO_ANULADO', loteId: lote.id },
       }),
     ).rejects.toThrow();
   });

@@ -202,7 +202,7 @@ describe('"no encontrado" (RF-19, RF-27)', () => {
       (await anularServicio(agente, tacto.id).expect(404)).body, // un tacto por la ruta de servicios
       (await anularTacto(agente, servicio.id).expect(404)).body, // un servicio por la ruta de tactos
     ];
-    await prisma.animal.update({ where: { id: vaca.id }, data: { estado: 'BAJA', fechaBaja: new Date('2026-11-01') } });
+    await prisma.animal.update({ where: { id: vaca.id }, data: { estado: 'BAJA', fechaBaja: new Date('2026-11-01'), motivoBaja: 'PARTO_ANULADO' } });
     respuestas.push((await anularTacto(agente, tacto.id).expect(404)).body);
     expect(new Set(respuestas.map((r) => JSON.stringify(r))).size).toBe(1);
     expect((await prisma.evento.findUniqueOrThrow({ where: { id: servicioAjeno.id } })).anuladoEn).toBeNull();
