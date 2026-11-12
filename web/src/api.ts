@@ -403,3 +403,22 @@ export type FichaProduccion = {
   ultimoRegistro: { fecha: string; turno: TurnoOrdeno; litros: number } | null;
   sugerencia?: { fecha: string; turno: TurnoOrdeno };
 };
+
+// GET /api/informes/leche?desde&hasta (spec 008). Litros y promedios con un decimal; null = "—".
+export type InformeLeche = {
+  periodo: { desde: string; hasta: string };
+  resumen: {
+    totalLitros: number;
+    ordenos: number;
+    vacas: number;
+    vacaDias: number;
+    promedioPorVacaDia: number | null;
+    promedioPorOrdeno: number | null;
+  };
+  porLote: { loteId: string | null; nombre: string | null; litros: number; vacas: number; vacaDias: number; promedioPorVacaDia: number | null }[]; // nombre null = "Sin lote"
+  porVaca: { animal: AnimalDeInforme; litros: number; dias: number; promedioPorVacaDia: number | null }[];
+  totalVacas: number;
+  truncado: boolean;
+  tope: number;
+  porDia: { fecha: string; litros: number; vacas: number; litrosManana: number; litrosTarde: number }[];
+};
