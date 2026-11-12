@@ -149,10 +149,10 @@ describe('POST /api/animales/planilla/vista-previa (RF-11, RF-19, RF-20)', () =>
     expect(await cantidadAnimales()).toBe(antes);
 
     expect(r.body.filas).toEqual([
-      { fila: 3, ok: true, numero: '101', sexo: 'HEMBRA', estado: 'EN_ORDENE', fechaNacimiento: '2021-03-05', madre: null },
-      { fila: 4, ok: false, numero: '102', sexo: 'vaca', estado: 'SECA', fechaNacimiento: null, madre: null, motivo: 'El sexo tiene que ser hembra, macho, H o M' },
-      { fila: 5, ok: true, numero: '201', sexo: 'MACHO', estado: 'RECIEN_NACIDO', fechaNacimiento: null, madre: '103' },
-      { fila: 6, ok: true, numero: '103', sexo: 'HEMBRA', estado: 'SECA', fechaNacimiento: null, madre: null },
+      { fila: 3, ok: true, numero: '101', sexo: 'HEMBRA', estado: 'EN_ORDENE', fechaNacimiento: '2021-03-05', madre: null, avisoNumeroDeBaja: null },
+      { fila: 4, ok: false, numero: '102', sexo: 'vaca', estado: 'SECA', fechaNacimiento: null, madre: null, motivo: 'El sexo tiene que ser hembra, macho, H o M', avisoNumeroDeBaja: null },
+      { fila: 5, ok: true, numero: '201', sexo: 'MACHO', estado: 'RECIEN_NACIDO', fechaNacimiento: null, madre: '103', avisoNumeroDeBaja: null },
+      { fila: 6, ok: true, numero: '103', sexo: 'HEMBRA', estado: 'SECA', fechaNacimiento: null, madre: null, avisoNumeroDeBaja: null },
     ]);
     expect(r.body.resumen).toEqual({ total: 4, correctas: 3, conError: 1, sinLotePorEstado: [] });
   });
@@ -228,6 +228,7 @@ describe('POST /api/animales/planilla/confirmar (RF-18, RF-19, RF-21)', () => {
       guardados: 4,
       quedaronAfuera: [{ fila: 3, motivo: 'El sexo tiene que ser hembra, macho, H o M' }],
       sinLotePorEstado: [],
+      avisosDeNumero: [], // spec 006: avisos de números que fueron de un animal de baja
     });
 
     const guardados = await prisma.animal.findMany({ where: { establecimientoId: est, numero: { not: '100' } }, include: { lote: true, madre: true } });

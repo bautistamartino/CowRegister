@@ -1,4 +1,5 @@
 import type { EstadoAnimal, Prisma, Sexo } from '../generated/prisma/client.js';
+import { motivoATexto, type MotivoBajaCompleto } from '../bajas/validacion.js';
 import { aFechaCorta } from './fechas.js';
 import { calcularSituacion, ordenarEventos, type EventoCalculo } from './situacion.js';
 
@@ -13,13 +14,14 @@ type Semen = { id: string; nombre: string } | null;
 export type LoteAnterior = 'SIN_LOTE' | 'ELIMINADO' | { id: string; nombre: string };
 
 // Una cría de un parto. `animal` es null si nació muerta; `activo` es false si la cría fue dada
-// de baja (por parto anulado): se muestra con "dada de baja" y sin acceso a su ficha.
+// de baja y `motivoBaja` dice por qué (spec 006): con "venta" o "muerte" la web da acceso a su ficha
+// de baja; con "parto_anulado" se muestra "dada de baja" sin acceso. Null si la cría está activa.
 export type CriaDeParto = {
   orden: number;
   sexo: Sexo;
   nacidaMuerta: boolean;
   observaciones: string | null;
-  animal: { id: string; numero: string; activo: boolean } | null;
+  animal: { id: string; numero: string; activo: boolean; motivoBaja: MotivoBajaCompleto | null } | null;
 };
 
 // Un evento leído de la base: lo que necesita el cálculo más lo que se muestra.
@@ -66,7 +68,7 @@ export async function leerEventos(tx: Prisma.TransactionClient, animalId: string
               sexo: true,
               nacidaMuerta: true,
               observaciones: true,
-              animal: { select: { id: true, numero: true, estado: true } },
+              animal: { select: { id: true, numero: true, estado: true, motivoBaja: true } },
             },
           },
         },
@@ -116,7 +118,14 @@ export async function leerEventos(tx: Prisma.TransactionClient, animalId: string
             sexo: c.sexo,
             nacidaMuerta: c.nacidaMuerta,
             observaciones: c.observaciones,
-            animal: c.animal ? { id: c.animal.id, numero: c.animal.numero, activo: c.animal.estado !== 'BAJA' } : null,
+            animal: c.animal
+              ? {
+                  id: c.animal.id,
+                  numero: c.animal.numero,
+                  activo: c.animal.estado !== 'BAJA',
+                  motivoBaja: c.animal.estado === 'BAJA' ? motivoATexto(c.animal.motivoBaja ?? 'PARTO_ANULADO') : null,
+                }
+              : null,
           })),
         }
       : null,

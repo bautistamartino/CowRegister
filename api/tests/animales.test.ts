@@ -297,7 +297,7 @@ describe('GET /api/animales/:id: ficha (RF-28 a RF-30, RF-38)', () => {
     const madre = await crearAnimalDirecto(tambo, 'M1', { loteId: secas.id, fechaNacimiento: '2020-01-02' });
     const cria2 = await crearAnimalDirecto(tambo, 'C2', { madreId: madre.id, estado: 'RECIEN_NACIDO' });
     const cria10 = await crearAnimalDirecto(tambo, 'C10', { madreId: madre.id, estado: 'RECIEN_NACIDO' });
-    await crearAnimalDirecto(tambo, 'CBAJA', { madreId: madre.id, estado: 'BAJA' }); // no es cría activa
+    const bajaCria = await crearAnimalDirecto(tambo, 'CBAJA', { madreId: madre.id, estado: 'BAJA' }); // no es cría activa
 
     const ficha = await agente.get(`/api/animales/${madre.id}`).expect(200);
     expect(ficha.body).toEqual({
@@ -312,6 +312,7 @@ describe('GET /api/animales/:id: ficha (RF-28 a RF-30, RF-38)', () => {
         { id: cria2.id, numero: 'C2' },
         { id: cria10.id, numero: 'C10' },
       ],
+      criasDeBaja: [{ id: bajaCria.id, numero: 'CBAJA', motivo: 'parto_anulado' }], // spec 006
       parto: null, // no nació de un parto cargado (spec 004)
     });
 
@@ -319,7 +320,7 @@ describe('GET /api/animales/:id: ficha (RF-28 a RF-30, RF-38)', () => {
     expect(fichaCria.body).toMatchObject({
       fechaNacimiento: null,
       lote: null,
-      madre: { id: madre.id, numero: 'M1', activa: true },
+      madre: { id: madre.id, numero: 'M1', activa: true, motivoBaja: null },
       crias: [],
     });
   });
@@ -329,7 +330,7 @@ describe('GET /api/animales/:id: ficha (RF-28 a RF-30, RF-38)', () => {
     const madre = await crearAnimalDirecto(perfil.establecimiento.id, 'M1', { estado: 'BAJA' });
     const cria = await crearAnimalDirecto(perfil.establecimiento.id, 'C1', { madreId: madre.id });
     const ficha = await agente.get(`/api/animales/${cria.id}`).expect(200);
-    expect(ficha.body.madre).toEqual({ id: madre.id, numero: 'M1', activa: false });
+    expect(ficha.body.madre).toEqual({ id: madre.id, numero: 'M1', activa: false, motivoBaja: 'parto_anulado' });
   });
 
   it('baja del propio tambo, otro tambo, inexistente y mal formado dan el mismo 404 (RF-30, RF-38)', async () => {
