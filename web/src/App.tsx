@@ -1,19 +1,19 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
-import { AuthProvider } from './auth';
-import { RutaPrivada, RutaPublica } from './componentes/Rutas';
-import { Layout } from './componentes/Layout';
-import { Login } from './paginas/Login';
-import { Registro } from './paginas/Registro';
-import { Inicio } from './paginas/Inicio';
-import { Lotes } from './paginas/Lotes';
-import { SemenToros } from './paginas/SemenToros';
-import { Animales } from './paginas/Animales';
-import { AnimalNuevo } from './paginas/AnimalNuevo';
-import { AnimalFicha } from './paginas/AnimalFicha';
-import { AnimalesPlanilla } from './paginas/AnimalesPlanilla';
-import { Bajas } from './paginas/Bajas';
-import { BajaFicha } from './paginas/BajaFicha';
-import { Informes } from './paginas/Informes';
+import { AuthProvider } from './sesion/auth';
+import { RutaPrivada, RutaPublica } from './compartido/Rutas';
+import { Layout } from './compartido/Layout';
+import { Login } from './sesion/Login';
+import { Registro } from './sesion/Registro';
+import { Inicio } from './compartido/Inicio';
+import { Lotes } from './lotes/Lotes';
+import { SemenToros } from './reproduccion/SemenToros';
+import { Animales } from './animales/Animales';
+import { AnimalNuevo } from './animales/AnimalNuevo';
+import { AnimalFicha } from './animales/AnimalFicha';
+import { AnimalesPlanilla } from './animales/AnimalesPlanilla';
+import { Bajas } from './bajas/Bajas';
+import { BajaFicha } from './bajas/BajaFicha';
+import { Informes } from './informes/Informes';
 
 export function App() {
   return (

@@ -32,16 +32,16 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
   - **`id` del cliente idempotente:** la carga acepta un UUID opcional; el mismo `id` con los mismos datos devuelve el registro ya guardado sin crear otro (se resuelve antes de revisar estado y duplicado); con otros datos o de otro tambo da 409 genérico. `P2002` de la base se traduce a 409.
   - **Sugerencia de fecha y turno calculada en la API** con `ahora()` (hora de Argentina; mañana antes de las 14:00, tarde desde las 14:00), no con el reloj del navegador. El turno es cambiable en la pantalla.
   - **`migrate diff` esperado:** sigue dando solo las TRES claves foráneas de lote previo (bajas, partos y secados); no aplicar esa propuesta. El índice único parcial `producciones_un_vigente_por_ordeno`, los CHECK y el disparador `producciones_solo_agregar` están a mano en la migración `produccion_base`.
-  - **La validación del período del informe sigue duplicada en la web** (`web/src/informes.ts`, con `periodoPorDefectoLeche`: mes en curso hasta hoy en hora de Argentina); si cambian las reglas hay que cambiar la API y la web.
+  - **La validación del período del informe sigue duplicada en la web** (`web/src/informes/informesDatos.ts`, con `periodoPorDefectoLeche`: mes en curso hasta hoy en hora de Argentina); si cambian las reglas hay que cambiar la API y la web.
   - **`Informes.tsx`:** al cambiar de informe se reinicia el período (el de leche propone el mes en curso y los otros dos empiezan vacíos).
-  - **Web:** la sección "Producción" (`componentes/Produccion.tsx`) está en la ficha de la vaca (con formulario si está en ordeñe y "Anular" para dueño y encargado) y en la ficha de baja (solo lectura); al guardar se vuelve al listado/buscador con la confirmación. La producción no entra en el historial de la 007.
+  - **Web:** la sección "Producción" (`web/src/produccion/Produccion.tsx`) está en la ficha de la vaca (con formulario si está en ordeñe y "Anular" para dueño y encargado) y en la ficha de baja (solo lectura); al guardar se vuelve al listado/buscador con la confirmación. La producción no entra en el historial de la 007.
 - **2026-11-12 — Historial e informes (spec 007):**
   - **Historial único armado en la API** (`GET /api/animales/:id/historial` y `GET /api/bajas/:id/historial`): reúne eventos y cambios manuales, con tope de 500 entradas y `ultimoEventoNoAnuladoId` calculado antes del corte (así "Anular" sigue apareciendo aunque ese evento quede fuera). Los cambios manuales se ubican en su día argentino; los anulados, en la fecha del evento. Las rutas viejas (`/eventos`, `/cambios`, `/api/bajas/:id`) no cambiaron.
   - **Topes en `api/src/topes.ts`** (historial 500, informes 2.000), inyectables con `fijarTopes` solo en los tests.
   - **Informes calculados en TypeScript** (`api/src/informes/`), nada se guarda: el resultado de cada servicio se mide "a hoy" con su tramo (hasta el siguiente servicio o parto no anulado, en el orden total); vale el primer tacto del tramo; un parto vinculado sin tacto cuenta como preñada. Porcentaje entero con el medio punto hacia arriba y `null` ("—") sin base. Las bajas por venta o muerte cuentan; los anulados no.
   - **Índice nuevo `(establecimientoId, tipo, fecha)` en `eventos`** (migración `informes_indice_eventos`). `migrate diff` esperado: sigue dando solo las TRES claves foráneas de lote previo; no aplicar esa propuesta.
-  - **La validación del período está duplicada en la web** (`web/src/informes.ts`, mismos mensajes que la API): si cambian las reglas, hay que cambiar las dos.
-  - **Web:** una sola sección "Historial" (`componentes/Historial.tsx`) reemplaza la lista de eventos y los "Cambios manuales"; los informes viven en `/informes`, para los tres roles.
+  - **La validación del período está duplicada en la web** (`web/src/informes/informesDatos.ts`, mismos mensajes que la API): si cambian las reglas, hay que cambiar las dos.
+  - **Web:** una sola sección "Historial" (`web/src/historial/Historial.tsx`) reemplaza la lista de eventos y los "Cambios manuales"; los informes viven en `/informes`, para los tres roles.
 - **2026-11-12 — Bajas por venta o muerte (spec 006):**
   - **La baja es un evento** (`TipoEvento.BAJA`, tabla `bajas` con clave compuesta al evento y al animal) con columna `vigente`: un índice único parcial permite una sola baja vigente por animal. Revertir marca la baja como anulada (quién, cuándo y motivo) y no borra nada. Un disparador diferido (`bajas_solo_agregar` y coherencia animal–baja–evento) garantiza que fecha y motivo del animal coincidan con su baja vigente; un test usa `session_replication_role = replica` para saltearlo y probar los CHECK directo.
   - **`BAJA` queda fuera de los cálculos** de situación reproductiva, ciclo, aviso 8, sexo y eventos propios. "Parto anulado" sigue siendo un motivo interno (no se pide por la API, no aparece en listados ni tiene ficha).
@@ -94,8 +94,8 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
   - `prisma migrate dev` falla en un entorno no interactivo cuando hay advertencias: se crea la carpeta de la migración a mano y se aplica con `prisma migrate deploy`.
   - Los lotes iniciales se crean en el registro, en la misma transacción que el tambo y el dueño (todo o nada).
   - Un id mal formado responde 404, igual que uno inexistente o de otro tambo.
-  - La web maneja el 401 en un solo lugar (`web/src/api.ts`): cualquier 401 fuera de `/auth/yo` y `/auth/login` lleva al login.
-  - El menú es una ruta de layout de React Router (`componentes/Layout.tsx`) que envuelve las páginas con sesión.
+  - La web maneja el 401 en un solo lugar (`web/src/compartido/api.ts`): cualquier 401 fuera de `/auth/yo` y `/auth/login` lleva al login.
+  - El menú es una ruta de layout de React Router (`web/src/compartido/Layout.tsx`) que envuelve las páginas con sesión.
 - **2026-11-10 — Sistema de agentes:** coordinador como skill `/sdd`, subagentes planificador, implementador y revisor (`.claude/agents/`). Cambios chicos con `/feature`.
 - **2026-11-10 — Tests:** Vitest + supertest sobre la base `cowregister_test`. `LIMITE_INTENTOS_LOGIN` permite subir el límite de intentos en los tests.
 - **2026-11-10 — Sesiones en la base** (no JWT): se pueden revocar. Cookie httpOnly + SameSite=Lax, 30 días.
@@ -115,3 +115,7 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
 - Si los litros se cargan a mano o se importan del equipo de ordeñe.
 - Destino final de los terneros.
 - Otros informes.
+
+## Refactor: web/src por dominio (2026-11-12, rama `refactor/ordenar-web`)
+- `web/src/` queda en carpetas por dominio: `compartido` (api, Campo, Layout, Rutas, Inicio), `sesion`, `animales`, `reproduccion`, `bajas`, `historial`, `produccion`, `informes`, `lotes`; `App.tsx`, `main.tsx` y `estilos.css` en la raíz.
+- Los módulos de datos pasaron a `*Datos.ts` (`animalesDatos`, `informesDatos`, `reproduccionDatos`, `produccionDatos`) porque en Windows `reproduccion.ts` y `Reproduccion.tsx` en la misma carpeta chocan por mayúsculas. Las specs viejas citan las rutas anteriores (son históricas).
