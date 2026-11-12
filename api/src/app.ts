@@ -9,6 +9,7 @@ import { rutasReglasLote } from './rutas/reglas-lote.js';
 import { rutasAnimales } from './rutas/animales.js';
 import { rutasAnimalesEdicion } from './rutas/animales-edicion.js';
 import { rutasBajas, rutasBajasAnimal } from './rutas/bajas.js';
+import { rutasHistorialAnimal, rutasHistorialBaja } from './rutas/historial.js';
 import { rutasSemen } from './rutas/semen.js';
 import { rutasReproduccion } from './rutas/reproduccion.js';
 import { rutasPartos } from './rutas/partos.js';
@@ -42,6 +43,8 @@ export function createApp() {
   app.use(['/api/servicios', '/api/tactos'], requiereSesion);
   app.post(['/api/animales/:id/servicios', '/api/animales/:id/tactos'], requiereSesion);
   app.get('/api/animales/:id/eventos', requiereSesion);
+  // Historial único (spec 007, RF-19): lectura para los tres roles; sin sesión es 401 antes que nada.
+  app.get('/api/animales/:id/historial', requiereSesion);
   // Partos y secados (spec 004, RF-42): solo dueño y encargado. El veterinario recibe 403 y un pedido
   // sin sesión 401 aunque el JSON venga roto, así que sesión y rol van antes de los parsers.
   app.post(['/api/animales/:id/partos', '/api/animales/:id/secados'], requiereSesion, requiereRol('DUENO', 'ENCARGADO'));
@@ -70,6 +73,8 @@ export function createApp() {
   app.use('/api/usuarios', rutasUsuarios);
   app.use('/api/lotes', rutasLotes);
   app.use('/api/reglas-lote', rutasReglasLote);
+  app.use('/api/animales', rutasHistorialAnimal); // GET /:id/historial (spec 007)
+  app.use('/api/bajas', rutasHistorialBaja); // GET /:id/historial de una baja (spec 007)
   app.use('/api/animales', rutasReproduccion); // /:id/eventos, /:id/servicios, /:id/tactos
   app.use('/api/animales', rutasPartos); // /:id/partos, /:id/secados
   app.use('/api/animales', rutasBajasAnimal); // POST /:id/baja, /:id/revertir-baja
