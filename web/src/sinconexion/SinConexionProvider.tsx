@@ -3,6 +3,8 @@ import { api, type CopiaLocal } from '../compartido/api';
 import { useAuth } from '../sesion/auth';
 import { obtenerAlmacen } from './almacenIndexedDb';
 import { actualizarCopia, formatearFechaHora, type MotivoFalla } from './copia';
+import { fijarPropietarioLocal } from './lecturaLocal';
+import { useEnLinea } from './useConexion';
 
 // Estado de la copia local para toda la app (spec 009). Se monta dentro del AuthProvider.
 //
@@ -37,6 +39,7 @@ export function SinConexionProvider({ children }: { children: ReactNode }) {
   const [generadaEn, setGeneradaEn] = useState<string | null>(null);
   const [actualizando, setActualizando] = useState(false);
   const [falla, setFalla] = useState<FallaVisible | null>(null);
+  const enLinea = useEnLinea();
   const enCurso = useRef(false); // evita dos descargas a la vez (por ejemplo, "online" + clic)
 
   const usuarioId = usuario?.id ?? null;
@@ -70,11 +73,14 @@ export function SinConexionProvider({ children }: { children: ReactNode }) {
   // Al entrar con una sesión (o al cambiar de usuario): ver qué hay guardado y actualizar.
   useEffect(() => {
     if (!usuarioId || !establecimientoId) {
+      fijarPropietarioLocal(null);
       setFase('revisando');
       setGeneradaEn(null);
       setFalla(null);
       return;
     }
+    // Las lecturas sin conexión (api.ts) solo usan una copia de ESTE usuario y tambo (RF-17).
+    fijarPropietarioLocal({ usuarioId, establecimientoId });
     let cancelado = false;
     (async () => {
       const almacen = obtenerAlmacen();
@@ -95,13 +101,14 @@ export function SinConexionProvider({ children }: { children: ReactNode }) {
     };
   }, [usuarioId, establecimientoId, actualizar]);
 
-  // Al volver la señal, si la última actualización falló, se reintenta sola (RF-10).
+  // Al volver la señal, si la última actualización falló, se reintenta sola (RF-10). Se usa el estado
+  // de conexión de la app (que confirma con la sonda), no solo el evento del navegador.
+  // Solo al PASAR de sin conexión a con conexión (si no, una falla del servidor se reintentaría sin fin).
+  const estabaEnLinea = useRef(enLinea);
   useEffect(() => {
-    if (!falla) return;
-    const alVolver = () => void actualizar();
-    window.addEventListener('online', alVolver);
-    return () => window.removeEventListener('online', alVolver);
-  }, [falla, actualizar]);
+    if (enLinea && !estabaEnLinea.current && falla) void actualizar();
+    estabaEnLinea.current = enLinea;
+  }, [enLinea, falla, actualizar]);
 
   const valor: Estado = { generadaEn, actualizando, falla, actualizarAhora: () => void actualizar() };
 

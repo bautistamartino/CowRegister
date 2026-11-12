@@ -82,17 +82,5 @@ export async function actualizarCopia(args: {
   return { ok: true, primera, generadaEn: copia.generadaEn, totalAnimales: copia.totalAnimales };
 }
 
-// "12/11/2026 12:05" en hora de Argentina (para "Datos al día de…").
-export function formatearFechaHora(iso: string): string {
-  const partes = new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(new Date(iso));
-  const p = (tipo: string) => partes.find((x) => x.type === tipo)?.value ?? '';
-  return `${p('day')}/${p('month')}/${p('year')} ${p('hour')}:${p('minute')}`;
-}
+// Se definió en fechaHora.ts (lo usan también las lecturas locales); se vuelve a exportar acá.
+export { formatearFechaHora } from './fechaHora';

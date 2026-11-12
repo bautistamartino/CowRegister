@@ -918,3 +918,41 @@ h1 .etiqueta-baja {
 .cartel-copia-falla {
   color: var(--error);
 }
+
+/* ─── Sin conexión (spec 009, T3) ─── */
+
+/* Cartel fijo de toda la interfaz mientras no hay conexión (RF-41). Usa el color de error, no solo
+   el color: lleva texto y borde, así se distingue también en blanco y negro. */
+.aviso-conexion {
+  padding: 0.625rem 1rem;
+  background: var(--error-fondo);
+  color: var(--error);
+  border-bottom: 1px solid var(--error);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Opción del menú que necesita conexión: se ve apagada pero sigue siendo tocable (muestra el motivo). */
+.menu-enlace-inactivo {
+  font: inherit;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.menu-enlace-inactivo:hover {
+  background: transparent;
+}
+
+/* Botones deshabilitados porque necesitan conexión: sin el cursor de "espera" de los otros. */
+.boton.necesita-conexion:disabled,
+.boton-secundario.necesita-conexion:disabled {
+  cursor: not-allowed;
+}
+
+.nota-conexion {
+  margin: 0;
+  align-self: center;
+}

@@ -3,19 +3,24 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import { api, ApiError } from '../compartido/api';
 import { useAuth } from '../sesion/auth';
 import { normalizarNumero, puedeCargar } from './animalesDatos';
+import { obtenerConexion } from '../sinconexion/conexion';
+import { formatearFechaHora } from '../sinconexion/fechaHora';
+import { useSinConexion } from '../sinconexion/SinConexionProvider';
 
 // Buscador por número (RF-31 a RF-36). Vive en la barra del Layout, así está en todas
 // las pantallas con sesión. El bastón lector "tipea" el número y manda Enter, que es
 // justo lo que envía este formulario: no se busca mientras se tipea (RF-33).
 export function Buscador() {
   const { usuario } = useAuth();
+  const { generadaEn } = useSinConexion();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const campo = useRef<HTMLInputElement>(null);
   const [texto, setTexto] = useState('');
   const [buscando, setBuscando] = useState(false);
   // Resultado negativo: el número buscado (ya normalizado, o el texto crudo si no era válido).
-  const [noEncontrado, setNoEncontrado] = useState<{ texto: string; valido: boolean } | null>(null);
+  // `local` = la búsqueda se hizo sobre los datos de la tablet (sin conexión): no se ofrece dar de alta.
+  const [noEncontrado, setNoEncontrado] = useState<{ texto: string; valido: boolean; local?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Foco automático solo en Inicio y en el listado (RF-32); nunca en formularios.
@@ -43,7 +48,7 @@ export function Buscador() {
     }
     if (numero === null) {
       // Caracteres no permitidos: mismo resultado que un número inexistente (RF-34), sin llamar a la API.
-      setNoEncontrado({ texto: texto.trim(), valido: false });
+      setNoEncontrado({ texto: texto.trim(), valido: false, local: !obtenerConexion().enLinea() });
       campo.current?.select();
       return;
     }
@@ -54,7 +59,8 @@ export function Buscador() {
       navigate(`/animales/${r.id}`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        setNoEncontrado({ texto: numero, valido: true });
+        // Si la búsqueda cayó a la copia local, la conexión ya figura como cortada (api.ts).
+        setNoEncontrado({ texto: numero, valido: true, local: !obtenerConexion().enLinea() });
         campo.current?.select(); // listo para leer la próxima vaca con el bastón
       } else if (!(err instanceof ApiError && err.status === 401)) {
         setError(err instanceof ApiError ? err.message : 'No se pudo buscar');
@@ -88,7 +94,8 @@ export function Buscador() {
         {noEncontrado && (
           <p>
             No hay un animal activo con el número {noEncontrado.texto}
-            {noEncontrado.valido && puedeCargar(usuario.rol) && (
+            {noEncontrado.local && generadaEn && <> en los datos de la tablet (al día de {formatearFechaHora(generadaEn)})</>}
+            {noEncontrado.valido && !noEncontrado.local && puedeCargar(usuario.rol) && (
               <>
                 {' '}
                 <Link to={`/animales/nuevo?numero=${encodeURIComponent(noEncontrado.texto)}`}>Dar de alta</Link>

@@ -1,4 +1,5 @@
 import { textoDatosAlDia, useSinConexion } from './SinConexionProvider';
+import { useEnLinea } from './useConexion';
 
 // Cartel fino bajo el menú con el estado de la copia local (spec 009):
 //   "Actualizando…" mientras descarga, "Datos al día de <fecha y hora>" cuando terminó,
@@ -6,7 +7,9 @@ import { textoDatosAlDia, useSinConexion } from './SinConexionProvider';
 // "Actualizar ahora" fuerza la descarga (RF-10).
 export function CartelCopia() {
   const { generadaEn, actualizando, falla, actualizarAhora } = useSinConexion();
-  if (!generadaEn && !actualizando) return null;
+  const enLinea = useEnLinea();
+  // Sin conexión lo reemplaza el cartel "Sin conexión: datos al día de…" (AvisoConexion).
+  if (!enLinea || (!generadaEn && !actualizando)) return null;
 
   return (
     <div className="cartel-copia" role="status">

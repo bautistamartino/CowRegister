@@ -6,6 +6,8 @@ import { formatearFecha, puedeCargar } from '../animales/animalesDatos';
 import { FECHA_MINIMA, fechaArgentinaIso, hoyIso, interpretar } from '../reproduccion/reproduccionDatos';
 import { formatearLitros, litrosParaApi, NOMBRE_TURNO, textoMomento } from './produccionDatos';
 import { Campo } from '../compartido/Campo';
+import { useEnLinea } from '../sinconexion/useConexion';
+import { NotaNecesitaConexion, TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
 
 type Props = {
   animalId: string;
@@ -23,6 +25,8 @@ type Props = {
 // solo dueño y encargado cargan y anulan (la API igual responde 403 al veterinario).
 export function Produccion({ animalId, contexto, numero, loteNombre, enOrdene, estadoTexto }: Props) {
   const { usuario } = useAuth();
+  // Sin conexión la producción sale de la copia local; al cambiar la conexión se relee (spec 009).
+  const enLinea = useEnLinea();
   const [datos, setDatos] = useState<FichaProduccion | null>(null);
   const [error, setError] = useState<string | null>(null);
   const editable = contexto === 'animales' && !!usuario && puedeCargar(usuario.rol);
@@ -51,7 +55,7 @@ export function Produccion({ animalId, contexto, numero, loteNombre, enOrdene, e
     return () => {
       vigente = false;
     };
-  }, [animalId, contexto]);
+  }, [animalId, contexto, enLinea]);
 
   return (
     <section className="seccion">
@@ -211,6 +215,7 @@ function FilaRegistro({ registro, animalId, anulable, alCambiar }: { registro: R
   const [error, setError] = useState<string | null>(null);
   const [errorMotivo, setErrorMotivo] = useState<string | undefined>();
   const [enviando, setEnviando] = useState(false);
+  const enLinea = useEnLinea(); // anular necesita conexión (spec 009, RF-13)
   const anulado = registro.anulado !== null;
 
   async function confirmar(e: FormEvent<HTMLFormElement>) {
@@ -257,9 +262,16 @@ function FilaRegistro({ registro, animalId, anulable, alCambiar }: { registro: R
       )}
       {anulable && !anulado && !anulando && (
         <div className="acciones">
-          <button type="button" className="boton-secundario boton-peligro" onClick={() => setAnulando(true)}>
+          <button
+            type="button"
+            className="boton-secundario boton-peligro necesita-conexion"
+            disabled={!enLinea}
+            title={enLinea ? undefined : TEXTO_NECESITA_CONEXION}
+            onClick={() => setAnulando(true)}
+          >
             Anular
           </button>
+          {!enLinea && <NotaNecesitaConexion />}
         </div>
       )}
       {anulable && !anulado && anulando && (

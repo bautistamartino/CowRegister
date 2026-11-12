@@ -1,5 +1,9 @@
 // Cliente HTTP para hablar con la API. Todas las llamadas pasan por acá.
 
+import { obtenerConexion } from '../sinconexion/conexion';
+import { resolverLocal } from '../sinconexion/copiaLocal';
+import { leerCopiaLocal } from '../sinconexion/lecturaLocal';
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -29,7 +33,53 @@ export function alVencerSesion(fn: () => void): () => void {
 // /auth/yo responde 401 al abrir la app sin sesión y /auth/login con datos incorrectos.
 const rutasSin401Global = ['/auth/yo', '/auth/login'];
 
+// ─── Modo sin conexión (spec 009) ───
+
+export const TEXTO_NECESITA_CONEXION = 'Esto necesita conexión';
+const TEXTO_SIN_RED = 'No se pudo conectar con el servidor. Revisá tu conexión.';
+
+// La sesión (/auth/...) y la descarga de la copia (/copia-local) SIEMPRE intentan la red, aunque la
+// app crea que no hay conexión: son las que la detectan y la recuperan (login, "Reintentar", etc.).
+function esDeSesionOCopia(ruta: string): boolean {
+  return ruta.startsWith('/auth/') || ruta.startsWith('/copia-local');
+}
+
+// Intenta responder desde la copia local (solo lecturas de la lista cerrada, ver copiaLocal.ts).
+// Devuelve `{ usado: false }` si la ruta no es de la lista o no hay copia utilizable.
+// Si la copia dice que el pedido tiene que dar un error (animal ausente, filtro inválido), lo lanza.
+async function responderDesdeCopia<T>(metodo: string, ruta: string): Promise<{ usado: true; valor: T } | { usado: false }> {
+  const copia = await leerCopiaLocal();
+  if (!copia) return { usado: false };
+  const r = resolverLocal(metodo, ruta, copia);
+  if (r.tipo === 'fuera') return { usado: false };
+  if (r.tipo === 'error') throw new ApiError(r.status, r.mensaje);
+  return { usado: true, valor: r.datos as T };
+}
+
 export async function api<T>(ruta: string, opciones: { method?: string; body?: unknown } = {}): Promise<T> {
+  const metodo = (opciones.method ?? 'GET').toUpperCase();
+  const conexion = obtenerConexion();
+  const intentaSiempre = esDeSesionOCopia(ruta);
+
+  // Sin conexión: las lecturas de la lista cerrada salen de la copia; lo demás no se intenta
+  // (RF-12, RF-13): no se hace el pedido ni se guarda para después.
+  if (!conexion.enLinea() && !intentaSiempre) {
+    const local = await responderDesdeCopia<T>(metodo, ruta);
+    if (local.usado) return local.valor;
+    throw new ApiError(0, TEXTO_NECESITA_CONEXION);
+  }
+
+  // Si el pedido no llega al servidor, se avisa a `conexion` (pasa a "sin conexión") y, si es una
+  // lectura de la lista cerrada, se responde igual desde la copia.
+  async function sinRed(): Promise<T> {
+    conexion.hayFalloDeRed();
+    if (!intentaSiempre) {
+      const local = await responderDesdeCopia<T>(metodo, ruta);
+      if (local.usado) return local.valor;
+    }
+    throw new ApiError(0, TEXTO_SIN_RED);
+  }
+
   let res: Response;
   try {
     res = await fetch(`/api${ruta}`, {
@@ -39,12 +89,20 @@ export async function api<T>(ruta: string, opciones: { method?: string; body?: u
       credentials: 'same-origin', // envía la cookie de sesión
     });
   } catch {
-    throw new ApiError(0, 'No se pudo conectar con el servidor. Revisá tu conexión.');
+    return sinRed();
   }
 
-  if (res.status === 204) return undefined as T;
+  if (res.status === 204) {
+    conexion.hayRespuesta();
+    return undefined as T;
+  }
 
   const datos = await res.json().catch(() => null);
+  // Una respuesta que no es JSON no es de la API: un portal de WiFi (200 con HTML) o un proxy con el
+  // servidor caído (502, 503...). Se trata como "no llegué al servidor".
+  if (datos === null && (res.ok || res.status >= 500)) return sinRed();
+  conexion.hayRespuesta();
+
   if (!res.ok) {
     if (res.status === 401 && !rutasSin401Global.includes(ruta)) manejadorSesionVencida?.();
     throw new ApiError(res.status, datos?.error ?? `Error ${res.status}`, datos?.detalles ?? []);

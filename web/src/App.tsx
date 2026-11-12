@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { AuthProvider } from './sesion/auth';
-import { RutaPrivada, RutaPublica } from './compartido/Rutas';
+import { RutaConConexion, RutaPrivada, RutaPublica } from './compartido/Rutas';
 import { Layout } from './compartido/Layout';
 import { Login } from './sesion/Login';
 import { Registro } from './sesion/Registro';
@@ -29,16 +29,16 @@ export function App() {
                 las rutas hijas se muestran dentro del <Outlet /> del Layout. */}
             <Route element={<RutaPrivada><Layout /></RutaPrivada>}>
               <Route index element={<Inicio />} />
-              <Route path="lotes" element={<Lotes />} />
-              <Route path="semen" element={<SemenToros />} />
+              <Route path="lotes" element={<RutaConConexion><Lotes /></RutaConConexion>} />
+              <Route path="semen" element={<RutaConConexion><SemenToros /></RutaConConexion>} />
               <Route path="animales" element={<Animales />} />
               {/* "nuevo" va antes que ":id" (React Router igual prioriza la ruta fija). */}
-              <Route path="animales/nuevo" element={<AnimalNuevo />} />
-              <Route path="animales/planilla" element={<AnimalesPlanilla />} />
+              <Route path="animales/nuevo" element={<RutaConConexion><AnimalNuevo /></RutaConConexion>} />
+              <Route path="animales/planilla" element={<RutaConConexion><AnimalesPlanilla /></RutaConConexion>} />
               <Route path="animales/:id" element={<AnimalFicha />} />
-              <Route path="bajas" element={<Bajas />} />
-              <Route path="bajas/:id" element={<BajaFicha />} />
-              <Route path="informes" element={<Informes />} />
+              <Route path="bajas" element={<RutaConConexion><Bajas /></RutaConConexion>} />
+              <Route path="bajas/:id" element={<RutaConConexion><BajaFicha /></RutaConConexion>} />
+              <Route path="informes" element={<RutaConConexion><Informes /></RutaConConexion>} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
