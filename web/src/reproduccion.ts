@@ -63,6 +63,7 @@ export function resumenEvento(e: EventoReproductivo): string {
     return `Parto · ${n} ${n === 1 ? 'cría' : 'crías'}`;
   }
   if (e.secado) return 'Secado';
+  if (e.baja) return `Baja por ${e.baja.motivo}`;
   return e.tipo;
 }
 

@@ -82,7 +82,8 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal }: Props)
   // Solo se puede anular el último evento no anulado (el más nuevo de la lista sin anulación).
   // Servicios y tactos los anulan los tres roles; partos y secados, solo dueño y encargado (RF-43):
   // al veterinario no se le ofrece el botón (la API igual responde 403).
-  const ultimo = eventos.find((e) => !e.anulacion);
+  // La baja (spec 006) no se anula: se revierte desde la ficha de baja.
+  const ultimo = eventos.find((e) => !e.anulacion && e.tipo !== 'BAJA');
   const ultimoAnulable =
     ultimo && (ultimo.tipo === 'SERVICIO' || ultimo.tipo === 'TACTO' || puedeRegistrarPartos) ? ultimo.id : null;
   const partos = eventos.filter((e) => e.tipo === 'PARTO' && !e.anulacion);
@@ -467,6 +468,7 @@ function FilaEvento({
     setErrorMotivo(undefined);
     setEnviando(true);
     try {
+      if (evento.tipo === 'BAJA') return; // la baja no se anula (no hay botón), se revierte
       const ruta = { SERVICIO: 'servicios', TACTO: 'tactos', PARTO: 'partos', SECADO: 'secados' }[evento.tipo];
       // Parto y secado devuelven { evento, avisos }; servicio y tacto, el evento a secas.
       const r = await api<{ avisos?: Aviso[] }>(`/${ruta}/${evento.id}/anular`, { method: 'POST', body: { motivo: String(d.get('motivo')) } });
@@ -485,21 +487,9 @@ function FilaEvento({
     <li id={`evento-${evento.id}`} className={anulado ? 'evento evento-anulado' : 'evento'}>
       <p className="evento-titulo">
         <strong>{formatearFecha(evento.fecha)}</strong> · {resumenEvento(evento)}
-        {anulado && <span className="etiqueta-anulado">Anulado</span>}
+        {anulado && <span className="etiqueta-anulado">{evento.tipo === 'BAJA' ? 'Revertida' : 'Anulado'}</span>}
       </p>
-      {evento.tacto?.anomalias && <p className="texto-suave">Anomalías: {evento.tacto.anomalias}</p>}
-      {evento.parto && <DetalleParto parto={evento.parto} />}
-      {evento.secado && (
-        <p className="texto-suave">
-          Estaba {NOMBRE_ESTADO[evento.secado.estadoAnterior].toLowerCase()} · {textoLoteAnterior(evento.secado.loteAnterior)}
-        </p>
-      )}
-      <p className="texto-suave">Registrado por {evento.registradoPor}</p>
-      {evento.anulacion && (
-        <p className="texto-suave">
-          Anulado por {evento.anulacion.por ?? 'sin dato'} el {formatearFecha(fechaArgentinaIso(new Date(evento.anulacion.en)))}. Motivo: {evento.anulacion.motivo}
-        </p>
-      )}
+      <CuerpoEvento evento={evento} />
       {error && !(anulable && anulando) && (
         <div className="alerta" role="alert">
           {error}
@@ -540,6 +530,57 @@ function FilaEvento({
         </form>
       )}
     </li>
+  );
+}
+
+// Detalle de un evento (todo menos el título y los botones): sirve para la lista con "Anular"
+// de la ficha y para la lista de solo lectura de la ficha de baja.
+function CuerpoEvento({ evento }: { evento: EventoReproductivo }) {
+  return (
+    <>
+      {evento.tacto?.anomalias && <p className="texto-suave">Anomalías: {evento.tacto.anomalias}</p>}
+      {evento.parto && <DetalleParto parto={evento.parto} />}
+      {evento.secado && (
+        <p className="texto-suave">
+          Estaba {NOMBRE_ESTADO[evento.secado.estadoAnterior].toLowerCase()} · {textoLoteAnterior(evento.secado.loteAnterior)}
+        </p>
+      )}
+      {evento.baja && (
+        <>
+          <p className="texto-suave">
+            Observaciones: {evento.baja.observaciones ?? 'sin observaciones'}
+          </p>
+          <p className="texto-suave">
+            Estaba {NOMBRE_ESTADO[evento.baja.estadoAnterior].toLowerCase()} · {textoLoteAnterior(evento.baja.loteAnterior)}
+          </p>
+        </>
+      )}
+      <p className="texto-suave">Registrado por {evento.registradoPor}</p>
+      {evento.anulacion && (
+        <p className="texto-suave">
+          {evento.tipo === 'BAJA' ? 'Revertida' : 'Anulado'} por {evento.anulacion.por ?? 'sin dato'} el{' '}
+          {formatearFecha(fechaArgentinaIso(new Date(evento.anulacion.en)))}. Motivo: {evento.anulacion.motivo}
+        </p>
+      )}
+    </>
+  );
+}
+
+// Lista de eventos de solo lectura (ficha de baja, RF-5): sin "Anular" en ningún evento.
+export function ListaEventosLectura({ eventos }: { eventos: EventoReproductivo[] }) {
+  if (eventos.length === 0) return <p className="subtitulo">Todavía no hay eventos registrados</p>;
+  return (
+    <ul className="lista-eventos">
+      {eventos.map((e) => (
+        <li key={e.id} id={`evento-${e.id}`} className={e.anulacion ? 'evento evento-anulado' : 'evento'}>
+          <p className="evento-titulo">
+            <strong>{formatearFecha(e.fecha)}</strong> · {resumenEvento(e)}
+            {e.anulacion && <span className="etiqueta-anulado">{e.tipo === 'BAJA' ? 'Revertida' : 'Anulado'}</span>}
+          </p>
+          <CuerpoEvento evento={e} />
+        </li>
+      ))}
+    </ul>
   );
 }
 

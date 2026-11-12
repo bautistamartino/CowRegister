@@ -52,6 +52,11 @@ export function HistorialCambios({ animalId, version }: { animalId: string; vers
     };
   }, [animalId, version]);
 
+  return <SeccionCambios datos={datos} error={error} />;
+}
+
+// Solo la presentación: la ficha de baja (spec 006) ya trae los cambios en su respuesta y los pasa por acá.
+export function SeccionCambios({ datos, error }: { datos: RespuestaCambios | null; error: string | null }) {
   return (
     <section className="seccion">
       <h2>Cambios manuales</h2>

@@ -1,29 +1,36 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { api, ApiError, type AnimalFicha as Ficha, type EstadoAnimal } from '../api';
 import { Reproduccion } from '../componentes/Reproduccion';
 import { FormEditarAnimal } from '../componentes/FormEditarAnimal';
 import { FormMoverLote } from '../componentes/FormMoverLote';
+import { FormBaja } from '../componentes/FormBaja';
 import { HistorialCambios } from '../componentes/HistorialCambios';
 import { useAuth } from '../auth';
-import { NOMBRE_ESTADO, NOMBRE_SEXO, formatearFecha } from '../animales';
+import { NOMBRE_ESTADO, NOMBRE_SEXO, TEXTO_NO_DISPONIBLE, formatearFecha } from '../animales';
 import { textoGenetica } from '../reproduccion';
 
 // Ficha de un animal (RF-28, RF-29). Dueño y encargado pueden editarlo y moverlo de lote (spec 005).
 export function AnimalFicha() {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   // Después de un alta, AnimalNuevo manda el aviso de "sin lote" por el estado de navegación.
   const avisoSinLote =
     (location.state as { avisoSinLote?: { estado: EstadoAnimal } | null } | null)?.avisoSinLote ?? null;
+  // Tras revertir una baja (spec 006): "Baja revertida" y los avisos de lote (RF-9), una sola vez.
+  const estadoNav = location.state as { mensaje?: string; avisos?: string[] } | null;
+  const avisosReversion = estadoNav?.avisos ?? [];
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [noEncontrado, setNoEncontrado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { usuario } = useAuth();
   // Solo se esconden los botones; la API igual responde 403 al veterinario.
   const puedeEditar = !!usuario && usuario.rol !== 'VETERINARIO';
-  const [panel, setPanel] = useState<'editar' | 'mover' | null>(null);
-  const [confirmacion, setConfirmacion] = useState<string | null>(null);
+  const [panel, setPanel] = useState<'editar' | 'mover' | 'baja' | null>(null);
+  const [confirmacion, setConfirmacion] = useState<string | null>(estadoNav?.mensaje ?? null);
+  // 404 al dar de baja (RF-21): otra persona ya la dio; se avisa y se recarga la pantalla.
+  const [avisoNoDisponible, setAvisoNoDisponible] = useState(false);
   // Sube cada vez que se guarda algo, para que el historial vuelva a leerse.
   const [versionCambios, setVersionCambios] = useState(0);
 
@@ -33,7 +40,8 @@ export function AnimalFicha() {
     setNoEncontrado(false);
     setError(null);
     setPanel(null);
-    setConfirmacion(null);
+    setConfirmacion(estadoNav?.mensaje ?? null);
+    setAvisoNoDisponible(false);
     api<Ficha>(`/animales/${encodeURIComponent(id ?? '')}`)
       .then((f) => {
         if (vigente) setFicha(f);
@@ -67,10 +75,33 @@ export function AnimalFicha() {
     setVersionCambios((v) => v + 1);
   }
 
+  // Dar de baja dio 404: se muestra el mensaje y se relee la ficha. Si el animal ya está de baja,
+  // la ficha activa da 404 y se muestra "Animal no encontrado" (con el mismo mensaje).
+  async function alNoDisponible() {
+    setAvisoNoDisponible(true);
+    setPanel(null);
+    setConfirmacion(null);
+    try {
+      setFicha(await api<Ficha>(`/animales/${encodeURIComponent(id ?? '')}`));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setFicha(null);
+        setNoEncontrado(true);
+      }
+    }
+  }
+
+  const alertaNoDisponible = avisoNoDisponible && (
+    <div className="alerta" role="alert">
+      {TEXTO_NO_DISPONIBLE}
+    </div>
+  );
+
   if (noEncontrado) {
     return (
       <main className="contenido">
         <h1>Animal no encontrado</h1>
+        {alertaNoDisponible}
         <p>
           <Link to="/animales" className="enlace-fila">
             Ir al listado de animales
@@ -100,11 +131,29 @@ export function AnimalFicha() {
     <main className="contenido pantalla-lotes">
       <h1>Animal {ficha.numero}</h1>
 
+      {alertaNoDisponible}
+
       {avisoSinLote && (
         <p className="aviso" role="status">
           Quedó sin lote porque {NOMBRE_ESTADO[avisoSinLote.estado]} no tiene lote destino
         </p>
       )}
+
+      {/* Resultado de la última acción (editar, mover, revertir): arriba, para que se vea también en celular. */}
+      {confirmacion && (
+        <div className="resultado-registro" role="status">
+          <p className="resultado-titulo">{confirmacion}</p>
+          <button type="button" className="boton-secundario" onClick={() => setConfirmacion(null)}>
+            Cerrar
+          </button>
+        </div>
+      )}
+
+      {avisosReversion.map((a) => (
+        <p key={a} className="aviso" role="status">
+          {a}
+        </p>
+      ))}
 
       <dl className="ficha">
         <div>
@@ -182,7 +231,24 @@ export function AnimalFicha() {
             <button type="button" className="boton" onClick={() => setPanel(panel === 'mover' ? null : 'mover')}>
               Mover de lote
             </button>
+            <button type="button" className="boton-secundario boton-peligro" onClick={() => setPanel(panel === 'baja' ? null : 'baja')}>
+              Dar de baja
+            </button>
           </div>
+          {panel === 'baja' && (
+            <FormBaja
+              key={ficha.id}
+              animalId={ficha.id}
+              numero={ficha.numero}
+              alCancelar={() => setPanel(null)}
+              alRegistrar={(b) =>
+                navigate(`/bajas/${b.animalId}`, {
+                  state: { mensaje: `Baja registrada: ${b.numero}, ${b.motivo} del ${formatearFecha(b.fecha)}` },
+                })
+              }
+              alNoDisponible={alNoDisponible}
+            />
+          )}
           {panel === 'editar' && (
             <FormEditarAnimal key={ficha.id} ficha={ficha} alCancelar={() => setPanel(null)} alGuardar={(f) => alGuardar(f, 'Cambios guardados')} />
           )}
@@ -190,15 +256,6 @@ export function AnimalFicha() {
             <FormMoverLote key={ficha.id} ficha={ficha} alCancelar={() => setPanel(null)} alGuardar={(f) => alGuardar(f, 'Animal movido de lote')} />
           )}
         </>
-      )}
-
-      {confirmacion && (
-        <div className="resultado-registro" role="status">
-          <p className="resultado-titulo">{confirmacion}</p>
-          <button type="button" className="boton-secundario" onClick={() => setConfirmacion(null)}>
-            Cerrar
-          </button>
-        </div>
       )}
 
       {/* Hembras: situación reproductiva, formularios e historial. Machos: sin acciones reproductivas. */}

@@ -42,3 +42,12 @@ export function formatearFecha(iso: string | null): string {
 export function textoAnimales(cantidad: number): string {
   return `${cantidad} ${cantidad === 1 ? 'animal' : 'animales'}`;
 }
+
+// Mensaje de la spec 006 (RF-21) cuando dar de baja o revertir responde 404.
+export const TEXTO_NO_DISPONIBLE =
+  'El animal ya no está disponible para esta acción: otra persona pudo haberlo dado de baja o revertido. Se actualizó la pantalla.';
+
+// "venta" -> "Venta", "muerte" -> "Muerte" (el motivo de las bajas viene en minúsculas).
+export function nombreMotivo(motivo: string): string {
+  return motivo === 'venta' ? 'Venta' : motivo === 'muerte' ? 'Muerte' : motivo;
+}

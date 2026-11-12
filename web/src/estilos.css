@@ -250,15 +250,21 @@ h1 {
   text-overflow: ellipsis;
 }
 
+/* Con la entrada "Bajas" (spec 006) los enlaces ya no entran en 375 px: la navegación y
+   "Cerrar sesión" envuelven en varias filas. max-width evita que el bloque supere la pantalla. */
 .menu-acciones {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  max-width: 100%;
 }
 
 .menu-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
+  max-width: 100%;
 }
 
 .menu-enlace {
@@ -755,4 +761,42 @@ h1 {
 
 .etiqueta-baja {
   margin-left: 0;
+}
+
+/* ─── Bajas (spec 006) ─── */
+
+/* Caja de la baja en la ficha de baja: borde izquierdo con el color de error para que no dependa
+   solo del fondo; el texto usa --texto sobre --superficie (contraste alto en claro y oscuro). */
+.caja-baja {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-left: 4px solid var(--error);
+  border-radius: var(--radio);
+}
+
+.caja-baja p {
+  margin: 0;
+}
+
+.caja-baja-titulo {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+/* Una cría de baja: su número (con o sin enlace) y la marca "dada de baja" juntos. */
+.cria-de-baja {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* En el título de la ficha de baja la marca va pegada al número. */
+h1 .etiqueta-baja {
+  margin-left: 0.5rem;
+  vertical-align: middle;
 }

@@ -167,7 +167,7 @@ export type EstadoReproductivo = 'SIN_SERVICIO' | 'SERVIDA' | 'PRENADA' | 'VACIA
 // Los detalles que no corresponden al tipo vienen en null.
 export type EventoReproductivo = {
   id: string;
-  tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO';
+  tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO' | 'BAJA';
   fecha: string; // AAAA-MM-DD
   registradoPor: string;
   registradoEn: string;
@@ -176,6 +176,8 @@ export type EventoReproductivo = {
   tacto: { resultado: ResultadoTacto; fechaProbableIndicada: string | null; fechaProbable: string | null; anomalias: string | null } | null;
   parto: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior; genetica: Genetica | null; crias: CriaDeParto[] } | null;
   secado: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior } | null;
+  // Baja por venta o muerte (spec 006). Solo aparece en la ficha de baja o, anulada, tras revertirla.
+  baja: { motivo: MotivoBaja; observaciones: string | null; estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior } | null;
 };
 
 // ─── Partos y secados (spec 004) ───
@@ -232,3 +234,52 @@ export type CambioManual = {
 
 // Respuesta de GET /api/animales/:id/cambios: los últimos 100 y el total.
 export type RespuestaCambios = { total: number; cambios: CambioManual[] };
+
+// ─── Bajas por venta o muerte (spec 006) ───
+
+// Los motivos que se pueden pedir, en minúsculas como los habla la API.
+export type MotivoBaja = 'venta' | 'muerte';
+
+// Respuesta de POST /api/animales/:id/baja (201). `animalId` es el que usa la ficha de baja.
+export type BajaRegistrada = {
+  id: string;
+  animalId: string;
+  numero: string;
+  motivo: MotivoBaja;
+  fecha: string; // AAAA-MM-DD
+  observaciones: string | null;
+  estadoAnterior: EstadoAnimal;
+  registradoPor: string;
+  registradoEn: string;
+};
+
+// Respuesta de POST /api/animales/:id/revertir-baja: la ficha del animal activo y los avisos de lote.
+export type BajaRevertida = AnimalFicha & { avisos: string[] };
+
+// Un elemento de GET /api/bajas. `id` es el id del animal.
+export type FilaBaja = { id: string; numero: string; sexo: Sexo; fecha: string; motivo: MotivoBaja };
+
+export type ListadoBajas = { total: number; mostrados: number; truncado: boolean; bajas: FilaBaja[] };
+
+// Respuesta de GET /api/bajas/:id (ficha de baja, solo lectura). `motivoBaja` de la madre y de las
+// crías de baja dice si hay acceso a su ficha de baja ("venta" o "muerte") o no ("parto_anulado").
+export type FichaBaja = {
+  id: string;
+  numero: string;
+  sexo: Sexo;
+  fechaNacimiento: string | null;
+  estadoAnterior: EstadoAnimal;
+  baja: {
+    eventoId: string;
+    motivo: MotivoBaja;
+    fecha: string;
+    observaciones: string | null;
+    registradoPor: string;
+    registradoEn: string;
+  };
+  madre: { id: string; numero: string; activa: boolean; motivoBaja: MotivoBaja | 'parto_anulado' | null } | null;
+  crias: { id: string; numero: string }[];
+  criasDeBaja: { id: string; numero: string; motivo: MotivoBaja | 'parto_anulado' }[];
+  eventos: EventoReproductivo[];
+  cambios: RespuestaCambios;
+};

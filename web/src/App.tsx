@@ -11,6 +11,8 @@ import { Animales } from './paginas/Animales';
 import { AnimalNuevo } from './paginas/AnimalNuevo';
 import { AnimalFicha } from './paginas/AnimalFicha';
 import { AnimalesPlanilla } from './paginas/AnimalesPlanilla';
+import { Bajas } from './paginas/Bajas';
+import { BajaFicha } from './paginas/BajaFicha';
 
 export function App() {
   return (
@@ -30,6 +32,8 @@ export function App() {
             <Route path="animales/nuevo" element={<AnimalNuevo />} />
             <Route path="animales/planilla" element={<AnimalesPlanilla />} />
             <Route path="animales/:id" element={<AnimalFicha />} />
+            <Route path="bajas" element={<Bajas />} />
+            <Route path="bajas/:id" element={<BajaFicha />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

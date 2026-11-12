@@ -59,6 +59,9 @@ export function Layout() {
             <NavLink to="/animales" className="menu-enlace">
               Animales
             </NavLink>
+            <NavLink to="/bajas" className="menu-enlace">
+              Bajas
+            </NavLink>
             <NavLink to="/semen" className="menu-enlace">
               Semen y toros
             </NavLink>
