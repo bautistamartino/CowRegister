@@ -38,6 +38,7 @@ export function InformeLeche({ desde, hasta }: { desde: string; hasta: string })
                     <th scope="col">Lote</th>
                     <th scope="col">Litros</th>
                     <th scope="col">Vacas</th>
+                    <th scope="col">Vaca-días</th>
                     <th scope="col">Litros por vaca por día</th>
                   </tr>
                 </thead>
@@ -47,6 +48,7 @@ export function InformeLeche({ desde, hasta }: { desde: string; hasta: string })
                       <th scope="row">{l.nombre ?? 'Sin lote'}</th>
                       <td>{formatearLitros(l.litros)}</td>
                       <td>{l.vacas}</td>
+                      <td>{l.vacaDias}</td>
                       <td>{promedio(l.promedioPorVacaDia)}</td>
                     </tr>
                   ))}
