@@ -18,8 +18,7 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
 - **Etapa 5 — Producción** (ver [docs/plan.md](docs/plan.md))
   - Hecho: 5.1 producción: litros por vaca e informe de leche (spec [008-produccion](specs/008-produccion/spec.md), T1 a T5): carga y anulación de litros por ordeño (dueño y encargado), sección "Producción" en las fichas de vaca y de baja (los tres roles) e informe "Litros de leche" por período (por lote, por vaca y por día) dentro de "Informes".
   - **Siguiente:** Etapa 6 de [docs/plan.md](docs/plan.md) (modo sin conexión). Pendiente de la sincronización: el choque de dos cargas del mismo vaca-fecha-turno hechas sin conexión se resuelve al sincronizar (el `id` UUID del cliente ya es idempotente).
-  - **Pendiente de limpieza (spec 008):** el tambo "Tambo Prueba T3", sus usuarios `dueno-t3@prueba.test` y `vet-t3@prueba.test`, los animales T301 a T304, el lote "Lote Ordeñe T3" y 5 registros de producción siguen en la base de desarrollo (más los que se cargaron al verificar el cierre); borrarlos cuando ya no hagan falta. Las bajas y los disparadores exigen `SET LOCAL session_replication_role = 'replica'` en una transacción, solo para ese tambo.
-  - **Pendiente de limpieza:** los usuarios de prueba `dueno-t4@prueba.test`, `vet-t4@prueba.test` y `t5@prueba.test` (con sus tambos "Tambo Prueba T4" y "Tambo Prueba T5") siguen en la base de desarrollo; borrarlos cuando ya no hagan falta (los disparadores exigen `SET LOCAL session_replication_role = 'replica'` en una transacción, solo para ese tambo).
+  - **Limpieza hecha (2026-11-12):** se borraron de la base de desarrollo los tambos de prueba T3, T4 y T5 con todos sus datos (transacción con `SET LOCAL session_replication_role = 'replica'`, solo para esos tres tambos). Queda solo el tambo real "Libertad".
 - Hay una API de gestión de usuarios (`/api/usuarios`) **sin pantalla** todavía.
 
 ## Decisiones
