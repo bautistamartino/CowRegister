@@ -13,12 +13,21 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
   - Hecho: 2.3 editar animal y mover de lote a mano (spec [005-editar-animal](specs/005-editar-animal/spec.md)): edición de número, sexo, fecha de nacimiento y madre (dueño y encargado), mover de lote o dejar sin lote, historial de cambios manuales en la ficha (los tres roles) y aviso 8 al anular un parto o secado tras un movimiento manual.
 - **Etapa 3 — Bajas** (ver [docs/plan.md](docs/plan.md))
   - Hecho: 3.1 bajas por venta o muerte (spec [006-bajas](specs/006-bajas/spec.md), T1 a T5): dar de baja y revertir (dueño y encargado), listado `/bajas` y ficha de baja (los tres roles), vínculos madre–cría hacia animales de baja, aviso al reutilizar el número de un animal de baja (alta, edición y planilla).
-  - **Siguiente:** Etapa 4 de [docs/plan.md](docs/plan.md) (historial e informes).
-  - **Pendiente de limpieza:** los tambos de prueba "Tambo Prueba T4" y "Tambo Prueba T5" (emails `@prueba.test`) siguen en la base de desarrollo; borrarlos cuando ya no hagan falta.
+- **Etapa 4 — Historial e informes** (ver [docs/plan.md](docs/plan.md))
+  - Hecho: 4.1 historial único por animal e informes de resultado de inseminación y natalidad (spec [007-historial-informes](specs/007-historial-informes/spec.md), T1 a T5): historial en las fichas de hembra, macho y baja, informes por período con desglose por semen y entrada "Informes" en el menú (los tres roles, solo lectura). Cierre (2026-11-12): 1151 tests y typecheck en verde.
+  - **Siguiente:** Etapa 5 de [docs/plan.md](docs/plan.md) (Producción: litros por vaca e informes de producción).
+  - **Pendiente de limpieza:** los usuarios de prueba `dueno-t4@prueba.test`, `vet-t4@prueba.test` y `t5@prueba.test` (con sus tambos "Tambo Prueba T4" y "Tambo Prueba T5") siguen en la base de desarrollo; borrarlos cuando ya no hagan falta (los disparadores exigen `SET LOCAL session_replication_role = 'replica'` en una transacción, solo para ese tambo).
 - Hay una API de gestión de usuarios (`/api/usuarios`) **sin pantalla** todavía.
 
 ## Decisiones
 
+- **2026-11-12 — Historial e informes (spec 007):**
+  - **Historial único armado en la API** (`GET /api/animales/:id/historial` y `GET /api/bajas/:id/historial`): reúne eventos y cambios manuales, con tope de 500 entradas y `ultimoEventoNoAnuladoId` calculado antes del corte (así "Anular" sigue apareciendo aunque ese evento quede fuera). Los cambios manuales se ubican en su día argentino; los anulados, en la fecha del evento. Las rutas viejas (`/eventos`, `/cambios`, `/api/bajas/:id`) no cambiaron.
+  - **Topes en `api/src/topes.ts`** (historial 500, informes 2.000), inyectables con `fijarTopes` solo en los tests.
+  - **Informes calculados en TypeScript** (`api/src/informes/`), nada se guarda: el resultado de cada servicio se mide "a hoy" con su tramo (hasta el siguiente servicio o parto no anulado, en el orden total); vale el primer tacto del tramo; un parto vinculado sin tacto cuenta como preñada. Porcentaje entero con el medio punto hacia arriba y `null` ("—") sin base. Las bajas por venta o muerte cuentan; los anulados no.
+  - **Índice nuevo `(establecimientoId, tipo, fecha)` en `eventos`** (migración `informes_indice_eventos`). `migrate diff` esperado: sigue dando solo las TRES claves foráneas de lote previo; no aplicar esa propuesta.
+  - **La validación del período está duplicada en la web** (`web/src/informes.ts`, mismos mensajes que la API): si cambian las reglas, hay que cambiar las dos.
+  - **Web:** una sola sección "Historial" (`componentes/Historial.tsx`) reemplaza la lista de eventos y los "Cambios manuales"; los informes viven en `/informes`, para los tres roles.
 - **2026-11-12 — Bajas por venta o muerte (spec 006):**
   - **La baja es un evento** (`TipoEvento.BAJA`, tabla `bajas` con clave compuesta al evento y al animal) con columna `vigente`: un índice único parcial permite una sola baja vigente por animal. Revertir marca la baja como anulada (quién, cuándo y motivo) y no borra nada. Un disparador diferido (`bajas_solo_agregar` y coherencia animal–baja–evento) garantiza que fecha y motivo del animal coincidan con su baja vigente; un test usa `session_replication_role = replica` para saltearlo y probar los CHECK directo.
   - **`BAJA` queda fuera de los cálculos** de situación reproductiva, ciclo, aviso 8, sexo y eventos propios. "Parto anulado" sigue siendo un motivo interno (no se pide por la API, no aparece en listados ni tiene ficha).

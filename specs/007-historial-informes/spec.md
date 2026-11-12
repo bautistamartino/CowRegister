@@ -120,15 +120,15 @@ Esta spec cubre la **Etapa 4**: (1) un **historial único por animal**, ordenado
 - Las respuestas no incluyen hashes ni datos de otros tambos.
 
 ## Criterios de aceptación
-- [ ] La ficha de un animal activo (hembra o macho) y la de baja muestran una única sección "Historial" con eventos y cambios manuales, del más reciente al más antiguo, con los anulados marcados y sin listas duplicadas; "Anular" solo en el último evento no anulado (RF-1 a RF-6, RF-21).
-- [ ] El historial respeta el tope de 500 con aviso, identifica el último evento no anulado y ubica cada cambio manual en su día argentino (RF-3).
-- [ ] El informe de resultado de inseminación da total, preñada, vacía, sin tacto y porcentaje (con leyenda y base) por período, con el resultado medido a hoy, el parto vinculado como preñada y el desglose por semen o toro con "No especificado" (RF-7 a RF-10).
-- [ ] El informe de natalidad da partos, crías vivas y muertas por sexo, mellizos (incluidos dos muertas y distinto sexo) y porcentaje de nacidas muertas (RF-11 a RF-13).
-- [ ] El período se valida (fechas existentes, orden, no futuro, 5 años máximo, parámetros repetidos) con 400 y mensaje en español; la pantalla descarta respuestas viejas; el detalle tiene tope inyectable con aviso (RF-14 a RF-16).
-- [ ] Anular un evento o revertir una baja se refleja en el siguiente cálculo (RF-17).
-- [ ] Cada ruta nueva tiene un test de aislamiento entre dos tambos, uno de permisos (los tres roles pueden; sin sesión 401), uno de que un `establecimientoId` enviado se ignora y ninguna respuesta incluye hashes (RF-18, RF-19).
-- [ ] Los eventos anulados no entran en los informes y los de animales dados de baja por venta o muerte sí.
-- [ ] La interfaz cumple RF-20 a RF-22 (menú sin desborde, 48 px, 768 y 375 px, modo claro y oscuro), verificada en el navegador.
+- [x] La ficha de un animal activo (hembra o macho) y la de baja muestran una única sección "Historial" con eventos y cambios manuales, del más reciente al más antiguo, con los anulados marcados y sin listas duplicadas; "Anular" solo en el último evento no anulado (RF-1 a RF-6, RF-21).
+- [x] El historial respeta el tope de 500 con aviso, identifica el último evento no anulado y ubica cada cambio manual en su día argentino (RF-3).
+- [x] El informe de resultado de inseminación da total, preñada, vacía, sin tacto y porcentaje (con leyenda y base) por período, con el resultado medido a hoy, el parto vinculado como preñada y el desglose por semen o toro con "No especificado" (RF-7 a RF-10).
+- [x] El informe de natalidad da partos, crías vivas y muertas por sexo, mellizos (incluidos dos muertas y distinto sexo) y porcentaje de nacidas muertas (RF-11 a RF-13).
+- [x] El período se valida (fechas existentes, orden, no futuro, 5 años máximo, parámetros repetidos) con 400 y mensaje en español; la pantalla descarta respuestas viejas; el detalle tiene tope inyectable con aviso (RF-14 a RF-16).
+- [x] Anular un evento o revertir una baja se refleja en el siguiente cálculo (RF-17).
+- [x] Cada ruta nueva tiene un test de aislamiento entre dos tambos, uno de permisos (los tres roles pueden; sin sesión 401), uno de que un `establecimientoId` enviado se ignora y ninguna respuesta incluye hashes (RF-18, RF-19).
+- [x] Los eventos anulados no entran en los informes y los de animales dados de baja por venta o muerte sí.
+- [x] La interfaz cumple RF-20 a RF-22 (menú sin desborde, 48 px, 768 y 375 px, modo claro y oscuro), verificada en el navegador.
 
 ## Notas para el plan
 - Reparto sugerido en 5 tareas: (1) API del historial único (activos y bajas, con tests); (2) API de informes (si resulta muy grande, el plan puede partirla en resumen/desglose y detalle, sin superar 5 tareas); (3) web: historial único en ambas fichas; (4) web: informes, período y menú; (5) cierre y verificación en el navegador.

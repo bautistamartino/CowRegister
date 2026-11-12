@@ -30,6 +30,8 @@ Bajas por venta o muerte con historial conservado, listado y ficha de baja, y re
 ## Etapa 4 — Historial e informes
 Historial por animal; informes de resultado de inseminación y natalidad.
 
+- [x] 4.1 Historial único por animal e informes de resultado de inseminación y natalidad (spec [007-historial-informes](../specs/007-historial-informes/spec.md)): historial en las fichas de hembra, macho y baja, informes por período con desglose por semen y entrada "Informes" en el menú (los tres roles, solo lectura)
+
 ## Etapa 5 — Producción
 Litros por vaca en cada ordeño; informes de producción.
 
