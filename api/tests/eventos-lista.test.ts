@@ -179,7 +179,7 @@ describe('aislamiento y errores (RF-27)', () => {
       fecha: '2026-10-01',
     });
     const baja = await prisma.animal.create({
-      data: { establecimientoId: tambo, numero: '555', sexo: 'HEMBRA', estado: 'BAJA', fechaBaja: new Date('2026-10-01') },
+      data: { establecimientoId: tambo, numero: '555', sexo: 'HEMBRA', estado: 'BAJA', fechaBaja: new Date('2026-10-01'), motivoBaja: 'PARTO_ANULADO' },
     });
     await crearServicioDirecto({ establecimientoId: tambo, animalId: baja.id, registradoPorId: usuarioId, fecha: '2026-05-01' });
     const respuestas = [];
@@ -232,13 +232,13 @@ describe('partos y secados en la lista (RF-38)', () => {
         loteAnterior: { id: lote.id, nombre: 'Lote previo' },
         genetica: { fechaServicio: '2026-01-05', semen: { id: semen.id, nombre: 'Toro Alfa' } },
         crias: [
-          { orden: 1, sexo: 'HEMBRA', nacidaMuerta: false, observaciones: null, animal: { id: viva.id, numero: 'VIVA1', activo: true } },
+          { orden: 1, sexo: 'HEMBRA', nacidaMuerta: false, observaciones: null, animal: { id: viva.id, numero: 'VIVA1', activo: true, motivoBaja: null } },
           { orden: 2, sexo: 'MACHO', nacidaMuerta: true, observaciones: 'Sin vida', animal: null },
         ],
       },
     });
     const delAnterior = eventos.find((e: { id: string }) => e.id === anterior.id);
-    expect(delAnterior.parto.crias[0].animal).toEqual({ id: baja.id, numero: 'BAJA1', activo: false });
+    expect(delAnterior.parto.crias[0].animal).toEqual({ id: baja.id, numero: 'BAJA1', activo: false, motivoBaja: 'parto_anulado' });
     expect(delAnterior.parto.genetica).toBeNull();
     expect(delAnterior.parto.loteAnterior).toBe('SIN_LOTE');
   });

@@ -1,4 +1,5 @@
 import type { EstadoAnimal, Prisma, Sexo } from '../generated/prisma/client.js';
+import { motivoATexto, type MotivoBajaCompleto } from '../bajas/validacion.js';
 import { aFechaCorta } from './fechas.js';
 import { calcularSituacion, ordenarEventos, type EventoCalculo } from './situacion.js';
 
@@ -13,13 +14,14 @@ type Semen = { id: string; nombre: string } | null;
 export type LoteAnterior = 'SIN_LOTE' | 'ELIMINADO' | { id: string; nombre: string };
 
 // Una cría de un parto. `animal` es null si nació muerta; `activo` es false si la cría fue dada
-// de baja (por parto anulado): se muestra con "dada de baja" y sin acceso a su ficha.
+// de baja y `motivoBaja` dice por qué (spec 006): con "venta" o "muerte" la web da acceso a su ficha
+// de baja; con "parto_anulado" se muestra "dada de baja" sin acceso. Null si la cría está activa.
 export type CriaDeParto = {
   orden: number;
   sexo: Sexo;
   nacidaMuerta: boolean;
   observaciones: string | null;
-  animal: { id: string; numero: string; activo: boolean } | null;
+  animal: { id: string; numero: string; activo: boolean; motivoBaja: MotivoBajaCompleto | null } | null;
 };
 
 // Un evento leído de la base: lo que necesita el cálculo más lo que se muestra.
@@ -32,6 +34,8 @@ export type FilaEvento = EventoCalculo & {
   anomalias: string | null; // solo en tactos
   parto: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior; servicioId: string | null; crias: CriaDeParto[] } | null;
   secado: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior } | null;
+  // Detalle de una baja por venta o muerte (spec 006). El motivo va como lo habla la API.
+  baja: { motivo: 'venta' | 'muerte'; observaciones: string | null; estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior } | null;
 };
 
 const aTexto = (fecha: Date) => fecha.toISOString().slice(0, 10);
@@ -64,12 +68,13 @@ export async function leerEventos(tx: Prisma.TransactionClient, animalId: string
               sexo: true,
               nacidaMuerta: true,
               observaciones: true,
-              animal: { select: { id: true, numero: true, estado: true } },
+              animal: { select: { id: true, numero: true, estado: true, motivoBaja: true } },
             },
           },
         },
       },
       secado: { select: { estadoAnterior: true, tuvoLoteAnterior: true, loteAnteriorId: true } },
+      baja: { select: { motivo: true, observaciones: true, estadoAnterior: true, tuvoLoteAnterior: true, loteAnteriorId: true } },
     },
   });
 
@@ -77,7 +82,7 @@ export async function leerEventos(tx: Prisma.TransactionClient, animalId: string
   // ON DELETE SET NULL), así que se leen con una consulta aparte, del mismo tambo.
   const idsLotes = new Set<string>();
   for (const f of filas) {
-    const id = f.parto?.loteAnteriorId ?? f.secado?.loteAnteriorId;
+    const id = f.parto?.loteAnteriorId ?? f.secado?.loteAnteriorId ?? f.baja?.loteAnteriorId;
     if (id) idsLotes.add(id);
   }
   const lotes = idsLotes.size
@@ -113,11 +118,26 @@ export async function leerEventos(tx: Prisma.TransactionClient, animalId: string
             sexo: c.sexo,
             nacidaMuerta: c.nacidaMuerta,
             observaciones: c.observaciones,
-            animal: c.animal ? { id: c.animal.id, numero: c.animal.numero, activo: c.animal.estado !== 'BAJA' } : null,
+            animal: c.animal
+              ? {
+                  id: c.animal.id,
+                  numero: c.animal.numero,
+                  activo: c.animal.estado !== 'BAJA',
+                  motivoBaja: c.animal.estado === 'BAJA' ? motivoATexto(c.animal.motivoBaja ?? 'PARTO_ANULADO') : null,
+                }
+              : null,
           })),
         }
       : null,
     secado: f.secado ? { estadoAnterior: f.secado.estadoAnterior, loteAnterior: loteAnterior(f.secado) } : null,
+    baja: f.baja
+      ? {
+          motivo: f.baja.motivo === 'MUERTE' ? 'muerte' : 'venta', // la base solo admite venta o muerte en una baja registrada
+          observaciones: f.baja.observaciones,
+          estadoAnterior: f.baja.estadoAnterior,
+          loteAnterior: loteAnterior(f.baja),
+        }
+      : null,
   }));
 }
 
@@ -157,6 +177,7 @@ export function armarEvento(fila: FilaEvento, fechasTactos: Map<string, string>,
         }
       : null,
     secado: fila.secado ? { estadoAnterior: fila.secado.estadoAnterior, loteAnterior: fila.secado.loteAnterior } : null,
+    baja: fila.baja,
   };
 }
 
@@ -165,7 +186,8 @@ export function armarEvento(fila: FilaEvento, fechasTactos: Map<string, string>,
  * `hoy` es el "hoy" de Argentina del reloj inyectable.
  */
 export function armarRespuesta(filas: FilaEvento[], hoy: string) {
-  const s = calcularSituacion(filas, hoy);
+  // La baja (spec 006) figura en la lista pero NO cuenta para la situación, el ciclo ni la genética.
+  const s = calcularSituacion(filas.filter((f) => f.tipo !== 'BAJA'), hoy);
   const situacion = {
     estado: s.estado,
     // `cicloAnterior`: el servicio o tacto es anterior al último parto no anulado (spec 004, RF-40).
@@ -206,7 +228,7 @@ export function eventoPorId(filas: FilaEvento[], id: string, hoy: string) {
 }
 
 // "tacto del 05/11/2026": nombra un evento en los mensajes.
-export function textoEvento(tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO', fecha: string): string {
-  const nombres = { SERVICIO: 'servicio', TACTO: 'tacto', PARTO: 'parto', SECADO: 'secado' };
+export function textoEvento(tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO' | 'BAJA', fecha: string): string {
+  const nombres = { SERVICIO: 'servicio', TACTO: 'tacto', PARTO: 'parto', SECADO: 'secado', BAJA: 'baja' };
   return `${nombres[tipo]} del ${aFechaCorta(fecha)}`;
 }

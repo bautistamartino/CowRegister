@@ -38,6 +38,8 @@ enum EstadoAnimal {
 // agrega sus valores con ALTER TYPE ... ADD VALUE. Las bajas anteriores no lo tienen.
 enum MotivoBaja {
   PARTO_ANULADO // cría dada de baja porque se anuló el parto en el que nació (spec 004)
+  VENTA // baja registrada por el usuario (spec 006, migración bajas_enums)
+  MUERTE // idem
 }
 
 // ─── Modelos ────────────────────────────────────────────────────────
@@ -156,7 +158,7 @@ model Animal {
   loteId            String?      @db.Uuid
   fechaBaja         DateTime?    @db.Date
   motivoBaja        MotivoBaja? // solo en una baja (CHECK animales_motivo_baja_coherente)
-  creadoEn         DateTime     @default(now())
+  creadoEn          DateTime     @default(now())
   actualizadoEn     DateTime     @updatedAt
 
   establecimiento Establecimiento @relation(fields: [establecimientoId], references: [id])
@@ -179,7 +181,9 @@ model Animal {
   // Además, a mano en la migración animales_restricciones: CHECK de número
   // normalizado (animales_numero_normalizado) y de madre distinta (animales_madre_distinta);
   // y en la migración partos_secados: animal de baja sin lote (animales_baja_sin_lote) y
-  // motivo de baja solo en una baja (animales_motivo_baja_coherente).
+  // motivo de baja solo en una baja (animales_motivo_baja_coherente); y en la migración
+  // bajas_base (spec 006): toda baja nueva con fecha y motivo (animales_baja_con_fecha_y_motivo,
+  // NOT VALID) y un activo sin fecha de baja (animales_activo_sin_baja).
   @@index([establecimientoId, numero]) // búsqueda rápida por número
   @@index([loteId])
   @@map("animales")
@@ -193,6 +197,7 @@ enum TipoEvento {
   TACTO
   PARTO
   SECADO
+  BAJA // baja por venta o muerte (spec 006, migración bajas_enums)
 }
 
 enum TipoServicio {
@@ -251,6 +256,7 @@ model Evento {
   tacto           Tacto?
   parto           Parto?          @relation("PartoDelEvento")
   secado          Secado?
+  baja            Baja?
   // Partos que usaron este evento (un servicio) como genética de la cría.
   partosGenetica  Parto[]         @relation("ServicioDeGenetica")
 
@@ -262,6 +268,8 @@ model Evento {
   // Nunca dos eventos de un animal con el mismo momento de registro.
   @@unique([animalId, creadoEn])
   @@index([animalId, fecha, creadoEn]) // lectura en orden total
+  // Informes del tambo (spec 007): leen los eventos de todo el tambo por tipo y fecha.
+  @@index([establecimientoId, tipo, fecha])
   @@map("eventos")
 }
 
@@ -343,6 +351,35 @@ model Secado {
   @@unique([establecimientoId, eventoId, tipo])
   @@index([loteAnteriorId])
   @@map("secados")
+}
+
+// Detalle de un evento BAJA (spec 006): la venta o muerte de un animal. Recuerda estado y lote
+// previos (como Parto y Secado) para poder revertirla. El animal guarda además una copia de la
+// fecha y el motivo (animales.fechaBaja y motivoBaja); manda la baja registrada y un disparador
+// diferido de la base (bajas_coherencia) impide que difieran.
+// A mano en la migración bajas_base (Prisma no lo modela): CHECK bajas_tipo, bajas_motivo,
+// bajas_observaciones_largo, bajas_estado_anterior y bajas_lote_anterior_coherente; clave
+// bajas_loteAnterior_fkey con ON DELETE SET NULL ("loteAnteriorId"); índice único parcial
+// bajas_una_vigente_por_animal (a lo sumo una baja vigente por animal) e índice parcial del
+// listado; disparadores de coherencia y de solo-agregar.
+model Baja {
+  eventoId          String       @id @db.Uuid
+  establecimientoId String       @db.Uuid
+  tipo              TipoEvento   @default(BAJA) // CHECK bajas_tipo: siempre BAJA
+  animalId          String       @db.Uuid // siempre el animal del evento (lo exige la clave a Evento)
+  motivo            MotivoBaja // CHECK bajas_motivo: solo VENTA o MUERTE
+  observaciones     String? // null = sin observaciones (CHECK de largo 1 a 200)
+  estadoAnterior    EstadoAnimal // CHECK: distinto de BAJA
+  tuvoLoteAnterior  Boolean      @default(false)
+  loteAnteriorId    String?      @db.Uuid // FK a mano bajas_loteAnterior_fkey (ver Parto)
+  // true al crearla; pasa a false al revertir (equivale a eventos.anuladoEn IS NULL).
+  vigente           Boolean      @default(true)
+
+  evento Evento @relation(fields: [establecimientoId, eventoId, tipo, animalId], references: [establecimientoId, id, tipo, animalId], onDelete: Restrict)
+
+  @@unique([establecimientoId, eventoId, tipo, animalId])
+  @@index([loteAnteriorId])
+  @@map("bajas")
 }
 
 // Cada cría de un parto, viva o nacida muerta. La viva apunta al animal dado de alta.

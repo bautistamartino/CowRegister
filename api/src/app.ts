@@ -8,6 +8,9 @@ import { rutasLotes } from './rutas/lotes.js';
 import { rutasReglasLote } from './rutas/reglas-lote.js';
 import { rutasAnimales } from './rutas/animales.js';
 import { rutasAnimalesEdicion } from './rutas/animales-edicion.js';
+import { rutasBajas, rutasBajasAnimal } from './rutas/bajas.js';
+import { rutasHistorialAnimal, rutasHistorialBaja } from './rutas/historial.js';
+import { rutasInformes } from './rutas/informes.js';
 import { rutasSemen } from './rutas/semen.js';
 import { rutasReproduccion } from './rutas/reproduccion.js';
 import { rutasPartos } from './rutas/partos.js';
@@ -41,6 +44,8 @@ export function createApp() {
   app.use(['/api/servicios', '/api/tactos'], requiereSesion);
   app.post(['/api/animales/:id/servicios', '/api/animales/:id/tactos'], requiereSesion);
   app.get('/api/animales/:id/eventos', requiereSesion);
+  // Historial único (spec 007, RF-19): lectura para los tres roles; sin sesión es 401 antes que nada.
+  app.get('/api/animales/:id/historial', requiereSesion);
   // Partos y secados (spec 004, RF-42): solo dueño y encargado. El veterinario recibe 403 y un pedido
   // sin sesión 401 aunque el JSON venga roto, así que sesión y rol van antes de los parsers.
   app.post(['/api/animales/:id/partos', '/api/animales/:id/secados'], requiereSesion, requiereRol('DUENO', 'ENCARGADO'));
@@ -49,6 +54,12 @@ export function createApp() {
   // Editar un animal (spec 005, RF-19): solo dueño y encargado; el veterinario recibe 403 y sin sesión 401
   // aunque el JSON venga roto. Leer el historial (GET) lo hacen los tres roles y no tiene cuerpo.
   app.patch(['/api/animales/:id', '/api/animales/:id/lote'], requiereSesion, requiereRol('DUENO', 'ENCARGADO'));
+  // Bajas por venta o muerte (spec 006, RF-17): dar de baja y revertir solo dueño y encargado, con
+  // 403 y 401 aunque el JSON venga roto. El listado y la ficha de bajas (GET) los ven los tres roles.
+  app.post(['/api/animales/:id/baja', '/api/animales/:id/revertir-baja'], requiereSesion, requiereRol('DUENO', 'ENCARGADO'));
+  app.use('/api/bajas', requiereSesion);
+  // Informes (spec 007, RF-19): lectura para los tres roles; sin sesión es 401 antes que un 400 de período.
+  app.use('/api/informes', requiereSesion);
   // La carga desde planilla recibe un texto de hasta 100.000 caracteres: con las tabulaciones y los
   // saltos de línea escapados en el JSON puede pasar los 100 kb. Este parser de 1 MB va ANTES del
   // global y solo para esas dos rutas (Express no vuelve a leer un cuerpo ya leído); el límite de
@@ -65,8 +76,12 @@ export function createApp() {
   app.use('/api/usuarios', rutasUsuarios);
   app.use('/api/lotes', rutasLotes);
   app.use('/api/reglas-lote', rutasReglasLote);
+  app.use('/api/animales', rutasHistorialAnimal); // GET /:id/historial (spec 007)
+  app.use('/api/bajas', rutasHistorialBaja); // GET /:id/historial de una baja (spec 007)
   app.use('/api/animales', rutasReproduccion); // /:id/eventos, /:id/servicios, /:id/tactos
   app.use('/api/animales', rutasPartos); // /:id/partos, /:id/secados
+  app.use('/api/animales', rutasBajasAnimal); // POST /:id/baja, /:id/revertir-baja
+  app.use('/api/bajas', rutasBajas); // GET /, GET /:id
   app.use('/api/animales', rutasAnimalesEdicion); // PATCH /:id, GET /:id/cambios
   app.use('/api/animales', rutasAnimales);
   app.use('/api/servicios', rutasAnulacionServicios);
@@ -74,6 +89,7 @@ export function createApp() {
   app.use('/api/partos', rutasAnulacionPartos);
   app.use('/api/secados', rutasAnulacionSecados);
   app.use('/api/semen', rutasSemen);
+  app.use('/api/informes', rutasInformes); // GET /inseminacion y /natalidad (spec 007)
 
   // Cualquier otra ruta de la API no existe.
   app.use('/api', () => {

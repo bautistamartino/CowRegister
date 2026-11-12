@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
 import { HttpError, esErrorPrisma } from '../errores.js';
 import { normalizarNumero } from '../validacion.js';
+import { buscarBajasPorNumero, type BajaPorNumero } from '../bajas/numero-de-baja.js';
 import { analizarPlanilla, leerPlanilla, sinLotePorEstado, type Existente, type FilaAnalizada } from './planilla.js';
 import { ESTADOS_INICIALES, fechaADate, hoyArgentina } from './reglas.js';
 
@@ -15,6 +16,8 @@ export interface AnalisisPlanilla {
   filas: FilaAnalizada[];
   reglas: Map<string, string>; // estado → lote destino
   sinLotePorEstado: { estado: (typeof ESTADOS_INICIALES)[number]; cantidad: number }[];
+  // Número → baja vigente por venta o muerte más reciente del tambo (spec 006, RF-14): para los avisos.
+  bajasPorNumero: Map<string, BajaPorNumero>;
 }
 
 // Lee el texto, lo valida contra el estado ACTUAL de la base y lo analiza. No escribe nada.
@@ -50,12 +53,19 @@ export async function analizarTexto(texto: string, establecimientoId: string): P
   const reglas = new Map<string, string>(reglasDb.map((r) => [r.estado, r.loteId]));
 
   const analizadas = analizarPlanilla(filas, { hoy: hoyArgentina(), existentes });
-  return { filas: analizadas, reglas, sinLotePorEstado: sinLotePorEstado(analizadas, reglas) };
+
+  // Aviso de número de un animal de baja (RF-14): solo para las filas correctas, en una sola consulta.
+  const numerosCorrectos = analizadas.filter((f) => f.ok && f.numero).map((f) => f.numero!);
+  const bajasPorNumero = await buscarBajasPorNumero(prisma, establecimientoId, [...new Set(numerosCorrectos)]);
+
+  return { filas: analizadas, reglas, sinLotePorEstado: sinLotePorEstado(analizadas, reglas), bajasPorNumero };
 }
 
-// Fila sin el dato interno `vinculo`, como se devuelve a la web.
-export function filaPublica({ vinculo: _vinculo, ...resto }: FilaAnalizada) {
-  return resto;
+// Fila sin el dato interno `vinculo`, como se devuelve a la web, con su aviso de número de baja
+// ({ motivo, fecha } o null). Es un aviso y no un error: la fila sigue siendo correcta.
+export function filaPublica({ vinculo: _vinculo, ...resto }: FilaAnalizada, bajasPorNumero: Map<string, BajaPorNumero>) {
+  const baja = resto.ok && resto.numero ? bajasPorNumero.get(resto.numero) : undefined;
+  return { ...resto, avisoNumeroDeBaja: baja ?? null };
 }
 
 /**
@@ -66,11 +76,11 @@ export function filaPublica({ vinculo: _vinculo, ...resto }: FilaAnalizada) {
  */
 export async function confirmarPlanilla(texto: string, establecimientoId: string) {
   for (let intento = 1; intento <= MAX_INTENTOS; intento++) {
-    const { filas, reglas, sinLotePorEstado } = await analizarTexto(texto, establecimientoId);
+    const { filas, reglas, sinLotePorEstado, bajasPorNumero } = await analizarTexto(texto, establecimientoId);
     const correctas = filas.filter((f) => f.ok);
     const quedaronAfuera = filas.filter((f) => !f.ok).map((f) => ({ fila: f.fila, motivo: f.motivo! }));
 
-    if (correctas.length === 0) return { guardados: 0, quedaronAfuera, sinLotePorEstado };
+    if (correctas.length === 0) return { guardados: 0, quedaronAfuera, sinLotePorEstado, avisosDeNumero: [] };
 
     // Los ids se generan acá para que una cría pueda apuntar a su madre aunque esté más
     // abajo en la planilla: PostgreSQL comprueba las claves foráneas al terminar la sentencia.
@@ -86,9 +96,36 @@ export async function confirmarPlanilla(texto: string, establecimientoId: string
       loteId: reglas.get(f.estado!) ?? null, // sin regla: sin lote (RF-8)
     }));
 
+    // Madres que YA existen (no las de otras filas): se bloquean en esta transacción para que nadie
+    // las dé de baja entre el análisis y el guardado (spec 006, RF-15 d).
+    const madresExistentes = [...new Set(data.map((d, i) => (correctas[i]!.vinculo?.tipo === 'existente' ? d.madreId : null)).filter((m): m is string => m !== null))].sort();
+
     try {
-      await prisma.animal.createMany({ data });
-      return { guardados: data.length, quedaronAfuera, sinLotePorEstado };
+      let guardado = true;
+      if (madresExistentes.length === 0) {
+        await prisma.animal.createMany({ data }); // nada que bloquear: una sola sentencia
+      } else {
+        guardado = await prisma.$transaction(
+          async (tx) => {
+            // FOR SHARE (en orden de id, sin interbloqueos): una baja de la madre espera a que termine esta
+            // carga y, si ya se dio de baja, la madre no aparece y se vuelve a analizar todo.
+            const filas = await tx.$queryRaw<{ id: string }[]>`
+              SELECT "id"::text AS "id" FROM "animales"
+              WHERE "id" = ANY(${madresExistentes}::uuid[]) AND "establecimientoId" = ${establecimientoId}::uuid AND "estado" <> 'BAJA'
+              ORDER BY "id" FOR SHARE`;
+            if (filas.length < madresExistentes.length) return false; // una madre dejó de estar activa
+            await tx.animal.createMany({ data });
+            return true;
+          },
+          { timeout: 15_000 },
+        );
+      }
+      if (!guardado) continue; // se revalida con la base de este instante
+      // Avisos de número de baja de las filas guardadas (RF-14).
+      const avisosDeNumero = correctas
+        .filter((f) => bajasPorNumero.has(f.numero!))
+        .map((f) => ({ fila: f.fila, numero: f.numero!, avisoNumeroDeBaja: bajasPorNumero.get(f.numero!)! }));
+      return { guardados: data.length, quedaronAfuera, sinLotePorEstado, avisosDeNumero };
     } catch (err) {
       // P2002: otro usuario ocupó un número entre el análisis y el guardado → se revalida todo.
       if (esErrorPrisma(err, 'P2002')) continue;

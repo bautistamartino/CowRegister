@@ -98,7 +98,7 @@ describe('Historial de cambios: sin claves a lote, madre ni usuario (decisión 7
     const { tambo, vaca } = await prepararVaca();
     const madre = await crearAnimalDirecto(tambo, 'M1');
     await crearCambioDirecto(tambo, vaca.id, { campo: 'MADRE', valorAnterior: null, valorNuevo: madre.numero });
-    await prisma.animal.update({ where: { id: madre.id }, data: { estado: 'BAJA', fechaBaja: new Date('2026-11-01T00:00:00.000Z') } });
+    await prisma.animal.update({ where: { id: madre.id }, data: { estado: 'BAJA', fechaBaja: new Date('2026-11-01T00:00:00.000Z'), motivoBaja: 'PARTO_ANULADO' } });
     const fila = await prisma.cambioAnimal.findFirstOrThrow({ where: { animalId: vaca.id } });
     expect(fila.valorNuevo).toBe('M1');
   });

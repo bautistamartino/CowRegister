@@ -2,6 +2,7 @@ import { prisma } from '../db.js';
 import { HttpError } from '../errores.js';
 import { fechaADate, hoyArgentina } from '../animales/reglas.js';
 import type { EstadoAnimal, Rol } from '../generated/prisma/client.js';
+import { motivoATexto } from '../bajas/validacion.js';
 import { NOMBRE_ESTADO } from '../lotes/estados.js';
 import { ahora } from '../reloj.js';
 import { avisoLoteAnteriorEliminado, avisoLoteManualDescartado, avisoSinLotePrevio, type Aviso } from './avisos.js';
@@ -64,7 +65,7 @@ export async function anularEvento(datos: {
       // (1) ya anulado
       if (fila.anulado) throw new HttpError(409, `Este ${nombre} ya fue anulado`);
       // (2) no es el último evento no anulado
-      const ultimo = ultimoNoAnulado(filas);
+      const ultimo = ultimoNoAnulado(filas); // ignora el tipo BAJA (spec 006)
       if (ultimo && ultimo.id !== id) {
         // Un veterinario no puede anular partos ni secados: el mensaje se lo dice (RF-26).
         if (rol === 'VETERINARIO' && (ultimo.tipo === 'PARTO' || ultimo.tipo === 'SECADO')) {
@@ -198,10 +199,11 @@ async function bloquearYControlarCrias(tx: Tx, partoId: string, establecimientoI
 
   const animales = await tx.animal.findMany({
     where: { establecimientoId, id: { in: ids } },
-    select: { id: true, numero: true, estado: true },
+    select: { id: true, numero: true, estado: true, motivoBaja: true },
   });
+  // Los eventos propios de una cría no cuentan la baja (spec 006): una baja vigente solo existe con la cría de baja.
   const conEventos = await tx.evento.findMany({
-    where: { establecimientoId, animalId: { in: ids }, anuladoEn: null },
+    where: { establecimientoId, animalId: { in: ids }, anuladoEn: null, tipo: { not: 'BAJA' } },
     select: { animalId: true },
   });
   const conCrias = await tx.animal.findMany({
@@ -211,6 +213,10 @@ async function bloquearYControlarCrias(tx: Tx, partoId: string, establecimientoI
   // Se informa la primera cría (en el orden del parto) que tenga algún problema.
   for (const id of ids) {
     const cria = animales.find((a) => a.id === id);
+    // Cría dada de baja por venta o muerte: se revierte primero su baja (spec 006, RF-15).
+    if (cria && cria.estado === 'BAJA' && (cria.motivoBaja === 'VENTA' || cria.motivoBaja === 'MUERTE')) {
+      throw new HttpError(409, `La cría N.º ${cria.numero} está dada de baja por ${motivoATexto(cria.motivoBaja)}: revertí primero su baja`);
+    }
     if (!cria || cria.estado === 'BAJA') {
       throw new HttpError(409, `No se puede anular el parto: la cría N.º ${cria?.numero ?? '?'} ya no está activa`);
     }

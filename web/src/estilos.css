@@ -250,15 +250,21 @@ h1 {
   text-overflow: ellipsis;
 }
 
+/* Con la entrada "Bajas" (spec 006) los enlaces ya no entran en 375 px: la navegación y
+   "Cerrar sesión" envuelven en varias filas. max-width evita que el bloque supere la pantalla. */
 .menu-acciones {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  max-width: 100%;
 }
 
 .menu-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
+  max-width: 100%;
 }
 
 .menu-enlace {
@@ -740,8 +746,9 @@ h1 {
   scroll-margin-top: 1rem;
 }
 
-/* Rótulos con texto (no solo color): "del ciclo anterior" y "dada de baja". */
+/* Rótulos con texto (no solo color): "del ciclo anterior", "dada de baja" y "Cambio manual" (historial). */
 .etiqueta-ciclo,
+.etiqueta-cambio,
 .etiqueta-baja {
   display: inline-block;
   margin-left: 0.5rem;
@@ -755,4 +762,122 @@ h1 {
 
 .etiqueta-baja {
   margin-left: 0;
+}
+
+/* ─── Bajas (spec 006) ─── */
+
+/* Caja de la baja en la ficha de baja: borde izquierdo con el color de error para que no dependa
+   solo del fondo; el texto usa --texto sobre --superficie (contraste alto en claro y oscuro). */
+.caja-baja {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-left: 4px solid var(--error);
+  border-radius: var(--radio);
+}
+
+.caja-baja p {
+  margin: 0;
+}
+
+.caja-baja-titulo {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+/* Una cría de baja: su número (con o sin enlace) y la marca "dada de baja" juntos. */
+.cria-de-baja {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* En el título de la ficha de baja la marca va pegada al número. */
+h1 .etiqueta-baja {
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+
+/* Aviso por fila en la vista previa de la planilla (spec 006, RF-14): informa, no marca error. */
+.aviso-fila {
+  display: block;
+  margin-top: 0.35rem;
+  padding-left: 0.5rem;
+  border-left: 3px solid var(--error);
+  font-weight: 600;
+}
+
+/* ─── Informes (spec 007) ─── */
+
+.selector-informe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Caja de resumen: cifras en una grilla que baja de fila sola según el ancho. */
+.resumen-informe {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 0.75rem;
+}
+
+.cifra {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 1rem;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+
+.cifra-valor {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.cifra-rotulo {
+  color: var(--texto-suave);
+  font-weight: 600;
+}
+
+.cifra-detalle {
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+}
+
+/* "Sin tacto" bien visible: borde grueso con el color de error y número grande (no solo color). */
+.cifra-destacada {
+  border: 2px solid var(--error);
+}
+
+.cifra-destacada .cifra-valor {
+  font-size: 2rem;
+  color: var(--error);
+}
+
+.cifra-destacada .cifra-rotulo {
+  color: var(--texto);
+}
+
+.celda-sin-tacto {
+  font-weight: 700;
+  color: var(--error);
+}
+
+/* Crías de un parto en el detalle de natalidad: una por línea, con corte de línea permitido. */
+.lista-crias-informe {
+  white-space: normal;
+  min-width: 16rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.cria-informe {
+  display: block;
 }

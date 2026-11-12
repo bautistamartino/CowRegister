@@ -19,23 +19,27 @@ import {
 import { Campo } from './Campo';
 import { FormParto } from './FormParto';
 import { FormSecado } from './FormSecado';
+import { Historial } from './Historial';
 
 // alCambiarAnimal: la ficha debe releerse porque el parto o el secado cambian estado, lote y crías.
-type Props = { animalId: string; sexo: Sexo; estado: EstadoAnimal; alCambiarAnimal: () => Promise<void> };
+// versionExterna: sube cuando la ficha guarda algo (editar, mover) para que el historial se relea.
+type Props = { animalId: string; sexo: Sexo; estado: EstadoAnimal; alCambiarAnimal: () => Promise<void>; versionExterna: number };
 type Formulario = 'servicio' | 'tacto' | 'parto' | 'secado' | null;
 
 // Resultado de un parto o secado recién registrado: avisos de la lista cerrada y accesos a las
 // crías vivas. Vive solo en pantalla (no persiste al recargar la ficha).
 type Resultado = { titulo: string; avisos: Aviso[]; crias: { id: string; numero: string }[] };
 
-// Sección "Reproducción" de la ficha: situación, formularios y lista de eventos (RF-23 a RF-26).
+// Sección "Reproducción" de la ficha: situación y formularios; embebe el Historial único (RF-23 a RF-26, spec 007).
 // Los tres roles (dueño, encargado y veterinario) pueden registrar y anular servicios y tactos,
 // así que no se esconde nada por rol. Si una spec futura restringe algo, la API decide (403).
-export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal }: Props) {
+export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionExterna }: Props) {
   const [datos, setDatos] = useState<RespuestaEventos | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [formulario, setFormulario] = useState<Formulario>(null);
   const [resultado, setResultado] = useState<Resultado | null>(null);
+  // Sube cada vez que se relee la situación: el historial embebido se relee con ella.
+  const [versionHistorial, setVersionHistorial] = useState(0);
   const { usuario } = useAuth();
   // El veterinario no registra partos ni secados (RF-43); la API igual responde 403.
   const puedeRegistrarPartos = !!usuario && usuario.rol !== 'VETERINARIO';
@@ -47,6 +51,7 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal }: Props)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo cargar la reproducción');
     }
+    setVersionHistorial((v) => v + 1);
   }, [animalId]);
 
   useEffect(() => {
@@ -79,12 +84,7 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal }: Props)
   // Solo vaquillona, en ordeñe o seca admiten servicios y tactos (la API lo vuelve a controlar).
   const admiteEventos = estado === 'VAQUILLONA' || estado === 'EN_ORDENE' || estado === 'SECA';
   const prenada = situacion.estado === 'PRENADA';
-  // Solo se puede anular el último evento no anulado (el más nuevo de la lista sin anulación).
-  // Servicios y tactos los anulan los tres roles; partos y secados, solo dueño y encargado (RF-43):
-  // al veterinario no se le ofrece el botón (la API igual responde 403).
-  const ultimo = eventos.find((e) => !e.anulacion);
-  const ultimoAnulable =
-    ultimo && (ultimo.tipo === 'SERVICIO' || ultimo.tipo === 'TACTO' || puedeRegistrarPartos) ? ultimo.id : null;
+  // La anulación la ofrece el Historial: solo en el último evento no anulado (RF-43: el veterinario, solo servicio o tacto).
   const partos = eventos.filter((e) => e.tipo === 'PARTO' && !e.anulacion);
 
   async function alRegistrar() {
@@ -257,18 +257,13 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal }: Props)
         )}
       </section>
 
-      <section className="seccion">
-        <h2>Historial</h2>
-        {eventos.length === 0 ? (
-          <p className="subtitulo">Todavía no hay eventos registrados</p>
-        ) : (
-          <ul className="lista-eventos">
-            {eventos.map((e) => (
-              <FilaEvento key={e.id} evento={e} anulable={e.id === ultimoAnulable} alAnular={(avisos) => alAnularEvento(e.tipo, avisos)} alRefrescar={refrescarTrasError} />
-            ))}
-          </ul>
-        )}
-      </section>
+      <Historial
+        animalId={animalId}
+        contexto="animales"
+        version={versionHistorial + versionExterna}
+        alAnular={alAnularEvento}
+        alRefrescar={refrescarTrasError}
+      />
     </>
   );
 }
@@ -440,144 +435,8 @@ function FormTacto({ animalId, alCancelar, alRegistrar }: { animalId: string; al
   );
 }
 
-// ─── Una fila de la lista, con la anulación ───
-
-function FilaEvento({
-  evento,
-  anulable,
-  alAnular,
-  alRefrescar,
-}: {
-  evento: EventoReproductivo;
-  anulable: boolean;
-  alAnular: (avisos: Aviso[]) => Promise<void>;
-  // Solo relee eventos y ficha, sin cartel de éxito (se usa cuando la anulación falla).
-  alRefrescar: () => Promise<void>;
-}) {
-  const [anulando, setAnulando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [errorMotivo, setErrorMotivo] = useState<string | undefined>();
-  const [enviando, setEnviando] = useState(false);
-  const anulado = evento.anulacion !== null;
-
-  async function confirmar(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const d = new FormData(e.currentTarget);
-    setError(null);
-    setErrorMotivo(undefined);
-    setEnviando(true);
-    try {
-      const ruta = { SERVICIO: 'servicios', TACTO: 'tactos', PARTO: 'partos', SECADO: 'secados' }[evento.tipo];
-      // Parto y secado devuelven { evento, avisos }; servicio y tacto, el evento a secas.
-      const r = await api<{ avisos?: Aviso[] }>(`/${ruta}/${evento.id}/anular`, { method: 'POST', body: { motivo: String(d.get('motivo')) } });
-      await alAnular(r.avisos ?? []); // la fila se vuelve a dibujar con su marca de anulado
-    } catch (err) {
-      const r = interpretar(err);
-      setErrorMotivo(r.campos.motivo);
-      setError(r.general);
-      setEnviando(false);
-      // Si ya la anuló otro o cambió el último evento, se refresca para mostrar lo real.
-      if (err instanceof ApiError && (err.status === 404 || err.status === 409)) await alRefrescar();
-    }
-  }
-
-  return (
-    <li id={`evento-${evento.id}`} className={anulado ? 'evento evento-anulado' : 'evento'}>
-      <p className="evento-titulo">
-        <strong>{formatearFecha(evento.fecha)}</strong> · {resumenEvento(evento)}
-        {anulado && <span className="etiqueta-anulado">Anulado</span>}
-      </p>
-      {evento.tacto?.anomalias && <p className="texto-suave">Anomalías: {evento.tacto.anomalias}</p>}
-      {evento.parto && <DetalleParto parto={evento.parto} />}
-      {evento.secado && (
-        <p className="texto-suave">
-          Estaba {NOMBRE_ESTADO[evento.secado.estadoAnterior].toLowerCase()} · {textoLoteAnterior(evento.secado.loteAnterior)}
-        </p>
-      )}
-      <p className="texto-suave">Registrado por {evento.registradoPor}</p>
-      {evento.anulacion && (
-        <p className="texto-suave">
-          Anulado por {evento.anulacion.por ?? 'sin dato'} el {formatearFecha(fechaArgentinaIso(new Date(evento.anulacion.en)))}. Motivo: {evento.anulacion.motivo}
-        </p>
-      )}
-      {error && !(anulable && anulando) && (
-        <div className="alerta" role="alert">
-          {error}
-        </div>
-      )}
-      {anulable && !anulando && (
-        <div className="acciones">
-          <button type="button" className="boton-secundario boton-peligro" onClick={() => setAnulando(true)}>
-            Anular
-          </button>
-        </div>
-      )}
-      {anulable && anulando && (
-        <form className="formulario-lote" onSubmit={confirmar}>
-          {error && (
-            <div className="alerta" role="alert">
-              {error}
-            </div>
-          )}
-          <Campo
-            etiqueta="Motivo de la anulación"
-            name="motivo"
-            id={`motivo-${evento.id}`}
-            required
-            autoFocus
-            maxLength={200}
-            ayuda="Obligatorio. El evento no se borra: queda marcado como anulado."
-            error={errorMotivo}
-          />
-          <div className="acciones">
-            <button type="submit" className="boton boton-peligro-lleno" disabled={enviando}>
-              {enviando ? 'Anulando…' : 'Confirmar anulación'}
-            </button>
-            <button type="button" className="boton-secundario" onClick={() => setAnulando(false)} disabled={enviando}>
-              Cancelar
-            </button>
-          </div>
-        </form>
-      )}
-    </li>
-  );
-}
-
 // Rótulo de lo que quedó en el ciclo anterior al último parto (RF-40).
 function EtiquetaCiclo() {
   return <span className="etiqueta-ciclo">del ciclo anterior</span>;
 }
 
-// Detalle de un parto en la lista: crías, genética y lote previo (RF-38).
-function DetalleParto({ parto }: { parto: NonNullable<EventoReproductivo['parto']> }) {
-  return (
-    <>
-      <ul className="lista-crias">
-        {parto.crias.map((c) => (
-          <li key={c.orden}>
-            {c.nacidaMuerta || !c.animal ? (
-              <>Cría {NOMBRE_SEXO[c.sexo].toLowerCase()} · nacida muerta</>
-            ) : c.animal.activo ? (
-              <>
-                Cría {NOMBRE_SEXO[c.sexo].toLowerCase()} ·{' '}
-                <Link to={`/animales/${c.animal.id}`} className="enlace-fila">
-                  {c.animal.numero}
-                </Link>
-              </>
-            ) : (
-              // Dada de baja (parto anulado): se ve el número, sin acceso a su ficha.
-              <>
-                Cría {NOMBRE_SEXO[c.sexo].toLowerCase()} · {c.animal.numero} · <span className="etiqueta-baja">dada de baja</span>
-              </>
-            )}
-            {c.observaciones && <span className="texto-suave"> · {c.observaciones}</span>}
-          </li>
-        ))}
-      </ul>
-      <p className="texto-suave">Genética: {textoGenetica(parto.genetica)}</p>
-      <p className="texto-suave">
-        Estaba {NOMBRE_ESTADO[parto.estadoAnterior].toLowerCase()} · {textoLoteAnterior(parto.loteAnterior)}
-      </p>
-    </>
-  );
-}

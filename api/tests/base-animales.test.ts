@@ -50,6 +50,7 @@ describe('Número del animal (RF-4)', () => {
         sexo: 'HEMBRA',
         estado: 'BAJA',
         fechaBaja: new Date('2026-01-01'),
+        motivoBaja: 'PARTO_ANULADO', // la base exige motivo en toda baja (spec 006)
       },
     });
     await expect(crearAnimal(t.id, '101')).resolves.toBeDefined();

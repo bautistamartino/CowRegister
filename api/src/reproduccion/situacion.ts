@@ -10,7 +10,9 @@ import { DIAS_GESTACION, diasEntre, sumarDias } from './fechas.js';
 
 export type EventoCalculo = {
   id: string;
-  tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO';
+  // 'BAJA' (spec 006) figura en la lista de eventos pero NO cuenta para ningún cálculo de este
+  // archivo: lo filtran `ultimoNoAnulado`, `cicloActual` y `calcularSituacion`.
+  tipo: 'SERVICIO' | 'TACTO' | 'PARTO' | 'SECADO' | 'BAJA';
   fecha: string; // AAAA-MM-DD
   creadoEn: Date; // momento de registro: desempata el orden a igual fecha
   anulado: boolean;
@@ -21,7 +23,7 @@ export type EventoCalculo = {
 export type EstadoReproductivo = 'SIN_SERVICIO' | 'SERVIDA' | 'PRENADA' | 'VACIA';
 
 // Orden total: por fecha y, a igual fecha, por momento de registro. Devuelve una copia.
-export function ordenarEventos<T extends EventoCalculo>(lista: readonly T[]): T[] {
+export function ordenarEventos<T extends Pick<EventoCalculo, 'fecha' | 'creadoEn'>>(lista: readonly T[]): T[] {
   return [...lista].sort((a, b) => {
     if (a.fecha !== b.fecha) return a.fecha < b.fecha ? -1 : 1;
     return a.creadoEn.getTime() - b.creadoEn.getTime();
@@ -30,7 +32,7 @@ export function ordenarEventos<T extends EventoCalculo>(lista: readonly T[]): T[
 
 // Último evento no anulado en el orden total (o null).
 export function ultimoNoAnulado<T extends EventoCalculo>(lista: readonly T[]): T | null {
-  const vigentes = ordenarEventos(lista).filter((e) => !e.anulado);
+  const vigentes = ordenarEventos(lista).filter((e) => !e.anulado && e.tipo !== 'BAJA');
   return vigentes[vigentes.length - 1] ?? null;
 }
 
@@ -39,7 +41,7 @@ const esVacia = (e: EventoCalculo) => e.tipo === 'TACTO' && e.resultado === 'VAC
 // Ciclo actual: los eventos no anulados posteriores al último tacto "vacía" o al último
 // parto no anulado (el que sea posterior), en orden. El secado NO corta el ciclo.
 export function cicloActual<T extends EventoCalculo>(lista: readonly T[]): T[] {
-  const vigentes = ordenarEventos(lista).filter((e) => !e.anulado);
+  const vigentes = ordenarEventos(lista).filter((e) => !e.anulado && e.tipo !== 'BAJA');
   let desde = 0;
   vigentes.forEach((e, i) => {
     if (esVacia(e) || e.tipo === 'PARTO') desde = i + 1;
@@ -92,7 +94,7 @@ export type Situacion<T extends EventoCalculo> = {
  */
 export function calcularSituacion<T extends EventoCalculo>(lista: readonly T[], hoy: string): Situacion<T> {
   const ordenados = ordenarEventos(lista);
-  const vigentes = ordenados.filter((e) => !e.anulado);
+  const vigentes = ordenados.filter((e) => !e.anulado && e.tipo !== 'BAJA'); // la baja no cuenta (spec 006)
 
   // Fecha resuelta de cada tacto "preñada", repitiendo el cálculo en orden: cada uno se
   // resuelve con los eventos no anulados que tenía antes (así lo vio al registrarse).

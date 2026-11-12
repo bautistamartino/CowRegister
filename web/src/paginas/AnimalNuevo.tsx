@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '../auth';
 import { api, ApiError, type AltaAnimal, type EstadoAnimal, type Sexo } from '../api';
 import { Campo } from '../componentes/Campo';
-import { ESTADOS_INICIALES, NOMBRE_ESTADO, NOMBRE_SEXO, puedeCargar } from '../animales';
+import { ESTADOS_INICIALES, NOMBRE_ESTADO, NOMBRE_SEXO, puedeCargar, textoAvisoNumeroDeBaja } from '../animales';
 
 // "Hoy" en formato AAAA-MM-DD (hora local) para el `max` del campo de fecha.
 function hoy(): string {
@@ -57,7 +57,13 @@ export function AnimalNuevo() {
       if (madre.trim()) body.madre = madre;
       const r = await api<AltaAnimal>('/animales', { method: 'POST', body });
       // El aviso de "sin lote" se muestra en la ficha, que es adonde se navega.
-      navigate(`/animales/${r.animal.id}`, { state: { avisoSinLote: r.avisoSinLote } });
+      // El aviso de número de un animal de baja (RF-14) también: se guarda igual y se avisa una sola vez.
+      navigate(`/animales/${r.animal.id}`, {
+        state: {
+          avisoSinLote: r.avisoSinLote,
+          avisoNumero: r.avisoNumeroDeBaja ? textoAvisoNumeroDeBaja(r.animal.numero, r.avisoNumeroDeBaja) : null,
+        },
+      });
     } catch (err) {
       if (err instanceof ApiError && err.detalles.length) {
         setErrores(Object.fromEntries(err.detalles.map((d) => [d.campo, d.mensaje])));

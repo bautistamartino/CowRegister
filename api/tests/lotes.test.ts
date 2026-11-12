@@ -43,6 +43,7 @@ function crearAnimal(
       sexo: 'HEMBRA',
       estado,
       fechaBaja: estado === 'BAJA' ? new Date('2026-11-01') : null,
+      motivoBaja: estado === 'BAJA' ? 'PARTO_ANULADO' : null, // la base exige motivo en toda baja (spec 006)
     },
   });
 }

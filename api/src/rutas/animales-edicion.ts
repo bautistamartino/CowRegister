@@ -15,6 +15,7 @@ import { ahora } from '../reloj.js';
 import { siguienteRegistro } from '../reproduccion/bloqueo.js';
 import { bloquearLoteDestino, MENSAJE_LOTE_DESAPARECIO } from '../animales/mover.js';
 import { leerFicha } from './animales.js';
+import { buscarBajasPorNumero, textoAvisoNumeroDeBaja } from '../bajas/numero-de-baja.js';
 
 // Editar un animal y leer su historial de cambios manuales (spec 005).
 // Orden de controles: sesión (401) → rol (403) → formato del cuerpo (400) → animal (404) →
@@ -66,6 +67,7 @@ rutasAnimalesEdicion.patch('/:id', soloEdicion, async (req, res) => {
   const datos = interpretado.datos;
   const animalId = idAnimal(req.params.id);
   const hoy = hoyArgentina(ahora());
+  let numeroCambiado = false; // para el aviso de número de un animal de baja (RF-14)
 
   try {
     await prisma.$transaction(
@@ -114,7 +116,8 @@ rutasAnimalesEdicion.patch('/:id', soloEdicion, async (req, res) => {
         // 4) Lo demás que necesitan las reglas, ya con el animal bloqueado.
         const [criaParto, eventos, crias] = await Promise.all([
           tx.criaParto.count({ where: { animalId } }),
-          tx.evento.count({ where: { animalId, anuladoEn: null } }),
+          // La baja no cuenta como "evento registrado" (spec 006): solo existe con el animal de baja.
+          tx.evento.count({ where: { animalId, anuladoEn: null, tipo: { not: 'BAJA' } } }),
           tx.animal.count({ where: { madreId: animalId } }), // crías de cualquier estado
         ]);
         const animal: AnimalParaEditar = {
@@ -162,6 +165,7 @@ rutasAnimalesEdicion.patch('/:id', soloEdicion, async (req, res) => {
         // 6) Escritura: el animal y una fila de historial por dato, todo en la misma transacción (RF-8, RF-14).
         const cambios = resultado.cambios;
         const campos = new Set(cambios.map((c) => c.campo));
+        numeroCambiado = campos.has('NUMERO');
         await tx.animal.update({
           where: { id: animalId },
           data: {
@@ -191,7 +195,13 @@ rutasAnimalesEdicion.patch('/:id', soloEdicion, async (req, res) => {
 
   const ficha = await leerFicha(prisma, animalId, establecimientoId);
   if (!ficha) throw new HttpError(404, NO_ENCONTRADO);
-  res.json(ficha);
+  // Aviso (RF-14): si se cambió el número y pertenecía a un animal de baja, se avisa una sola vez (no persiste).
+  const avisos: string[] = [];
+  if (numeroCambiado) {
+    const previa = (await buscarBajasPorNumero(prisma, establecimientoId, [ficha.numero])).get(ficha.numero);
+    if (previa) avisos.push(textoAvisoNumeroDeBaja(ficha.numero, previa));
+  }
+  res.json({ ...ficha, avisos });
 });
 
 // PATCH /api/animales/:id/lote — mueve el animal a otro lote o lo deja sin lote (RF-9 a RF-14).

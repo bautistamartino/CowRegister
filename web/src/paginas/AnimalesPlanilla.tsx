@@ -8,7 +8,7 @@ import {
   type SinLotePorEstado,
   type VistaPreviaPlanilla,
 } from '../api';
-import { NOMBRE_ESTADO, NOMBRE_SEXO, formatearFecha, puedeCargar, textoAnimales } from '../animales';
+import { NOMBRE_ESTADO, NOMBRE_SEXO, formatearFecha, puedeCargar, textoAnimales, textoAvisoNumeroDeBaja } from '../animales';
 
 // "3 en estado recién nacido, 2 en estado seca" para el aviso de animales sin lote.
 function textoSinLote(lista: SinLotePorEstado[]): string {
@@ -116,6 +116,15 @@ export function AnimalesPlanilla() {
             <p className="aviso">
               Quedaron sin lote: {textoSinLote(resultado.sinLotePorEstado)}. Elegí el lote destino de ese estado en Lotes.
             </p>
+          )}
+          {(resultado.avisosDeNumero ?? []).length > 0 && (
+            <div className="avisos">
+              {(resultado.avisosDeNumero ?? []).map((a) => (
+                <p key={a.fila} className="aviso">
+                  Fila {a.fila}: {textoAvisoNumeroDeBaja(a.numero, a.avisoNumeroDeBaja)}
+                </p>
+              ))}
+            </div>
           )}
           {resultado.quedaronAfuera.length > 0 && (
             <>
@@ -232,7 +241,13 @@ export function AnimalesPlanilla() {
                         <td>{f.estado ? NOMBRE_ESTADO[f.estado] : '—'}</td>
                         <td>{f.ok ? formatearFecha(f.fechaNacimiento) : (f.fechaNacimiento ?? '—')}</td>
                         <td>{f.madre ?? '—'}</td>
-                        <td className="celda-motivo">{f.motivo ?? ''}</td>
+                        <td className="celda-motivo">
+                          {f.motivo ?? ''}
+                          {/* Aviso, no error: la fila se guarda igual (RF-14). */}
+                          {f.ok && f.numero && f.avisoNumeroDeBaja && (
+                            <span className="aviso-fila">{textoAvisoNumeroDeBaja(f.numero, f.avisoNumeroDeBaja)}</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
