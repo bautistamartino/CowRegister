@@ -318,3 +318,59 @@ export type FichaBaja = {
   eventos: EventoReproductivo[];
   cambios: RespuestaCambios;
 };
+
+// ─── Informes (spec 007) ───
+
+export type ResultadoServicio = 'PRENADA_TACTO' | 'PRENADA_PARTO' | 'VACIA' | 'SIN_TACTO';
+
+// Un animal como lo manda un informe: con lo necesario para armar el enlace a su ficha.
+// activo = ficha en /animales/:id; si no, ficha de baja en /bajas/:id.
+export type AnimalDeInforme = { id: string; numero: string; activo: boolean; motivoBaja: 'venta' | 'muerte' | 'parto_anulado' | null };
+
+export type ResumenServicios = {
+  total: number;
+  prenadas: number;
+  vacias: number;
+  sinTacto: number;
+  base: number; // preñadas + vacías: sobre lo que se calcula el porcentaje
+  porcentajePrenez: number | null; // null = "—" (no hay base)
+};
+
+// GET /api/informes/inseminacion?desde&hasta. En `porSemen`, `semen: null` es "No especificado".
+export type InformeInseminacion = {
+  periodo: { desde: string; hasta: string };
+  resumen: ResumenServicios;
+  porSemen: (ResumenServicios & { semen: { id: string; nombre: string } | null })[];
+  detalle: {
+    servicioId: string;
+    fecha: string;
+    tipoServicio: TipoServicio;
+    semen: { id: string; nombre: string } | null;
+    resultado: ResultadoServicio;
+    animal: AnimalDeInforme;
+  }[];
+  totalDetalle: number;
+  truncado: boolean;
+  tope: number;
+};
+
+// GET /api/informes/natalidad?desde&hasta
+export type InformeNatalidad = {
+  periodo: { desde: string; hasta: string };
+  resumen: {
+    partos: number;
+    criasVivas: { total: number; hembras: number; machos: number };
+    criasMuertas: { total: number; hembras: number; machos: number };
+    mellizos: number;
+    porcentajeNacidasMuertas: number | null;
+  };
+  detalle: {
+    partoId: string;
+    fecha: string;
+    vaca: AnimalDeInforme;
+    crias: { orden: number; sexo: Sexo; nacidaMuerta: boolean; animal: AnimalDeInforme | null }[];
+  }[];
+  totalDetalle: number;
+  truncado: boolean;
+  tope: number;
+};

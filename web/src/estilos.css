@@ -810,3 +810,74 @@ h1 .etiqueta-baja {
   border-left: 3px solid var(--error);
   font-weight: 600;
 }
+
+/* ─── Informes (spec 007) ─── */
+
+.selector-informe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Caja de resumen: cifras en una grilla que baja de fila sola según el ancho. */
+.resumen-informe {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 0.75rem;
+}
+
+.cifra {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 1rem;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+
+.cifra-valor {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.cifra-rotulo {
+  color: var(--texto-suave);
+  font-weight: 600;
+}
+
+.cifra-detalle {
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+}
+
+/* "Sin tacto" bien visible: borde grueso con el color de error y número grande (no solo color). */
+.cifra-destacada {
+  border: 2px solid var(--error);
+}
+
+.cifra-destacada .cifra-valor {
+  font-size: 2rem;
+  color: var(--error);
+}
+
+.cifra-destacada .cifra-rotulo {
+  color: var(--texto);
+}
+
+.celda-sin-tacto {
+  font-weight: 700;
+  color: var(--error);
+}
+
+/* Crías de un parto en el detalle de natalidad: una por línea, con corte de línea permitido. */
+.lista-crias-informe {
+  white-space: normal;
+  min-width: 16rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.cria-informe {
+  display: block;
+}
