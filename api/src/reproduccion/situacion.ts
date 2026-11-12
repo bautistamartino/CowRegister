@@ -23,7 +23,7 @@ export type EventoCalculo = {
 export type EstadoReproductivo = 'SIN_SERVICIO' | 'SERVIDA' | 'PRENADA' | 'VACIA';
 
 // Orden total: por fecha y, a igual fecha, por momento de registro. Devuelve una copia.
-export function ordenarEventos<T extends EventoCalculo>(lista: readonly T[]): T[] {
+export function ordenarEventos<T extends Pick<EventoCalculo, 'fecha' | 'creadoEn'>>(lista: readonly T[]): T[] {
   return [...lista].sort((a, b) => {
     if (a.fecha !== b.fecha) return a.fecha < b.fecha ? -1 : 1;
     return a.creadoEn.getTime() - b.creadoEn.getTime();

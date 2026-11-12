@@ -10,6 +10,7 @@ import { rutasAnimales } from './rutas/animales.js';
 import { rutasAnimalesEdicion } from './rutas/animales-edicion.js';
 import { rutasBajas, rutasBajasAnimal } from './rutas/bajas.js';
 import { rutasHistorialAnimal, rutasHistorialBaja } from './rutas/historial.js';
+import { rutasInformes } from './rutas/informes.js';
 import { rutasSemen } from './rutas/semen.js';
 import { rutasReproduccion } from './rutas/reproduccion.js';
 import { rutasPartos } from './rutas/partos.js';
@@ -57,6 +58,8 @@ export function createApp() {
   // 403 y 401 aunque el JSON venga roto. El listado y la ficha de bajas (GET) los ven los tres roles.
   app.post(['/api/animales/:id/baja', '/api/animales/:id/revertir-baja'], requiereSesion, requiereRol('DUENO', 'ENCARGADO'));
   app.use('/api/bajas', requiereSesion);
+  // Informes (spec 007, RF-19): lectura para los tres roles; sin sesión es 401 antes que un 400 de período.
+  app.use('/api/informes', requiereSesion);
   // La carga desde planilla recibe un texto de hasta 100.000 caracteres: con las tabulaciones y los
   // saltos de línea escapados en el JSON puede pasar los 100 kb. Este parser de 1 MB va ANTES del
   // global y solo para esas dos rutas (Express no vuelve a leer un cuerpo ya leído); el límite de
@@ -86,6 +89,7 @@ export function createApp() {
   app.use('/api/partos', rutasAnulacionPartos);
   app.use('/api/secados', rutasAnulacionSecados);
   app.use('/api/semen', rutasSemen);
+  app.use('/api/informes', rutasInformes); // GET /inseminacion y /natalidad (spec 007)
 
   // Cualquier otra ruta de la API no existe.
   app.use('/api', () => {
