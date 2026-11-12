@@ -190,6 +190,7 @@ Lo usan el dueño y el encargado para cargar litros y los tres roles para consul
 ## Riesgos aceptados
 - **Tras revocar una sesión o dar de baja a un usuario, la tablet sigue mostrando los datos locales** (y permitiendo cargar litros pendientes) **hasta que vuelve la señal**; ahí se revalida, se piden credenciales y, si ingresa otro usuario, se borra todo lo anterior. Decisión del usuario.
 - Los datos locales están **sin cifrar**: quien tenga la tablet con la sesión abierta ve el tambo (decisión del usuario).
+- **El perfil guardado en la tablet no vence a los 30 días por sí mismo:** si la tablet nunca vuelve a tener señal, se sigue entrando con él. Aceptado, coherente con "la sesión sigue valiendo localmente".
 - El control de duplicado local usa datos que pueden estar viejos (ver casos límite).
 
 ## Criterios de aceptación

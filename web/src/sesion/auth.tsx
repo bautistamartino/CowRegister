@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { alVencerSesion, api, ApiError, type Perfil } from '../compartido/api';
 import { obtenerAlmacen } from '../sinconexion/almacenIndexedDb';
+import { almacenMarcaLocalStorage, completarCierrePendiente, crearMarcaCierre } from '../sinconexion/marcaCierre';
 import { cerrarSesionLocal, evaluarIngreso, perfilParaEntrarSinConexion } from '../sinconexion/propietario';
 
 // Contexto de autenticación: guarda quién está logueado y lo comparte con toda la app.
@@ -38,25 +39,8 @@ const AuthContext = createContext<Auth | null>(null);
 const TEXTO_CIERRE_SIN_RED =
   'Se cerró la sesión en la tablet y se borraron sus datos, pero no se pudo cerrar la sesión en el servidor porque no hay conexión. Se va a cerrar sola en cuanto vuelva la señal.';
 
-// Si el cierre de sesión del servidor no llegó (sin conexión), la cookie sigue viva en el navegador. Se anota
-// para cerrarla apenas haya señal, antes de preguntar quién está ingresado: si no, la persona que "cerró
-// sesión" volvería a entrar sola. localStorage puede fallar (modo privado): en ese caso solo se pierde la marca.
-const MARCA_CIERRE = 'cowregister-cierre-pendiente';
-const marcarCierrePendiente = (valor: boolean) => {
-  try {
-    if (valor) localStorage.setItem(MARCA_CIERRE, '1');
-    else localStorage.removeItem(MARCA_CIERRE);
-  } catch {
-    /* sin almacenamiento: se sigue sin la marca */
-  }
-};
-const hayCierrePendiente = () => {
-  try {
-    return localStorage.getItem(MARCA_CIERRE) === '1';
-  } catch {
-    return false;
-  }
-};
+// Marca de cierre pendiente (ver marcaCierre.ts): se pone si el cierre no llegó al servidor y se limpia al ingresar.
+const marcaCierre = crearMarcaCierre(almacenMarcaLocalStorage);
 
 // Cierra la sesión del servidor. 'sin-red' si no se llegó a él; un 401 también cuenta como cerrada.
 async function cerrarSesionServidor(): Promise<'cerrado' | 'sin-red'> {
@@ -83,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Decide qué hacer con lo guardado antes de mostrar nada del perfil que acaba de ingresar (RF-46, RF-47).
   const entrar = useCallback(async (perfil: Perfil): Promise<boolean> => {
+    // Se ingresó con éxito: la cookie nueva reemplaza a la vieja, así que un cierre pendiente ya no corresponde.
+    marcaCierre.limpiar();
     const almacen = obtenerAlmacen();
     // Si no se puede leer lo guardado, no hay nada que mostrar de otro: se sigue.
     const decision = await evaluarIngreso(almacen, { usuarioId: perfil.id, establecimientoId: perfil.establecimiento.id }).catch(
@@ -106,12 +92,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       // Un cierre de sesión que quedó a medias (sin señal) se completa primero.
-      if (hayCierrePendiente()) {
-        const r = await cerrarSesionServidor().catch(() => 'sin-red' as const);
-        if (r === 'cerrado') marcarCierrePendiente(false);
-      }
+      await completarCierrePendiente(marcaCierre, cerrarSesionServidor);
       try {
-        await entrar(await api<Perfil>('/auth/yo'));
+        // Con timeout: un WiFi sin salida a internet no debe dejar colgada la apertura (se trata como sin red).
+        await entrar(await api<Perfil>('/auth/yo', { timeoutMs: 4000 }));
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) return; // sin sesión: login (no se borra nada)
         // Sin conexión (no se llegó al servidor): se entra con el último perfil guardado si es del dueño de los
@@ -141,7 +125,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     async logout() {
       const { servidorCerrado } = await cerrarSesionLocal({ almacen: obtenerAlmacen(), cerrarServidor: cerrarSesionServidor });
-      marcarCierrePendiente(!servidorCerrado);
+      if (servidorCerrado) marcaCierre.limpiar();
+      else marcaCierre.poner();
       setAvisoCierre(servidorCerrado ? null : TEXTO_CIERRE_SIN_RED);
       setUsuario(null);
       return servidorCerrado;
@@ -159,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async cancelarIngreso() {
       // Se cierra la sesión del servidor que se acababa de abrir y no se borra nada local (RF-46).
       const r = await cerrarSesionServidor().catch(() => 'sin-red' as const);
-      if (r === 'sin-red') marcarCierrePendiente(true);
+      if (r === 'sin-red') marcaCierre.poner();
       setIngresoPendiente(null);
       setUsuario(null);
     },

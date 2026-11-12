@@ -7,6 +7,10 @@ import { ErrorSinEspacio, type Almacen, type Enviado, type Pendiente } from './a
 import { fechaYTurnoArgentina, horaParaApi } from './horaArgentina';
 import { MAX_PENDIENTES } from './limites';
 
+// Comienzo del mensaje de "ya hay una carga". El mismo texto lo devuelve la API (409 en api/src/produccion/cargar.ts):
+// la validación local lo imita y la pantalla "Pendientes" lo usa para reconocer el rechazo por duplicado.
+export const INICIO_MENSAJE_DUPLICADO = 'Ya hay una carga';
+
 // Usuario y tambo de la sesión. Un pendiente solo lo ve, lo cuenta y lo envía su dueño (RF-17, RF-46).
 export type Persona = { usuarioId: string; establecimientoId: string };
 
@@ -100,7 +104,7 @@ export async function controlarCarga(args: {
       ok: false,
       tipo: 'invalido',
       errores: {},
-      general: `Ya hay una carga de esta vaca ${cual}. Para corregirla, anulala primero con conexión y cargá la correcta`,
+      general: `${INICIO_MENSAJE_DUPLICADO} de esta vaca ${cual}. Para corregirla, anulala primero con conexión y cargá la correcta`,
     };
   }
   return { ok: true, litros: v.litros };

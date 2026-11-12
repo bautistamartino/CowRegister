@@ -6,6 +6,7 @@ import { formatearLitros, NOMBRE_TURNO, textoMomento } from '../produccion/produ
 import type { Pendiente } from './almacen';
 import { Confirmar } from './Confirmar';
 import { useCola } from './ColaProvider';
+import { INICIO_MENSAJE_DUPLICADO } from './cola';
 
 // "Pendientes de sincronizar" (spec 009, RF-36 a RF-40): los litros cargados que el servidor todavía no
 // aceptó, con su estado. Rechazados: se pueden reintentar o descartar. Funciona también sin conexión.
@@ -14,8 +15,8 @@ function resumen(p: Pendiente): string {
   return `Vaca ${p.numero} · ${formatearFecha(p.fecha)} · ${NOMBRE_TURNO[p.turno]} · ${formatearLitros(Number(p.litros))} L`;
 }
 
-// El rechazo por duplicado (409 "Ya hay una carga…"): gana el que llegó primero al servidor (spec 009).
-const esDuplicado = (p: Pendiente) => p.codigoRechazo === 409 && (p.motivo ?? '').startsWith('Ya hay una carga');
+// El rechazo por duplicado (409 "Ya hay una carga…", texto de la API): gana el que llegó primero al servidor (spec 009).
+const esDuplicado = (p: Pendiente) => p.codigoRechazo === 409 && (p.motivo ?? '').startsWith(INICIO_MENSAJE_DUPLICADO);
 
 export function Pendientes() {
   const { usuario } = useAuth();

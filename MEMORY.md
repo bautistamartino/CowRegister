@@ -123,6 +123,7 @@ Estado actual y decisiones importantes. La actualiza el implementador al termina
 - **Service worker e instalación (spec 009):** el navegador integrado de las pruebas no puede registrar el service worker real; la instalación y el service worker solo se probaron **a medias** (manifiesto, desvíos y lectura sin red con un servidor de prueba). Hay que probarlos a mano en Chrome: `npm run build -w web && npm run preview -w web` (puerto 4173), DevTools → Application (Manifest, Service Workers, "Offline"). En la tablet real hará falta **HTTPS** (Etapa 7).
 - **Reloj y orden de eventos (spec 010):** la 009 solo carga litros sin conexión (que no ordenan nada). Cuando se carguen servicios, tactos, partos o secados sin conexión habrá que resolver el orden por fecha y `creadoEn` con relojes de distintos dispositivos.
 - **Sesión local sin conexión:** el perfil guardado no tiene vencimiento propio; sin conexión la tablet entra con él (hasta volver la señal, donde se revalida). Es el riesgo aceptado de la spec 009.
+- **Perfil local sin vencimiento (spec 009):** el perfil guardado en la tablet no vence a los 30 días; si nunca hay señal, se sigue entrando con él (aceptado).
 - **Reloj (spec 005):** si el reloj del servidor retrocede, un evento podría quedar con `creadoEn` menor al de un movimiento manual previo y el aviso 8 fallaría. Retomar en la Etapa 6.
 
 ## Pendiente de definir con el responsable

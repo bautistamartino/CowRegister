@@ -61,7 +61,7 @@ async function responderDesdeCopia<T>(metodo: string, ruta: string): Promise<{ u
   return { usado: true, valor: r.datos as T };
 }
 
-export async function api<T>(ruta: string, opciones: { method?: string; body?: unknown } = {}): Promise<T> {
+export async function api<T>(ruta: string, opciones: { method?: string; body?: unknown; timeoutMs?: number } = {}): Promise<T> {
   const metodo = (opciones.method ?? 'GET').toUpperCase();
   const conexion = obtenerConexion();
   const intentaSiempre = esDeSesionOCopia(ruta);
@@ -85,6 +85,9 @@ export async function api<T>(ruta: string, opciones: { method?: string; body?: u
     throw new ApiError(0, TEXTO_SIN_RED);
   }
 
+  // Timeout opcional: si el servidor no responde a tiempo se aborta y cuenta como fallo de red.
+  const control = new AbortController();
+  const temporizador = opciones.timeoutMs ? setTimeout(() => control.abort(), opciones.timeoutMs) : null;
   let res: Response;
   try {
     res = await fetch(`/api${ruta}`, {
@@ -92,9 +95,12 @@ export async function api<T>(ruta: string, opciones: { method?: string; body?: u
       headers: opciones.body !== undefined ? { 'content-type': 'application/json' } : undefined,
       body: opciones.body !== undefined ? JSON.stringify(opciones.body) : undefined,
       credentials: 'same-origin', // envía la cookie de sesión
+      signal: control.signal,
     });
   } catch {
     return sinRed();
+  } finally {
+    if (temporizador) clearTimeout(temporizador);
   }
 
   if (res.status === 204) {
