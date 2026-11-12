@@ -11,12 +11,13 @@ import { rutasAnimalesEdicion } from './rutas/animales-edicion.js';
 import { rutasBajas, rutasBajasAnimal } from './rutas/bajas.js';
 import { rutasHistorialAnimal, rutasHistorialBaja } from './rutas/historial.js';
 import { rutasInformes } from './rutas/informes.js';
+import { rutasProduccion, rutasProduccionBaja } from './rutas/produccion.js';
 import { rutasSemen } from './rutas/semen.js';
 import { rutasReproduccion } from './rutas/reproduccion.js';
 import { rutasPartos } from './rutas/partos.js';
 import { rutasAnulacionServicios, rutasAnulacionTactos } from './rutas/anulaciones.js';
 import { rutasAnulacionPartos, rutasAnulacionSecados } from './rutas/anulaciones-partos.js';
-import { requiereRol, requiereSesion } from './auth/middleware.js';
+import { requiereDuenoOEncargado, requiereRol, requiereSesion } from './auth/middleware.js';
 
 // Crea la aplicación Express sin levantar el servidor.
 // Separarlo de index.ts permite testear la API sin abrir un puerto.
@@ -58,6 +59,14 @@ export function createApp() {
   // 403 y 401 aunque el JSON venga roto. El listado y la ficha de bajas (GET) los ven los tres roles.
   app.post(['/api/animales/:id/baja', '/api/animales/:id/revertir-baja'], requiereSesion, requiereRol('DUENO', 'ENCARGADO'));
   app.use('/api/bajas', requiereSesion);
+  // Producción: litros por vaca (spec 008, RF-27): cargar y anular solo dueño y encargado (403 con su
+  // mensaje) y sin sesión 401, también con JSON roto. Leer la ficha (GET) lo hacen los tres roles.
+  app.get('/api/animales/:id/produccion', requiereSesion);
+  app.post(
+    ['/api/animales/:id/produccion', '/api/animales/:id/produccion/:registroId/anular'],
+    requiereSesion,
+    requiereDuenoOEncargado,
+  );
   // Informes (spec 007, RF-19): lectura para los tres roles; sin sesión es 401 antes que un 400 de período.
   app.use('/api/informes', requiereSesion);
   // La carga desde planilla recibe un texto de hasta 100.000 caracteres: con las tabulaciones y los
@@ -76,6 +85,8 @@ export function createApp() {
   app.use('/api/usuarios', rutasUsuarios);
   app.use('/api/lotes', rutasLotes);
   app.use('/api/reglas-lote', rutasReglasLote);
+  app.use('/api/animales', rutasProduccion); // /:id/produccion (spec 008)
+  app.use('/api/bajas', rutasProduccionBaja); // GET /:id/produccion de una baja (spec 008)
   app.use('/api/animales', rutasHistorialAnimal); // GET /:id/historial (spec 007)
   app.use('/api/bajas', rutasHistorialBaja); // GET /:id/historial de una baja (spec 007)
   app.use('/api/animales', rutasReproduccion); // /:id/eventos, /:id/servicios, /:id/tactos

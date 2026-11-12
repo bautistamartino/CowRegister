@@ -41,6 +41,14 @@ export function requiereRol(...roles: Rol[]): RequestHandler {
   };
 }
 
+// Solo dueño y encargado, con el mensaje que pide la spec 008 (RF-27) para cargar y anular producción.
+export const requiereDuenoOEncargado: RequestHandler = (req, _res, next) => {
+  if (!req.usuario || (req.usuario.rol !== 'DUENO' && req.usuario.rol !== 'ENCARGADO')) {
+    throw new HttpError(403, 'Esta acción la tiene que hacer un dueño o encargado');
+  }
+  next();
+};
+
 // Devuelve el usuario logueado. Usar solo en rutas que pasaron por requiereSesion.
 export function usuarioActual(req: Express.Request): UsuarioSesion {
   if (!req.usuario) throw new HttpError(401, 'Tenés que iniciar sesión');
