@@ -532,3 +532,98 @@ describe('quién anuló y datos sensibles (RF-38)', () => {
     }
   });
 });
+
+describe('aviso 8: se descartó un lote puesto a mano después del evento (spec 005, RF-13)', () => {
+  const moverA = (agente: Agente, vacaId: string, loteId: string | null) =>
+    agente.patch(`/api/animales/${vacaId}/lote`).send({ loteId }).expect(200);
+
+  it('secado y movimiento manual posterior: vuelve al lote previo del evento y avisa', async () => {
+    const t = await prepararVaca();
+    const ordene = await loteDe(t.tambo, 'En ordeñe');
+    const enfermeria = await prisma.lote.create({ data: { establecimientoId: t.tambo, nombre: 'Enfermería' } });
+    await prisma.animal.update({ where: { id: t.vaca.id }, data: { loteId: ordene.id } });
+    const secadoId = await registrarSecado(t.agente, t.vaca.id, '2026-11-05');
+    await moverA(t.agente, t.vaca.id, enfermeria.id);
+
+    const res = await anularSecado(t.agente, secadoId).expect(200);
+    expect(res.body.avisos).toEqual([
+      {
+        codigo: 'LOTE_MANUAL_DESCARTADO',
+        mensaje: 'La vaca volvió al lote «En ordeñe» y se descartó el lote que se le había puesto a mano después del secado del 05/11/2026',
+      },
+    ]);
+    expect(await vacaDe(t.vaca.id)).toMatchObject({ estado: 'EN_ORDENE', loteId: ordene.id });
+  });
+
+  it('parto y movimiento manual posterior: el aviso nombra al parto', async () => {
+    const t = await vacaConParto();
+    const enfermeria = await prisma.lote.create({ data: { establecimientoId: t.tambo, nombre: 'Enfermería' } });
+    await moverA(t.agente, t.vaca.id, enfermeria.id);
+    const res = await anularParto(t.agente, t.partoId).expect(200);
+    expect(res.body.avisos).toEqual([
+      {
+        codigo: 'LOTE_MANUAL_DESCARTADO',
+        mensaje: 'La vaca volvió al lote «Secas» y se descartó el lote que se le había puesto a mano después del parto del 01/11/2026',
+      },
+    ]);
+  });
+
+  it('sin movimiento manual, o con uno anterior al evento: sin aviso', async () => {
+    const t = await prepararVaca();
+    const ordene = await loteDe(t.tambo, 'En ordeñe');
+    const enfermeria = await prisma.lote.create({ data: { establecimientoId: t.tambo, nombre: 'Enfermería' } });
+    await moverA(t.agente, t.vaca.id, enfermeria.id); // antes del evento
+    const secadoId = await registrarSecado(t.agente, t.vaca.id, '2026-11-05');
+    const res = await anularSecado(t.agente, secadoId).expect(200);
+    expect(res.body.avisos).toEqual([]);
+    expect(await vacaDe(t.vaca.id)).toMatchObject({ estado: 'EN_ORDENE', loteId: enfermeria.id });
+    expect(ordene.id).not.toBe(enfermeria.id);
+  });
+
+  it('movimiento manual posterior que deja a la vaca en el mismo lote que el previo: sin aviso', async () => {
+    const t = await prepararVaca();
+    const ordene = await loteDe(t.tambo, 'En ordeñe');
+    const otro = await prisma.lote.create({ data: { establecimientoId: t.tambo, nombre: 'Otro' } });
+    await prisma.animal.update({ where: { id: t.vaca.id }, data: { loteId: ordene.id } });
+    const secadoId = await registrarSecado(t.agente, t.vaca.id, '2026-11-05');
+    await moverA(t.agente, t.vaca.id, otro.id);
+    await moverA(t.agente, t.vaca.id, ordene.id); // vuelve a mano al lote previo
+    const res = await anularSecado(t.agente, secadoId).expect(200);
+    expect(res.body.avisos).toEqual([]);
+  });
+
+  it('sin lote previo: avisa con "sin lote", después del aviso 6', async () => {
+    const t = await prepararVaca(); // sin lote
+    const enfermeria = await prisma.lote.create({ data: { establecimientoId: t.tambo, nombre: 'Enfermería' } });
+    const secadoId = await registrarSecado(t.agente, t.vaca.id, '2026-11-05');
+    await moverA(t.agente, t.vaca.id, enfermeria.id);
+    const res = await anularSecado(t.agente, secadoId).expect(200);
+    expect(res.body.avisos.map((a: { codigo: string }) => a.codigo)).toEqual(['SIN_LOTE_PREVIO', 'LOTE_MANUAL_DESCARTADO']);
+    expect(res.body.avisos[1].mensaje).toBe(
+      'La vaca quedó sin lote y se descartó el lote que se le había puesto a mano después del secado del 05/11/2026',
+    );
+    expect(await vacaDe(t.vaca.id)).toMatchObject({ estado: 'EN_ORDENE', loteId: null });
+  });
+
+  it('lote previo eliminado: avisa después del aviso 7', async () => {
+    const t = await prepararVaca();
+    const previo = await prisma.lote.create({ data: { establecimientoId: t.tambo, nombre: 'Previo' } });
+    const enfermeria = await prisma.lote.create({ data: { establecimientoId: t.tambo, nombre: 'Enfermería' } });
+    await prisma.animal.update({ where: { id: t.vaca.id }, data: { loteId: previo.id } });
+    const secadoId = await registrarSecado(t.agente, t.vaca.id, '2026-11-05');
+    await moverA(t.agente, t.vaca.id, enfermeria.id);
+    await t.agente.delete(`/api/lotes/${previo.id}`).expect(204);
+    const res = await anularSecado(t.agente, secadoId).expect(200);
+    expect(res.body.avisos.map((a: { codigo: string }) => a.codigo)).toEqual(['LOTE_PREVIO_ELIMINADO', 'LOTE_MANUAL_DESCARTADO']);
+  });
+
+  it('el aviso no se guarda en la base y el historial conserva el movimiento manual', async () => {
+    const t = await prepararVaca();
+    const enfermeria = await prisma.lote.create({ data: { establecimientoId: t.tambo, nombre: 'Enfermería' } });
+    const secadoId = await registrarSecado(t.agente, t.vaca.id, '2026-11-05');
+    await moverA(t.agente, t.vaca.id, enfermeria.id);
+    await anularSecado(t.agente, secadoId).expect(200);
+    // La vuelta automática no entra al historial: solo el movimiento manual.
+    expect(await prisma.cambioAnimal.count({ where: { animalId: t.vaca.id, campo: 'LOTE' } })).toBe(1);
+  });
+});

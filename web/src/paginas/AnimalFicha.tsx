@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import { api, ApiError, type AnimalFicha as Ficha, type EstadoAnimal } from '../api';
 import { Reproduccion } from '../componentes/Reproduccion';
+import { FormEditarAnimal } from '../componentes/FormEditarAnimal';
+import { FormMoverLote } from '../componentes/FormMoverLote';
+import { HistorialCambios } from '../componentes/HistorialCambios';
+import { useAuth } from '../auth';
 import { NOMBRE_ESTADO, NOMBRE_SEXO, formatearFecha } from '../animales';
 import { textoGenetica } from '../reproduccion';
 
-// Ficha de un animal, solo lectura (RF-28, RF-29).
+// Ficha de un animal (RF-28, RF-29). Dueño y encargado pueden editarlo y moverlo de lote (spec 005).
 export function AnimalFicha() {
   const { id } = useParams();
   const location = useLocation();
@@ -15,12 +19,21 @@ export function AnimalFicha() {
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [noEncontrado, setNoEncontrado] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { usuario } = useAuth();
+  // Solo se esconden los botones; la API igual responde 403 al veterinario.
+  const puedeEditar = !!usuario && usuario.rol !== 'VETERINARIO';
+  const [panel, setPanel] = useState<'editar' | 'mover' | null>(null);
+  const [confirmacion, setConfirmacion] = useState<string | null>(null);
+  // Sube cada vez que se guarda algo, para que el historial vuelva a leerse.
+  const [versionCambios, setVersionCambios] = useState(0);
 
   useEffect(() => {
     let vigente = true;
     setFicha(null);
     setNoEncontrado(false);
     setError(null);
+    setPanel(null);
+    setConfirmacion(null);
     api<Ficha>(`/animales/${encodeURIComponent(id ?? '')}`)
       .then((f) => {
         if (vigente) setFicha(f);
@@ -38,11 +51,20 @@ export function AnimalFicha() {
   // Tras un parto o secado cambian el estado, el lote y las crías de la madre: se vuelve a leer
   // la ficha sin vaciarla (si no, Reproduccion se desmontaría y perdería los avisos recién recibidos).
   async function recargarFicha() {
+    setConfirmacion(null); // la caja de resultado de la reproducción reemplaza a la confirmación vieja
     try {
       setFicha(await api<Ficha>(`/animales/${encodeURIComponent(id ?? '')}`));
     } catch {
       // Si falla, queda la ficha anterior: no es grave y un refresco de la página la corrige.
     }
+  }
+
+  // Tras editar o mover: se usa la ficha que devolvió la API, se cierra el panel y se confirma.
+  async function alGuardar(nueva: Ficha, mensaje: string) {
+    setFicha(nueva);
+    setPanel(null);
+    setConfirmacion(mensaje);
+    setVersionCambios((v) => v + 1);
   }
 
   if (noEncontrado) {
@@ -151,6 +173,34 @@ export function AnimalFicha() {
         </div>
       </dl>
 
+      {puedeEditar && (
+        <>
+          <div className="acciones">
+            <button type="button" className="boton" onClick={() => setPanel(panel === 'editar' ? null : 'editar')}>
+              Editar
+            </button>
+            <button type="button" className="boton" onClick={() => setPanel(panel === 'mover' ? null : 'mover')}>
+              Mover de lote
+            </button>
+          </div>
+          {panel === 'editar' && (
+            <FormEditarAnimal key={ficha.id} ficha={ficha} alCancelar={() => setPanel(null)} alGuardar={(f) => alGuardar(f, 'Cambios guardados')} />
+          )}
+          {panel === 'mover' && (
+            <FormMoverLote key={ficha.id} ficha={ficha} alCancelar={() => setPanel(null)} alGuardar={(f) => alGuardar(f, 'Animal movido de lote')} />
+          )}
+        </>
+      )}
+
+      {confirmacion && (
+        <div className="resultado-registro" role="status">
+          <p className="resultado-titulo">{confirmacion}</p>
+          <button type="button" className="boton-secundario" onClick={() => setConfirmacion(null)}>
+            Cerrar
+          </button>
+        </div>
+      )}
+
       {/* Hembras: situación reproductiva, formularios e historial. Machos: sin acciones reproductivas. */}
       {ficha.sexo === 'HEMBRA' ? (
         <Reproduccion animalId={ficha.id} sexo={ficha.sexo} estado={ficha.estado} alCambiarAnimal={recargarFicha} />
@@ -160,6 +210,8 @@ export function AnimalFicha() {
           <p className="subtitulo">Todavía no hay eventos registrados</p>
         </section>
       )}
+
+      <HistorialCambios animalId={ficha.id} version={versionCambios} />
 
       <p>
         <Link to="/animales" className="enlace-fila">

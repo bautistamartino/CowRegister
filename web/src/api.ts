@@ -119,7 +119,7 @@ export type AnimalFicha = {
   sexo: Sexo;
   estado: EstadoAnimal;
   fechaNacimiento: string | null;
-  lote: { nombre: string } | null;
+  lote: { id: string; nombre: string } | null;
   madre: { id: string; numero: string; activa: boolean } | null;
   crias: { id: string; numero: string }[];
   // Parto del que nació (spec 004). null si el animal no nació de un parto cargado.
@@ -213,3 +213,22 @@ export type SituacionReproductiva = {
 
 // Machos: situacion null y lista vacía.
 export type RespuestaEventos = { situacion: SituacionReproductiva | null; eventos: EventoReproductivo[] };
+
+// ─── Editar animal y mover de lote (spec 005) ───
+
+export type CampoCambio = 'NUMERO' | 'SEXO' | 'FECHA_NACIMIENTO' | 'MADRE' | 'LOTE';
+
+// Un cambio manual del historial. Los valores son texto copiado en ese momento
+// (null = "sin dato" o "sin lote"); `creadoEn` es un instante ISO.
+export type CambioManual = {
+  id: string;
+  campo: CampoCambio;
+  valorAnterior: string | null;
+  valorNuevo: string | null;
+  usuarioId: string;
+  usuarioNombre: string;
+  creadoEn: string;
+};
+
+// Respuesta de GET /api/animales/:id/cambios: los últimos 100 y el total.
+export type RespuestaCambios = { total: number; cambios: CambioManual[] };

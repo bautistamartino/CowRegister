@@ -63,7 +63,7 @@ const seleccionAnimal = {
   sexo: true,
   estado: true,
   fechaNacimiento: true,
-  lote: { select: { nombre: true } },
+  lote: { select: { id: true, nombre: true } },
 } as const;
 
 // POST /api/animales — alta manual (RF-1 a RF-9).
@@ -209,36 +209,34 @@ rutasAnimales.get('/buscar', async (req, res) => {
   res.json(animal);
 });
 
-// GET /api/animales/:id — ficha (RF-28 a RF-30, RF-38).
-rutasAnimales.get('/:id', async (req, res) => {
-  const { establecimientoId } = usuarioActual(req);
-
-  // Mal formado, inexistente, de otro tambo o dado de baja: siempre el mismo 404.
-  const id = z.uuid().safeParse(req.params.id);
-  const animal = id.success
-    ? await prisma.animal.findFirst({
-        where: { id: id.data, establecimientoId, estado: ACTIVO },
+// Ficha de un animal activo del tambo (la usan GET /:id y la edición, spec 005). Devuelve `null` si
+// no existe, es de otro tambo o está de baja: el llamador responde siempre el mismo 404.
+export async function leerFicha(
+  cliente: Pick<typeof prisma, 'animal'>,
+  id: string,
+  establecimientoId: string,
+) {
+  const animal = await cliente.animal.findFirst({
+    where: { id, establecimientoId, estado: ACTIVO },
+    select: {
+      ...seleccionAnimal,
+      madre: { select: { id: true, numero: true, estado: true } },
+      crias: { where: { estado: ACTIVO }, select: { id: true, numero: true } },
+      // Parto del que nació (spec 004): su fecha y la genética (servicio y semen o toro).
+      criaDeParto: {
         select: {
-          ...seleccionAnimal,
-          madre: { select: { id: true, numero: true, estado: true } },
-          crias: { where: { estado: ACTIVO }, select: { id: true, numero: true } },
-          // Parto del que nació (spec 004): su fecha y la genética (servicio y semen o toro).
-          criaDeParto: {
+          parto: {
             select: {
-              parto: {
-                select: {
-                  evento: { select: { id: true, fecha: true } },
-                  servicio: { select: { fecha: true, servicio: { select: { semen: { select: { id: true, nombre: true } } } } } },
-                },
-              },
+              evento: { select: { id: true, fecha: true } },
+              servicio: { select: { fecha: true, servicio: { select: { semen: { select: { id: true, nombre: true } } } } } },
             },
           },
         },
-      })
-    : null;
-  if (!animal) throw new HttpError(404, 'Animal no encontrado');
-
-  res.json({
+      },
+    },
+  });
+  if (!animal) return null;
+  return {
     id: animal.id,
     numero: animal.numero,
     sexo: animal.sexo,
@@ -262,5 +260,16 @@ rutasAnimales.get('/:id', async (req, res) => {
             : null,
         }
       : null,
-  });
+  };
+}
+
+// GET /api/animales/:id — ficha (RF-28 a RF-30, RF-38).
+rutasAnimales.get('/:id', async (req, res) => {
+  const { establecimientoId } = usuarioActual(req);
+
+  // Mal formado, inexistente, de otro tambo o dado de baja: siempre el mismo 404.
+  const id = z.uuid().safeParse(req.params.id);
+  const ficha = id.success ? await leerFicha(prisma, id.data, establecimientoId) : null;
+  if (!ficha) throw new HttpError(404, 'Animal no encontrado');
+  res.json(ficha);
 });

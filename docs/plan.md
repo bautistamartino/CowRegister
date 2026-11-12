@@ -20,6 +20,7 @@ Servicios, tactos con fecha probable de parto, partos con alta del ternero, seca
 
 - [x] 2.1 Semen, servicios y tactos (spec [003-reproduccion](../specs/003-reproduccion/spec.md)): catálogo de semen y toros, situación reproductiva, anulación del último evento
 - [x] 2.2 Partos, crías y secados (spec [004-partos-secados](../specs/004-partos-secados/spec.md)): registro y anulación de partos y secados, alta de las crías, genética y reinicio del ciclo
+- [x] 2.3 Editar animal y mover de lote a mano (spec [005-editar-animal](../specs/005-editar-animal/spec.md)): edición de número, sexo, fecha y madre, mover de lote, historial de cambios manuales y aviso 8 al anular
 
 ## Etapa 3 — Reglas y bajas
 Movimiento automático entre lotes según el estado; bajas por venta o muerte.

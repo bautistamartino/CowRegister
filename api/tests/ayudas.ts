@@ -12,7 +12,7 @@ export async function limpiarBase() {
     throw new Error('limpiarBase() solo puede usarse con la base de tests');
   }
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "crias_parto", "partos", "secados", "servicios", "tactos", "eventos", "semen_toros", "sesiones", "animales", "reglas_lote", "lotes", "usuarios", "establecimientos" CASCADE',
+    'TRUNCATE TABLE "cambios_animal", "crias_parto", "partos", "secados", "servicios", "tactos", "eventos", "semen_toros", "sesiones", "animales", "reglas_lote", "lotes", "usuarios", "establecimientos" CASCADE',
   );
 }
 
@@ -288,6 +288,36 @@ export async function crearSecadoDirecto(
   });
 }
 
+// ─── Editar animal y mover de lote a mano (spec 005) ────────────────
+
+// Inserta una fila del historial de cambios directo (sin pasar por la API). Por defecto un cambio
+// de número hecho por un usuario inventado. El historial no tiene clave a usuario ni a lote.
+export function crearCambioDirecto(
+  establecimientoId: string,
+  animalId: string,
+  opciones: {
+    campo?: 'NUMERO' | 'SEXO' | 'FECHA_NACIMIENTO' | 'MADRE' | 'LOTE';
+    valorAnterior?: string | null;
+    valorNuevo?: string | null;
+    usuarioId?: string;
+    usuarioNombre?: string;
+    creadoEn?: Date;
+  } = {},
+) {
+  return prisma.cambioAnimal.create({
+    data: {
+      establecimientoId,
+      animalId,
+      campo: opciones.campo ?? 'NUMERO',
+      valorAnterior: opciones.valorAnterior === undefined ? 'VIEJO' : opciones.valorAnterior,
+      valorNuevo: opciones.valorNuevo === undefined ? 'NUEVO' : opciones.valorNuevo,
+      usuarioId: opciones.usuarioId ?? crypto.randomUUID(),
+      usuarioNombre: opciones.usuarioNombre ?? 'Usuario de prueba',
+      ...(opciones.creadoEn && { creadoEn: opciones.creadoEn }),
+    },
+  });
+}
+
 /**
  * Revisa en la base los invariantes que tienen que valer siempre, también tras operaciones
  * simultáneas (RF-33). Devuelve la lista de violaciones encontradas (vacía si todo está bien),
@@ -314,6 +344,23 @@ export async function verificarInvariantes(opciones: { estadoVaca?: boolean } = 
       'eventos no anulados con fechas en desorden respecto del registro',
       `SELECT a.id FROM eventos a JOIN eventos b ON b."animalId" = a."animalId"
        WHERE a."anuladoEn" IS NULL AND b."anuladoEn" IS NULL AND a."creadoEn" < b."creadoEn" AND a.fecha > b.fecha`,
+    ],
+    // Spec 005 RF-17 (b): no hay ciclos de madres (A madre de B y B de A, o más largos).
+    // Se sube por madreId desde cada animal; si se vuelve a él mismo, hay un ciclo.
+    // El tope de profundidad evita que la consulta no termine si apareciera un ciclo ajeno.
+    [
+      'ciclo de madres',
+      `WITH RECURSIVE sube(origen, actual, profundidad) AS (
+         SELECT id, "madreId", 1 FROM animales WHERE "madreId" IS NOT NULL
+         UNION ALL
+         SELECT s.origen, a."madreId", s.profundidad + 1 FROM sube s JOIN animales a ON a.id = s.actual
+         WHERE a."madreId" IS NOT NULL AND s.profundidad < 1000)
+       SELECT origen FROM sube WHERE actual = origen`,
+    ],
+    // Spec 005 RF-17 (c): toda madre asignada es hembra.
+    [
+      'madre que no es hembra',
+      `SELECT a.id FROM animales a JOIN animales m ON m.id = a."madreId" WHERE m.sexo <> 'HEMBRA'`,
     ],
     ['animal de baja con lote', `SELECT id FROM animales WHERE estado = 'BAJA' AND "loteId" IS NOT NULL`],
     [

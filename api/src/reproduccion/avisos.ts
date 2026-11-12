@@ -1,6 +1,6 @@
 import { aFechaCorta } from './fechas.js';
 
-// Avisos de las operaciones de la spec 004 (lista cerrada de 7). Viajan con la respuesta de
+// Avisos de las operaciones de la spec 004 (lista cerrada de 8). Viajan con la respuesta de
 // la operación y la pantalla los muestra una sola vez: NO se guardan en la base.
 // Los textos viven acá, en un solo lugar, igual que los códigos.
 
@@ -11,7 +11,8 @@ export type CodigoAviso =
   | 'SIN_GENETICA_SIN_SERVICIO' // 4
   | 'SIN_GENETICA_FUERA_DE_RANGO' // 5
   | 'SIN_LOTE_PREVIO' // 6 (anulación)
-  | 'LOTE_PREVIO_ELIMINADO'; // 7 (anulación)
+  | 'LOTE_PREVIO_ELIMINADO' // 7 (anulación)
+  | 'LOTE_MANUAL_DESCARTADO'; // 8 (anulación tras mover a mano, spec 005)
 
 export type Aviso = { codigo: CodigoAviso; mensaje: string };
 
@@ -63,6 +64,16 @@ export function avisoLoteAnteriorEliminado(estado: string): Aviso {
   return {
     codigo: 'LOTE_PREVIO_ELIMINADO',
     mensaje: `La vaca volvió a «${nombreEstado(estado)}» y quedó sin lote: su lote anterior ya no existe`,
+  };
+}
+
+// Aviso 8 (spec 005): la anulación devolvió a la vaca al lote previo del evento y descartó un lote
+// puesto a mano después. `lotePrevio` es el nombre del lote al que vuelve, o null si vuelve sin lote.
+export function avisoLoteManualDescartado(lotePrevio: string | null, tipo: 'parto' | 'secado', fechaEvento: string): Aviso {
+  return {
+    codigo: 'LOTE_MANUAL_DESCARTADO',
+    // Sin lote previo suena mejor "quedó sin lote" que "volvió al lote «sin lote»".
+    mensaje: `La vaca ${lotePrevio === null ? 'quedó sin lote' : `volvió al lote «${lotePrevio}»`} y se descartó el lote que se le había puesto a mano después del ${tipo} del ${aFechaCorta(fechaEvento)}`,
   };
 }
 
