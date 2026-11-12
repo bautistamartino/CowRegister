@@ -881,3 +881,10 @@ h1 .etiqueta-baja {
 .cria-informe {
   display: block;
 }
+
+/* ─── Producción (spec 008) ─── */
+
+/* Rótulo de un grupo de botones (turno): se ve como las etiquetas de los campos. */
+.rotulo-campo {
+  font-weight: 600;
+}

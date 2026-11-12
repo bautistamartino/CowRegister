@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { useAuth } from '../auth';
 import { api, ApiError, type ListadoAnimales, type Lote } from '../api';
 import { ESTADOS_INICIALES, NOMBRE_ESTADO, NOMBRE_SEXO, puedeCargar, textoAnimales } from '../animales';
@@ -7,6 +7,8 @@ import { ESTADOS_INICIALES, NOMBRE_ESTADO, NOMBRE_SEXO, puedeCargar, textoAnimal
 // Listado de animales activos con filtros por estado y lote (RF-23 a RF-27).
 export function Animales() {
   const { usuario } = useAuth();
+  // Confirmación de una carga de producción (spec 008): llega por el estado de navegación y se cierra a mano.
+  const [confirmacion, setConfirmacion] = useState<string | null>((useLocation().state as { mensaje?: string } | null)?.mensaje ?? null);
   const [estado, setEstado] = useState('');
   const [loteId, setLoteId] = useState(''); // '' = todos, 'sin-lote' = sin lote
   const [lotes, setLotes] = useState<Lote[]>([]);
@@ -65,6 +67,15 @@ export function Animales() {
         <h1>Animales</h1>
         {listado && listado.animales.length > 0 && accesos}
       </div>
+
+      {confirmacion && (
+        <div className="resultado-registro" role="status">
+          <p className="resultado-titulo">{confirmacion}</p>
+          <button type="button" className="boton-secundario" onClick={() => setConfirmacion(null)}>
+            Cerrar
+          </button>
+        </div>
+      )}
 
       <div className="filtros">
         <div className="campo">
