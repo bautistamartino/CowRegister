@@ -746,8 +746,9 @@ h1 {
   scroll-margin-top: 1rem;
 }
 
-/* Rótulos con texto (no solo color): "del ciclo anterior" y "dada de baja". */
+/* Rótulos con texto (no solo color): "del ciclo anterior", "dada de baja" y "Cambio manual" (historial). */
 .etiqueta-ciclo,
+.etiqueta-cambio,
 .etiqueta-baja {
   display: inline-block;
   margin-left: 0.5rem;

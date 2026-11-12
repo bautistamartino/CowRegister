@@ -247,6 +247,29 @@ export type CambioManual = {
 // Respuesta de GET /api/animales/:id/cambios: los últimos 100 y el total.
 export type RespuestaCambios = { total: number; cambios: CambioManual[] };
 
+// ─── Historial único (spec 007) ───
+
+// Entrada del historial: un evento (ya armado como en /eventos) o un cambio manual.
+// `fecha` es AAAA-MM-DD (la del evento, o el día argentino en que se guardó el cambio).
+export type EntradaHistorial =
+  | { clase: 'EVENTO'; fecha: string; registradoEn: string; evento: EventoReproductivo }
+  | {
+      clase: 'CAMBIO';
+      fecha: string;
+      registradoEn: string;
+      cambio: { id: string; campo: CampoCambio; valorAnterior: string | null; valorNuevo: string | null; usuarioNombre: string };
+    };
+
+// Respuesta de GET /api/animales/:id/historial y /api/bajas/:id/historial.
+export type RespuestaHistorial = {
+  total: number;
+  truncado: boolean;
+  tope: number;
+  // Único evento anulable (aunque quede fuera de las entradas por el tope).
+  ultimoEventoNoAnuladoId: string | null;
+  entradas: EntradaHistorial[];
+};
+
 // ─── Bajas por venta o muerte (spec 006) ───
 
 // Los motivos que se pueden pedir, en minúsculas como los habla la API.

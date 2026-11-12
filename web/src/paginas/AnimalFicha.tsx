@@ -5,7 +5,7 @@ import { Reproduccion } from '../componentes/Reproduccion';
 import { FormEditarAnimal } from '../componentes/FormEditarAnimal';
 import { FormMoverLote } from '../componentes/FormMoverLote';
 import { FormBaja } from '../componentes/FormBaja';
-import { HistorialCambios } from '../componentes/HistorialCambios';
+import { Historial } from '../componentes/Historial';
 import { useAuth } from '../auth';
 import { NOMBRE_ESTADO, NOMBRE_SEXO, TEXTO_NO_DISPONIBLE, formatearFecha } from '../animales';
 import { textoGenetica } from '../reproduccion';
@@ -301,17 +301,12 @@ export function AnimalFicha() {
         </>
       )}
 
-      {/* Hembras: situación reproductiva, formularios e historial. Machos: sin acciones reproductivas. */}
+      {/* Hembras: situación, formularios e historial (embebido). Machos: solo el historial. */}
       {ficha.sexo === 'HEMBRA' ? (
-        <Reproduccion animalId={ficha.id} sexo={ficha.sexo} estado={ficha.estado} alCambiarAnimal={recargarFicha} />
+        <Reproduccion animalId={ficha.id} sexo={ficha.sexo} estado={ficha.estado} alCambiarAnimal={recargarFicha} versionExterna={versionCambios} />
       ) : (
-        <section className="seccion">
-          <h2>Historial</h2>
-          <p className="subtitulo">Todavía no hay eventos registrados</p>
-        </section>
+        <Historial animalId={ficha.id} contexto="animales" version={versionCambios} />
       )}
-
-      <HistorialCambios animalId={ficha.id} version={versionCambios} />
 
       <p>
         <Link to="/animales" className="enlace-fila">

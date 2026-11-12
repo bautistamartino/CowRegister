@@ -4,8 +4,7 @@ import { api, ApiError, type BajaRevertida, type FichaBaja } from '../api';
 import { useAuth } from '../auth';
 import { NOMBRE_ESTADO, NOMBRE_SEXO, TEXTO_NO_DISPONIBLE, formatearFecha, nombreMotivo, puedeCargar } from '../animales';
 import { fechaArgentinaIso } from '../reproduccion';
-import { ListaEventosLectura } from '../componentes/Reproduccion';
-import { SeccionCambios } from '../componentes/HistorialCambios';
+import { Historial } from '../componentes/Historial';
 import { FormRevertirBaja } from '../componentes/FormRevertirBaja';
 
 // Ficha de baja (spec 006, RF-13): solo lectura. Los tres roles la ven; dueño y encargado
@@ -227,12 +226,8 @@ export function BajaFicha() {
         </>
       )}
 
-      <section className="seccion">
-        <h2>Historial</h2>
-        <ListaEventosLectura eventos={ficha.eventos} />
-      </section>
-
-      <SeccionCambios datos={ficha.cambios} error={null} />
+      {/* Historial único en solo lectura: sin "Anular" (la baja se revierte con el botón de arriba). */}
+      <Historial animalId={ficha.id} contexto="bajas" version={0} />
 
       <p>
         <Link to="/bajas" className="enlace-fila">
