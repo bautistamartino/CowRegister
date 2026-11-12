@@ -32,7 +32,7 @@ export async function cargarProduccion(entrada: {
   datos: CargaProduccion;
 }) {
   const { animalId, establecimientoId, usuarioId, datos } = entrada;
-  const { fecha, turno, litrosDecimas, id } = datos;
+  const { fecha, turno, litrosDecimas, id, cargadoEnDispositivo } = datos;
 
   try {
     return await prisma.$transaction(
@@ -93,6 +93,8 @@ export async function cargarProduccion(entrada: {
             loteId: lote?.id ?? null,
             loteNombre: lote?.nombre ?? null,
             registradoPorId: usuarioId,
+            // Hora de la tablet (spec 009): solo informativa, aparte de `creadoEn` (que pone el servidor).
+            cargadoEnDispositivo,
           },
           select: SELECT_REGISTRO,
         });

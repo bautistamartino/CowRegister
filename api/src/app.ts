@@ -11,6 +11,7 @@ import { rutasAnimalesEdicion } from './rutas/animales-edicion.js';
 import { rutasBajas, rutasBajasAnimal } from './rutas/bajas.js';
 import { rutasHistorialAnimal, rutasHistorialBaja } from './rutas/historial.js';
 import { rutasInformes } from './rutas/informes.js';
+import { rutasCopiaLocal } from './rutas/copia-local.js';
 import { rutasProduccion, rutasProduccionBaja } from './rutas/produccion.js';
 import { rutasSemen } from './rutas/semen.js';
 import { rutasReproduccion } from './rutas/reproduccion.js';
@@ -69,6 +70,8 @@ export function createApp() {
   );
   // Informes (spec 007, RF-19): lectura para los tres roles; sin sesión es 401 antes que un 400 de período.
   app.use('/api/informes', requiereSesion);
+  // Copia local para el modo sin conexión (spec 009, RF-52): lectura para los tres roles; sin sesión es 401.
+  app.use('/api/copia-local', requiereSesion);
   // La carga desde planilla recibe un texto de hasta 100.000 caracteres: con las tabulaciones y los
   // saltos de línea escapados en el JSON puede pasar los 100 kb. Este parser de 1 MB va ANTES del
   // global y solo para esas dos rutas (Express no vuelve a leer un cuerpo ya leído); el límite de
@@ -100,6 +103,7 @@ export function createApp() {
   app.use('/api/partos', rutasAnulacionPartos);
   app.use('/api/secados', rutasAnulacionSecados);
   app.use('/api/semen', rutasSemen);
+  app.use('/api/copia-local', rutasCopiaLocal); // GET / (spec 009)
   app.use('/api/informes', rutasInformes); // GET /inseminacion y /natalidad (spec 007)
 
   // Cualquier otra ruta de la API no existe.

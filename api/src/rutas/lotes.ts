@@ -67,16 +67,21 @@ function idDeLote(valor: unknown): string {
   return resultado.data;
 }
 
-// GET /api/lotes — lotes del tambo ordenados por nombre sin distinguir mayúsculas.
-rutasLotes.get('/', async (req, res) => {
-  const { establecimientoId } = usuarioActual(req);
-  const lotes = await prisma.lote.findMany({ where: { establecimientoId }, select: seleccionLote });
-
+// Lotes del tambo ya armados y ordenados. Lo usan GET /api/lotes y la copia local (spec 009), que
+// pasa su cliente de transacción para leer los lotes dentro de la misma foto.
+export async function leerLotes(cliente: Pick<typeof prisma, 'lote'>, establecimientoId: string) {
+  const lotes = await cliente.lote.findMany({ where: { establecimientoId }, select: seleccionLote });
   // Se ordena en JavaScript: el orderBy de Prisma usa la collation de la base,
   // que puede poner las mayúsculas antes. sensitivity 'base' ignora mayúsculas
   // y tildes al comparar.
   lotes.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
-  res.json(lotes.map(aRespuesta));
+  return lotes.map(aRespuesta);
+}
+
+// GET /api/lotes — lotes del tambo ordenados por nombre sin distinguir mayúsculas.
+rutasLotes.get('/', async (req, res) => {
+  const { establecimientoId } = usuarioActual(req);
+  res.json(await leerLotes(prisma, establecimientoId));
 });
 
 // GET /api/lotes/:id — un lote del tambo.
