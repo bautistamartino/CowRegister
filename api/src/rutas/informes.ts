@@ -6,6 +6,7 @@ import { ahora } from '../reloj.js';
 import { periodoSchema, validarPeriodo } from '../informes/periodo.js';
 import { informeInseminacion } from '../informes/inseminacion.js';
 import { informeNatalidad } from '../informes/natalidad.js';
+import { informeLeche } from '../informes/leche.js';
 
 // Informes del tambo (spec 007). Solo lectura, los tres roles. Orden de controles: sesión (401,
 // también en app.ts antes de los parsers) y después período (400). Todo se filtra por el
@@ -28,6 +29,13 @@ rutasInformes.get('/inseminacion', async (req, res) => {
   const { establecimientoId } = usuarioActual(req);
   const { desde, hasta } = periodoDeLaQuery(req);
   res.json(await informeInseminacion(establecimientoId, desde, hasta));
+});
+
+// GET /api/informes/leche?desde&hasta (spec 008)
+rutasInformes.get('/leche', async (req, res) => {
+  const { establecimientoId } = usuarioActual(req);
+  const { desde, hasta } = periodoDeLaQuery(req);
+  res.json(await informeLeche(establecimientoId, desde, hasta));
 });
 
 // GET /api/informes/natalidad?desde&hasta
