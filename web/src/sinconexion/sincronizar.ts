@@ -76,7 +76,21 @@ export function crearSincronizador(deps: Dependencias) {
     try {
       if (c.tipo === 'aceptado') {
         // El pendiente se borra y se guarda como "enviado reciente" en UNA operación (RF-34).
-        await almacen.aceptarPendiente(p.id, { id: p.id, usuarioId: p.usuarioId, establecimientoId: p.establecimientoId, animalId: p.animalId, numero: p.numero, registro: c.registro });
+        await almacen.aceptarPendiente(
+          p.id,
+          {
+            id: p.id,
+            usuarioId: p.usuarioId,
+            establecimientoId: p.establecimientoId,
+            animalId: p.animalId,
+            numero: p.numero,
+            tipo: p.tipo,
+            datos: p.datos,
+            aceptadoEn: Date.parse(c.registro.registradoEn), // hora del servidor
+            registro: c.registro,
+          },
+          null, // los litros no traen avisos
+        );
         r.aceptados++;
       } else if (c.tipo === 'rechazado') {
         // No se reintenta solo: queda con el motivo hasta que el usuario elija (RF-30).
@@ -102,6 +116,7 @@ export function crearSincronizador(deps: Dependencias) {
     const ahoraMs = ahora();
     const debidos = (await pendientesDe(almacen, persona)).filter(
       (p) =>
+        p.tipo === 'LITROS' && // hasta la T4 solo se envían litros: los demás tipos todavía no tienen ruta de envío
         p.estado === 'esperando' &&
         (opciones.soloId === undefined || p.id === opciones.soloId) &&
         (opciones.ignorarEsperas || p.proximoIntento === null || p.proximoIntento <= ahoraMs),

@@ -55,9 +55,8 @@ export async function cargarLitros(args: {
     establecimientoId: persona.establecimientoId,
     animalId: completos.animalId,
     numero: completos.numero,
-    fecha: completos.fecha,
-    turno: completos.turno as Pendiente['turno'],
-    litros: completos.litros,
+    tipo: 'LITROS',
+    datos: { fecha: completos.fecha, turno: completos.turno, litros: completos.litros },
     cargadoEnDispositivo: horaParaApi(ahora),
     orden: 0,
     estado: 'enviando',
@@ -72,7 +71,17 @@ export async function cargarLitros(args: {
   if (c.tipo === 'aceptado') {
     // Queda como "enviado" hasta que la copia lo incluya: si se corta la señal enseguida, la ficha igual lo muestra.
     await almacen
-      .guardarEnviado({ id, usuarioId: persona.usuarioId, establecimientoId: persona.establecimientoId, animalId: p.animalId, numero: p.numero, registro: c.registro })
+      .guardarEnviado({
+        id,
+        usuarioId: persona.usuarioId,
+        establecimientoId: persona.establecimientoId,
+        animalId: p.animalId,
+        numero: p.numero,
+        tipo: 'LITROS',
+        datos: p.datos,
+        aceptadoEn: Date.parse(c.registro.registradoEn),
+        registro: c.registro,
+      })
       .catch(() => undefined);
     return { tipo: 'enviado', registro: c.registro };
   }

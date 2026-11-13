@@ -11,7 +11,7 @@
 // perder un litro; esperar de más solo demora su envío.
 
 import type { RegistroProduccion } from '../compartido/api';
-import type { Pendiente } from './almacen';
+import { datosLitros, type Pendiente } from './almacen';
 
 // Lo que devuelve un envío: o no se llegó al servidor (red / tiempo agotado), o hubo una respuesta
 // con su código y su cuerpo ya leído como JSON (null si el cuerpo no era JSON).
@@ -23,8 +23,11 @@ export type Clasificacion =
   | { tipo: 'sesion' }
   | { tipo: 'esperar'; motivo: string; red: boolean };
 
-// Lo mínimo de un pendiente para comparar con lo que devuelve el servidor.
-type Esperado = Pick<Pendiente, 'id' | 'animalId' | 'fecha' | 'turno' | 'litros'>;
+// Lo mínimo de un litro pendiente para comparar con lo que devuelve el servidor.
+type Esperado = { id: string; animalId: string; fecha: string; turno: string; litros: string };
+
+// Hasta la T4 de la spec 010 (clasificación por tipo) solo se clasifican litros.
+const esperadoDe = (p: Pendiente): Esperado => ({ id: p.id, animalId: p.animalId, ...datosLitros(p) });
 
 const RECHAZOS = [400, 403, 404, 409];
 
@@ -64,7 +67,8 @@ function esperar(motivo: string, red = false): Clasificacion {
   return { tipo: 'esperar', motivo, red };
 }
 
-export function clasificarRespuesta(r: Respuesta, p: Esperado): Clasificacion {
+export function clasificarRespuesta(r: Respuesta, pendiente: Pendiente): Clasificacion {
+  const p = esperadoDe(pendiente);
   if (r.red) return esperar(r.motivo === 'tiempo' ? 'El servidor no respondió a tiempo' : 'No se pudo conectar con el servidor', true);
 
   const { estado, cuerpo } = r;

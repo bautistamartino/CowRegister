@@ -5,7 +5,7 @@
 // desde la copia; acá hace falta la respuesta CRUDA (código y cuerpo) para clasificarla.
 
 import { avisarSesionVencida } from '../compartido/api';
-import type { Pendiente } from './almacen';
+import { datosLitros, type Pendiente } from './almacen';
 import type { Respuesta } from './clasificar';
 import { obtenerConexion } from './conexion';
 
@@ -17,7 +17,7 @@ export async function enviarLitros(p: Pendiente, senal: AbortSignal): Promise<Re
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       // El tambo sale de la sesión (cookie), nunca del cuerpo. `id` hace el envío repetible sin duplicar.
-      body: JSON.stringify({ id: p.id, fecha: p.fecha, turno: p.turno, litros: p.litros, cargadoEnDispositivo: p.cargadoEnDispositivo }),
+      body: JSON.stringify({ id: p.id, ...datosLitros(p), cargadoEnDispositivo: p.cargadoEnDispositivo }),
       credentials: 'same-origin',
       signal: senal,
     });

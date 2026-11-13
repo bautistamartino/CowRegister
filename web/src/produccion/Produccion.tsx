@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { api, ApiError, type FichaProduccion, type RegistroProduccion, type TurnoOrdeno } from '../compartido/api';
-import type { Pendiente } from '../sinconexion/almacen';
+import { datosLitros, type Pendiente } from '../sinconexion/almacen';
 import { useAuth } from '../sesion/auth';
 import { formatearFecha, puedeCargar } from '../animales/animalesDatos';
 import { FECHA_MINIMA, fechaArgentinaIso, hoyIso, interpretar } from '../reproduccion/reproduccionDatos';
@@ -271,10 +271,11 @@ function FilaRegistro({ fila, animalId, anulable, alCambiar }: { fila: FilaFicha
 
 // Pendiente de la tablet en la ficha: "Pendiente de sincronizar" o "Rechazado: motivo" (RF-36, RF-56).
 function FilaPendiente({ p }: { p: Pendiente }) {
+  const d = datosLitros(p); // la lista de la ficha solo trae pendientes de litros
   return (
     <li className="evento pendiente">
       <p className="evento-titulo">
-        <strong>{formatearFecha(p.fecha)}</strong> · {NOMBRE_TURNO[p.turno]} · {formatearLitros(Number(p.litros))} L
+        <strong>{formatearFecha(d.fecha)}</strong> · {NOMBRE_TURNO[d.turno]} · {formatearLitros(Number(d.litros))} L
       </p>
       {p.estado === 'rechazado' ? (
         <p role="alert">

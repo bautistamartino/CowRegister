@@ -167,3 +167,44 @@ describe('cerrarSesionLocal (RF-43 a RF-45)', () => {
     await expect(cerrarSesionLocal({ almacen: a, cerrarServidor: async () => 'cerrado' })).rejects.toThrow('IndexedDB');
   });
 });
+
+describe('avisos y otros tipos de pendiente (spec 010, RF-30)', () => {
+  const avisosDe = (dueno: { usuarioId: string; establecimientoId: string }) => ({
+    id: 'av1',
+    ...dueno,
+    animalId: 'a1',
+    numero: '12',
+    tipo: 'PARTO' as const,
+    avisos: [{ codigo: 'X', mensaje: 'Aviso de prueba' }],
+  });
+
+  it('un aviso de otro usuario cuenta como dato de otro (sin pendientes: se reemplaza sin preguntar)', async () => {
+    const a = new AlmacenMemoria();
+    await a.guardarEnviado(enviado(pendiente({ id: 'e1' })));
+    await a.guardarAvisos(avisosDe(otroUsuario));
+    expect(await evaluarIngreso(a, persona)).toEqual({ tipo: 'reemplazarSinPreguntar' });
+  });
+
+  it('un aviso propio no cambia la decisión', async () => {
+    const a = new AlmacenMemoria();
+    await a.guardarAvisos(avisosDe(persona));
+    expect(await evaluarIngreso(a, persona)).toEqual({ tipo: 'continuar' });
+  });
+
+  it('pendientes de cualquier tipo de otro usuario piden confirmación con la cantidad total', async () => {
+    const a = new AlmacenMemoria();
+    await a.guardarPendiente(pendiente({ id: 'p1', ...otroUsuario, tipo: 'PARTO', datos: {} }));
+    await a.guardarPendiente(pendiente({ id: 'p2', ...otroUsuario, tipo: 'BAJA', datos: {}, estado: 'rechazado' }));
+    await a.guardarPendiente(pendiente({ id: 'p3', ...otroUsuario }));
+    expect(await evaluarIngreso(a, persona)).toEqual({ tipo: 'confirmarBorrado', pendientes: 3 });
+  });
+
+  it('cerrar la sesión borra también los avisos', async () => {
+    const a = new AlmacenMemoria();
+    await a.guardarAvisos(avisosDe(persona));
+    await a.guardarPendiente(pendiente({ id: 'p1', tipo: 'SERVICIO', datos: {} }));
+    await cerrarSesionLocal({ almacen: a, cerrarServidor: async () => 'cerrado' });
+    expect(await a.listarAvisos()).toEqual([]);
+    expect(await a.listarPendientes()).toEqual([]);
+  });
+});

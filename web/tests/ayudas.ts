@@ -1,21 +1,22 @@
 // Ayudas compartidas por los tests de la cola de pendientes (spec 009, T4). No es un test.
 
 import type { AnimalCopia, RegistroProduccion } from '../src/compartido/api';
-import type { Enviado, Pendiente } from '../src/sinconexion/almacen';
+import type { DatosLitros, Enviado, Pendiente } from '../src/sinconexion/almacen';
 
 export const persona = { usuarioId: 'u1', establecimientoId: 'e1' };
 
-// Un pendiente listo para usar; `cambios` pisa lo que haga falta.
-export function pendiente(cambios: Partial<Pendiente> = {}): Pendiente {
+// Un pendiente de LITROS listo para usar; `cambios` pisa lo que haga falta. Por comodidad acepta `fecha`, `turno`
+// y `litros` sueltos (como en la 009) y los guarda dentro de `datos`.
+export function pendiente(cambios: Partial<Pendiente> & Partial<DatosLitros> = {}): Pendiente {
+  const { fecha = '2026-11-12', turno = 'manana', litros = '12.5', ...resto } = cambios;
   return {
     id: '11111111-1111-4111-8111-111111111111',
     usuarioId: persona.usuarioId,
     establecimientoId: persona.establecimientoId,
     animalId: 'a1',
     numero: '12',
-    fecha: '2026-11-12',
-    turno: 'manana',
-    litros: '12.5',
+    tipo: 'LITROS',
+    datos: { fecha, turno, litros },
     cargadoEnDispositivo: '2026-11-12T08:15:00-03:00',
     orden: 1,
     estado: 'esperando',
@@ -23,18 +24,19 @@ export function pendiente(cambios: Partial<Pendiente> = {}): Pendiente {
     codigoRechazo: null,
     intentos: 0,
     proximoIntento: null,
-    ...cambios,
+    ...resto,
   };
 }
 
 // El registro que devolvería la API al aceptar ese pendiente.
 export function registroDe(p: Pendiente, cambios: Partial<RegistroProduccion> = {}): RegistroProduccion {
+  const d = p.datos as DatosLitros;
   return {
     id: p.id,
     animalId: p.animalId,
-    fecha: p.fecha,
-    turno: p.turno,
-    litros: Number(p.litros),
+    fecha: d.fecha,
+    turno: d.turno,
+    litros: Number(d.litros),
     loteNombre: 'Ordeñe',
     registradoPor: 'Dueño',
     registradoEn: '2026-11-12T11:20:00.000Z',
@@ -44,7 +46,18 @@ export function registroDe(p: Pendiente, cambios: Partial<RegistroProduccion> = 
 }
 
 export function enviado(p: Pendiente, cambios: Partial<RegistroProduccion> = {}): Enviado {
-  return { id: p.id, usuarioId: p.usuarioId, establecimientoId: p.establecimientoId, animalId: p.animalId, numero: p.numero, registro: registroDe(p, cambios) };
+  const registro = registroDe(p, cambios);
+  return {
+    id: p.id,
+    usuarioId: p.usuarioId,
+    establecimientoId: p.establecimientoId,
+    animalId: p.animalId,
+    numero: p.numero,
+    tipo: 'LITROS',
+    datos: p.datos,
+    aceptadoEn: Date.parse(registro.registradoEn),
+    registro,
+  };
 }
 
 // Una vaca de la copia con los registros de producción que se le indiquen.

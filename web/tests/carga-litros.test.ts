@@ -40,7 +40,7 @@ describe('con señal', () => {
     const { almacen, enviados, cargar } = armar(async (p) => aceptada(p));
     const r = await cargar();
     expect(r.tipo).toBe('enviado');
-    expect(enviados[0]).toMatchObject({ id: ID, litros: '12.5', cargadoEnDispositivo: '2026-11-12T08:15:00-03:00', animalId: 'a1' });
+    expect(enviados[0]).toMatchObject({ id: ID, tipo: 'LITROS', datos: { litros: '12.5' }, cargadoEnDispositivo: '2026-11-12T08:15:00-03:00', animalId: 'a1' });
     expect(await almacen.listarPendientes()).toEqual([]);
     // Queda como "enviado" hasta que la copia lo incluya, por si se corta la señal justo después.
     expect((await almacen.listarEnviados()).map((e) => e.id)).toEqual([ID]);
@@ -51,7 +51,7 @@ describe('con señal', () => {
     const r = await cargar();
     expect(r.tipo).toBe('pendiente');
     const [guardado] = await almacen.listarPendientes();
-    expect(guardado).toMatchObject({ id: ID, estado: 'esperando', litros: '12.5' });
+    expect(guardado).toMatchObject({ id: ID, estado: 'esperando', tipo: 'LITROS', datos: { fecha: '2026-11-12', turno: 'manana', litros: '12.5' } });
     expect(enviados[0]?.id).toBe(guardado?.id);
   });
 
@@ -120,7 +120,7 @@ describe('sin señal', () => {
     const r = await cargar();
     expect(r.tipo).toBe('pendiente');
     expect(enviados).toEqual([]);
-    expect(await almacen.listarPendientes()).toMatchObject([{ id: ID, estado: 'esperando', litros: '12.5' }]);
+    expect(await almacen.listarPendientes()).toMatchObject([{ id: ID, estado: 'esperando', tipo: 'LITROS', datos: { litros: '12.5' } }]);
   });
 
   it('sin lugar en el navegador no lo confirma como guardado', async () => {

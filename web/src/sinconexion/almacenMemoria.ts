@@ -1,5 +1,5 @@
 import type { AnimalCopia, CopiaLocal, Perfil } from '../compartido/api';
-import { ErrorSinEspacio, type Almacen, type Enviado, type MetaCopia, type Pendiente, type Propietario } from './almacen';
+import { ErrorSinEspacio, type Almacen, type AvisoGuardado, type Enviado, type MetaCopia, type Pendiente, type Propietario } from './almacen';
 
 // Almacén en memoria: solo para los tests. Imita lo importante del real: reemplazar la copia es
 // "todo o nada", y se pueden simular fallas.
@@ -17,6 +17,7 @@ export class AlmacenMemoria implements Almacen {
   // Pendientes y enviados (por id; Map conserva el orden de inserción).
   private pendientes = new Map<string, Pendiente>();
   private enviados = new Map<string, Enviado>();
+  private avisos = new Map<string, AvisoGuardado>();
   // capacidadPendientes: cuántos pendientes entran; el siguiente da "no hay espacio" (navegador lleno).
   private capacidadPendientes = Infinity;
 
@@ -66,6 +67,7 @@ export class AlmacenMemoria implements Almacen {
     this.perfil = null;
     this.pendientes.clear();
     this.enviados.clear();
+    this.avisos.clear();
   }
 
   async listarPendientes(): Promise<Pendiente[]> {
@@ -81,9 +83,10 @@ export class AlmacenMemoria implements Almacen {
     this.pendientes.delete(id);
   }
 
-  async aceptarPendiente(id: string, enviado: Enviado): Promise<void> {
+  async aceptarPendiente(id: string, enviado: Enviado, avisos: AvisoGuardado | null): Promise<void> {
     this.pendientes.delete(id);
     this.enviados.set(enviado.id, { ...enviado });
+    if (avisos) this.avisos.set(avisos.id, { ...avisos });
   }
 
   async listarEnviados(): Promise<Enviado[]> {
@@ -96,5 +99,17 @@ export class AlmacenMemoria implements Almacen {
 
   async borrarEnviados(ids: string[]): Promise<void> {
     for (const id of ids) this.enviados.delete(id);
+  }
+
+  async listarAvisos(): Promise<AvisoGuardado[]> {
+    return [...this.avisos.values()].map((a) => ({ ...a }));
+  }
+
+  async guardarAvisos(avisos: AvisoGuardado): Promise<void> {
+    this.avisos.set(avisos.id, { ...avisos });
+  }
+
+  async borrarAvisos(ids: string[]): Promise<void> {
+    for (const id of ids) this.avisos.delete(id);
   }
 }

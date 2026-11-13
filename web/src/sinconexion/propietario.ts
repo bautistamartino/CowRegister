@@ -17,8 +17,8 @@ export type DecisionIngreso =
 
 const mismo = (a: Propietario, b: Propietario) => a.usuarioId === b.usuarioId && a.establecimientoId === b.establecimientoId;
 
-// `propietariosLocales`: de quién es cada dato guardado (copia, pendientes, enviados). `pendientes`: cuántos
-// litros pendientes hay guardados en total (esperando, enviando o rechazados). Si algún dato es de otro, se
+// `propietariosLocales`: de quién es cada dato guardado (copia, pendientes, enviados y avisos). `pendientes`:
+// cuántas cargas no aceptadas hay guardadas en total, de cualquier tipo (esperando, enviando o rechazadas). Si algún dato es de otro, se
 // decide como "otro": al borrar se borra todo, así que nunca se mezclan.
 export function decidirIngreso(sesion: Propietario, propietariosLocales: Propietario[], pendientes: number): DecisionIngreso {
   if (propietariosLocales.every((p) => mismo(p, sesion))) return { tipo: 'continuar' };
@@ -27,11 +27,13 @@ export function decidirIngreso(sesion: Propietario, propietariosLocales: Propiet
 
 // Lee lo guardado y decide (no borra nada: el borrado lo hace quien llama, tras la confirmación si hace falta).
 export async function evaluarIngreso(almacen: Almacen, sesion: Propietario): Promise<DecisionIngreso> {
-  const [meta, pendientes, enviados] = await Promise.all([almacen.leerMeta(), almacen.listarPendientes(), almacen.listarEnviados()]);
+  const [meta, pendientes, enviados, avisos] = await Promise.all([almacen.leerMeta(), almacen.listarPendientes(), almacen.listarEnviados(), almacen.listarAvisos()]);
   const duenos: Propietario[] = [
     ...(meta ? [meta.propietario] : []),
     ...pendientes.map((p) => ({ usuarioId: p.usuarioId, establecimientoId: p.establecimientoId })),
     ...enviados.map((e) => ({ usuarioId: e.usuarioId, establecimientoId: e.establecimientoId })),
+    // Los avisos del servidor también son datos con dueño: nunca se muestran a otro usuario ni tambo (RF-30).
+    ...avisos.map((a) => ({ usuarioId: a.usuarioId, establecimientoId: a.establecimientoId })),
   ];
   return decidirIngreso(sesion, duenos, pendientes.length);
 }
@@ -46,7 +48,7 @@ export async function perfilParaEntrarSinConexion(almacen: Almacen): Promise<Per
   return decision.tipo === 'continuar' ? perfil : null;
 }
 
-// Cierre de sesión: intenta cerrar la del servidor y borra TODO lo local (copia, pendientes, enviados y perfil).
+// Cierre de sesión: intenta cerrar la del servidor y borra TODO lo local (copia, pendientes, enviados, avisos y perfil).
 //  - `cerrarServidor` devuelve 'cerrado' o 'sin-red' (no se llegó al servidor, RF-45): en ambos casos se borra.
 //  - Si el servidor responde con otro error, no se borra nada y el error sube (la sesión sigue abierta).
 //  - Si falla el borrado local, el error sube para avisarlo: no se finge un cierre que no ocurrió.

@@ -3,7 +3,7 @@ import { Link, Navigate } from 'react-router';
 import { useAuth } from '../sesion/auth';
 import { formatearFecha, puedeCargar } from '../animales/animalesDatos';
 import { formatearLitros, NOMBRE_TURNO, textoMomento } from '../produccion/produccionDatos';
-import type { Pendiente } from './almacen';
+import { datosLitros, type Pendiente } from './almacen';
 import { Confirmar } from './Confirmar';
 import { useCola } from './ColaProvider';
 import { INICIO_MENSAJE_DUPLICADO } from './cola';
@@ -11,8 +11,21 @@ import { INICIO_MENSAJE_DUPLICADO } from './cola';
 // "Pendientes de sincronizar" (spec 009, RF-36 a RF-40): los litros cargados que el servidor todavía no
 // aceptó, con su estado. Rechazados: se pueden reintentar o descartar. Funciona también sin conexión.
 
+// Textos mínimos por tipo; los resúmenes completos ("Parto con 2 crías") son de la spec 011.
+const TEXTO_TIPO: Record<Pendiente['tipo'], string> = {
+  LITROS: 'Litros',
+  SERVICIO: 'Servicio',
+  TACTO: 'Tacto',
+  PARTO: 'Parto',
+  SECADO: 'Secado',
+  BAJA: 'Baja',
+  ANULACION: 'Anulación',
+};
+
 function resumen(p: Pendiente): string {
-  return `Vaca ${p.numero} · ${formatearFecha(p.fecha)} · ${NOMBRE_TURNO[p.turno]} · ${formatearLitros(Number(p.litros))} L`;
+  if (p.tipo !== 'LITROS') return `Vaca ${p.numero} · ${TEXTO_TIPO[p.tipo]}`;
+  const d = datosLitros(p);
+  return `Vaca ${p.numero} · ${formatearFecha(d.fecha)} · ${NOMBRE_TURNO[d.turno]} · ${formatearLitros(Number(d.litros))} L`;
 }
 
 // El rechazo por duplicado (409 "Ya hay una carga…", texto de la API): gana el que llegó primero al servidor (spec 009).
