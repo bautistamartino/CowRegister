@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Confirmar } from '../sinconexion/Confirmar';
 import { useAuth } from './auth';
 
-// Aviso del ingreso de otro usuario o tambo (spec 009, RF-46). En la tablet quedaron litros pendientes de
+// Aviso del ingreso de otro usuario o tambo (spec 009, RF-46). En la tablet quedaron registros pendientes de
 // otra persona: para ingresar hay que borrarlos, y eso solo pasa con confirmación explícita. Mientras se
 // decide no se muestra ningún dato (ni del anterior ni del nuevo). Si cancela, se vuelve al ingreso.
 export function ConfirmarIngreso() {
@@ -40,7 +40,7 @@ export function ConfirmarIngreso() {
         ocupado={ocupado}
       >
         <p>
-          En esta tablet quedaron los datos de otro usuario o de otro tambo. Si seguís, se van a perder {n} {n === 1 ? 'litro cargado' : 'litros cargados'} que todavía no{' '}
+          En esta tablet quedaron los datos de otro usuario o de otro tambo. Si seguís, se van a perder {n} {n === 1 ? 'registro cargado' : 'registros cargados'} que todavía no{' '}
           {n === 1 ? 'se envió' : 'se enviaron'} al servidor. Se borra todo lo del anterior antes de mostrar nada del nuevo.
         </p>
       </Confirmar>
