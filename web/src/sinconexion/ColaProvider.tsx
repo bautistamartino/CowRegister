@@ -10,6 +10,7 @@ import { limpiarEnviadosReflejados } from './reflejo';
 import { registrar as registrarPuro, type ResultadoRegistro } from './registrar';
 import { obtenerConexion } from './conexion';
 import { enviarPendiente, nuevoId } from './envio';
+import { descartarYReanudar, reintentarYReanudar } from './reanudar';
 import { crearSincronizador, type OpcionesRonda } from './sincronizar';
 import { useSinConexion } from './SinConexionProvider';
 import { useEnLinea } from './useConexion';
@@ -229,11 +230,11 @@ export function ColaProvider({ children }: { children: ReactNode }) {
       cargar,
       sincronizarAhora: () => correr({ ignorarEsperas: true }, true),
       reintentarAhora: (id) => correr({ soloId: id, ignorarEsperas: true }, true),
+      // Tras reintentar o descartar se corre una ronda completa (sin soloId) para reanudar a los de la misma vaca (RF-27).
       reintentar: async (id) => {
-        await sincronizador?.reintentar(id);
-        await correr({ soloId: id, ignorarEsperas: true }, true);
+        if (sincronizador) await reintentarYReanudar(sincronizador, id, () => correr({ ignorarEsperas: true }, true));
       },
-      descartar: async (id, opciones) => (sincronizador ? sincronizador.descartar(id, opciones) : 'no-existe'),
+      descartar: async (id, opciones) => (sincronizador ? descartarYReanudar(sincronizador, id, opciones, () => correr({ ignorarEsperas: true }, true)) : 'no-existe'),
       posteriores: async (id) => (sincronizador ? sincronizador.posteriores(id) : []),
       cerrarAvisos: async (ids) => {
         await sincronizador?.cerrarAvisos(ids);
