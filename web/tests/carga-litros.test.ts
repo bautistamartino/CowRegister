@@ -20,6 +20,7 @@ function armar(envio: Envio, cambios: { enLinea?: boolean; maxPendientes?: numbe
     cargarLitros({
       almacen,
       persona,
+      rol: 'DUENO',
       datos: { animalId: 'a1', numero: '12', fecha: '2026-11-12', turno: 'manana', litros: '12,5', ...datos },
       registrosCopia: [],
       enLinea: cambios.enLinea ?? true,

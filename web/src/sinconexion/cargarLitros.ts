@@ -1,17 +1,19 @@
-// Carga de los litros de una vaca desde el formulario (spec 009, RF-18, RF-22, RF-24).
+// Carga de los litros de una vaca desde el formulario (spec 009, RF-18, RF-22, RF-24). Desde la spec 010 la
+// decisión de enviar enseguida o dejar pendiente la toma el punto único de registro (registrar.ts); acá quedan las
+// validaciones propias de los litros (formato y duplicado) y la forma del resultado que usa la pantalla.
 // Lógica pura: el envío, el reloj y el generador de ids se inyectan.
 //
-//   Con señal : se manda enseguida. Si el servidor no confirma a los 10 s o falla la red, queda como
-//               pendiente CON EL MISMO ID (reenviarlo después no duplica). Si el servidor lo rechaza por
-//               una regla del negocio, se muestra el motivo y NO se guarda como pendiente.
+//   Con señal : se manda enseguida (si la vaca no tiene eventos sin aceptar delante). Si el servidor no confirma a
+//               los 10 s o falla la red, queda como pendiente CON EL MISMO ID (reenviarlo no duplica). Si el
+//               servidor lo rechaza por una regla del negocio, se muestra el motivo y NO se guarda.
 //   Sin señal : directo a pendiente, sin intentar la red.
+//   Los litros esperan a los eventos pendientes de su vaca (se guardan detrás sin enviarse) pero no los desvían.
 
-import type { RegistroProduccion } from '../compartido/api';
+import type { RegistroProduccion, Rol } from '../compartido/api';
 import type { Almacen, Pendiente } from './almacen';
-import { clasificarRespuesta, enviarConLimite, type Respuesta } from './clasificar';
-import { controlarCarga, guardarNuevoPendiente, type DatosCarga, type Persona } from './cola';
-import { horaParaApi } from './horaArgentina';
-import { ESPERA_CARGA_MS } from './limites';
+import type { Respuesta } from './clasificar';
+import { controlarCarga, type DatosCarga, type Persona } from './cola';
+import { registrar } from './registrar';
 
 export type ResultadoCarga =
   | { tipo: 'enviado'; registro: RegistroProduccion } // el servidor lo aceptó en el momento
@@ -22,6 +24,7 @@ export type ResultadoCarga =
 export async function cargarLitros(args: {
   almacen: Almacen;
   persona: Persona;
+  rol: Rol; // los litros los cargan dueño y encargado (RF-22)
   datos: DatosCarga;
   // Registros de la copia de la vaca, para el duplicado local sin conexión (RF-20).
   registrosCopia: RegistroProduccion[] | null;
@@ -32,65 +35,39 @@ export async function cargarLitros(args: {
   tiempoMs?: number;
   maxPendientes?: number;
 }): Promise<ResultadoCarga> {
-  const { almacen, persona, datos, enLinea, enviar, ahora, generarId, maxPendientes } = args;
+  const { almacen, persona, datos, enLinea } = args;
 
   // Sin señal se mira también la copia; con señal manda el servidor (la copia puede estar vieja).
-  const control = await controlarCarga({ almacen, persona, datos, registrosCopia: enLinea ? null : args.registrosCopia, ahora });
+  const control = await controlarCarga({ almacen, persona, datos, registrosCopia: enLinea ? null : args.registrosCopia, ahora: args.ahora });
   if (!control.ok) return { tipo: 'invalido', errores: control.errores, general: control.general };
 
-  const completos: DatosCarga = { ...datos, litros: control.litros };
-  const id = generarId(); // el id nace acá, en el dispositivo, y es el mismo en todos los reintentos
-
-  const guardar = async (): Promise<ResultadoCarga> => {
-    const r = await guardarNuevoPendiente({ almacen, persona, datos: completos, id, ahora, maxPendientes });
-    return r.ok ? { tipo: 'pendiente', pendiente: r.pendiente } : { tipo: 'sinLugar', mensaje: r.mensaje };
-  };
-
-  if (!enLinea) return guardar();
-
-  // Con señal: se manda como si ya fuera un pendiente (mismo formato), sin guardarlo todavía.
-  const p: Pendiente = {
-    id,
-    usuarioId: persona.usuarioId,
-    establecimientoId: persona.establecimientoId,
-    animalId: completos.animalId,
-    numero: completos.numero,
+  const r = await registrar({
+    almacen,
+    persona,
+    rol: args.rol,
     tipo: 'LITROS',
-    datos: { fecha: completos.fecha, turno: completos.turno, litros: completos.litros },
-    cargadoEnDispositivo: horaParaApi(ahora),
-    orden: 0,
-    estado: 'enviando',
-    motivo: null,
-    codigoRechazo: null,
-    intentos: 0,
-    proximoIntento: null,
-  };
-  const respuesta = await enviarConLimite(enviar, p, args.tiempoMs ?? ESPERA_CARGA_MS);
-  const c = clasificarRespuesta(respuesta, p);
+    animal: { id: datos.animalId, numero: datos.numero },
+    datos: { fecha: datos.fecha, turno: datos.turno, litros: control.litros },
+    enLinea,
+    enviar: args.enviar,
+    ahora: args.ahora,
+    generarId: args.generarId,
+    tiempoMs: args.tiempoMs,
+    maxPendientes: args.maxPendientes,
+  });
 
-  if (c.tipo === 'aceptado') {
-    // Queda como "enviado" hasta que la copia lo incluya: si se corta la señal enseguida, la ficha igual lo muestra.
-    await almacen
-      .guardarEnviado({
-        id,
-        usuarioId: persona.usuarioId,
-        establecimientoId: persona.establecimientoId,
-        animalId: p.animalId,
-        numero: p.numero,
-        tipo: 'LITROS',
-        datos: p.datos,
-        aceptadoEn: Date.parse(c.registro.registradoEn),
-        registro: c.registro,
-      })
-      .catch(() => undefined);
-    return { tipo: 'enviado', registro: c.registro };
+  switch (r.tipo) {
+    case 'enviado':
+      // Un envío de litros aceptado siempre trae el registro (lo exige la clasificación).
+      return r.registro ? { tipo: 'enviado', registro: r.registro } : { tipo: 'sinLugar', mensaje: 'Respuesta inesperada del servidor' };
+    case 'pendiente':
+      return { tipo: 'pendiente', pendiente: r.pendiente };
+    case 'sinLugar':
+      return { tipo: 'sinLugar', mensaje: r.mensaje };
+    case 'rechazado': {
+      // Se muestra campo por campo si corresponde (400 de validación) o como mensaje general.
+      const generalSinCampo = Object.keys(r.campos).length === 0 ? r.mensaje : null;
+      return { tipo: 'invalido', errores: r.campos, general: generalSinCampo };
+    }
   }
-  if (c.tipo === 'rechazado') {
-    // El servidor dijo que no por una regla: se muestra (campo por campo si corresponde) y no se guarda.
-    const generalSinCampo = Object.keys(c.campos).length === 0 ? c.motivo : null;
-    return { tipo: 'invalido', errores: c.campos, general: generalSinCampo };
-  }
-  // 'esperar' (red, tiempo agotado, 5xx, HTML...) o 'sesion' (401): no se pierde lo cargado.
-  return guardar();
 }
-

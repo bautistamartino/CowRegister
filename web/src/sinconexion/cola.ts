@@ -4,7 +4,7 @@
 
 import type { RegistroProduccion, TurnoOrdeno } from '../compartido/api';
 import { validarLitros } from '../produccion/produccionDatos';
-import { datosLitros, ErrorSinEspacio, type Almacen, type Enviado, type Pendiente, type TipoPendiente } from './almacen';
+import { datosLitros, ErrorSinEspacio, type Almacen, type AvisoGuardado, type Enviado, type Pendiente, type TipoPendiente } from './almacen';
 import { fechaYTurnoArgentina, horaParaApi } from './horaArgentina';
 import { MAX_PENDIENTES } from './limites';
 
@@ -26,6 +26,11 @@ export async function pendientesDe(almacen: Almacen, persona: Persona): Promise<
 
 export async function enviadosDe(almacen: Almacen, persona: Persona): Promise<Enviado[]> {
   return delPropietario(await almacen.listarEnviados(), persona);
+}
+
+// Avisos del servidor que el usuario todavía no cerró (spec 010, RF-28).
+export async function avisosDe(almacen: Almacen, persona: Persona): Promise<AvisoGuardado[]> {
+  return delPropietario(await almacen.listarAvisos(), persona);
 }
 
 // Cantidades para el menú y las confirmaciones (RF-42, RF-30): todos los pendientes NO aceptados, de cualquier

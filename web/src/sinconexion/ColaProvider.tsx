@@ -6,7 +6,7 @@ import { obtenerAlmacen } from './almacenIndexedDb';
 import { cargarLitros, type ResultadoCarga } from './cargarLitros';
 import { contarPendientes, enviadosDe, limpiarEnviadosIncluidos, pendientesDe, restablecerEnviando, type DatosCarga, type Persona } from './cola';
 import { obtenerConexion } from './conexion';
-import { enviarLitros, nuevoId } from './envio';
+import { enviarPendiente, nuevoId } from './envio';
 import { crearSincronizador, type OpcionesRonda } from './sincronizar';
 import { useSinConexion } from './SinConexionProvider';
 import { useEnLinea } from './useConexion';
@@ -31,7 +31,7 @@ type Estado = {
   sincronizarAhora: () => Promise<void>; // envía todos los que esperan, sin esperar el reintento automático
   reintentarAhora: (id: string) => Promise<void>; // "Reintentar ahora" de uno que espera
   reintentar: (id: string) => Promise<void>; // "Reintentar" de uno rechazado
-  descartar: (id: string) => Promise<'descartado' | 'ya-guardado' | 'no-existe'>;
+  descartar: (id: string) => Promise<'descartado' | 'ya-guardado' | 'no-existe' | 'requiere-confirmacion'>; // la confirmación de un "en espera" la conecta la T5
 };
 
 const ColaContext = createContext<Estado | null>(null);
@@ -50,6 +50,8 @@ export function ColaProvider({ children }: { children: ReactNode }) {
   const [enviados, setEnviados] = useState<Enviado[]>([]);
   const [progreso, setProgreso] = useState<{ actual: number; total: number } | null>(null);
 
+  const rolRef = useRef(usuario?.rol ?? null);
+  rolRef.current = usuario?.rol ?? null;
   const usuarioId = usuario?.id ?? null;
   const establecimientoId = usuario?.establecimiento.id ?? null;
   const persona: Persona | null = useMemo(() => (usuarioId && establecimientoId ? { usuarioId, establecimientoId } : null), [usuarioId, establecimientoId]);
@@ -73,7 +75,7 @@ export function ColaProvider({ children }: { children: ReactNode }) {
   const sincronizador = useMemo(
     () =>
       persona
-        ? crearSincronizador({ almacen: obtenerAlmacen(), persona, enviar: enviarLitros, ahora: () => Date.now(), alProgreso: setProgreso, alCambiar: () => void recargar() })
+        ? crearSincronizador({ almacen: obtenerAlmacen(), persona, enviar: enviarPendiente, ahora: () => Date.now(), alProgreso: setProgreso, alCambiar: () => void recargar() })
         : null,
     [persona, recargar],
   );
@@ -145,8 +147,10 @@ export function ColaProvider({ children }: { children: ReactNode }) {
     async (datos, registrosCopia) => {
       const p = personaRef.current;
       if (!p) throw new Error('No hay sesión');
+      const rol = rolRef.current;
+      if (!rol) throw new Error('No hay sesión');
       const conSenal = obtenerConexion().enLinea();
-      const r = await cargarLitros({ almacen: obtenerAlmacen(), persona: p, datos, registrosCopia, enLinea: conSenal, enviar: enviarLitros, ahora: new Date(), generarId: nuevoId });
+      const r = await cargarLitros({ almacen: obtenerAlmacen(), persona: p, rol, datos, registrosCopia, enLinea: conSenal, enviar: enviarPendiente, ahora: new Date(), generarId: nuevoId });
       await recargar();
       // Con señal pero sin confirmación (señal mala): se reintenta solo en unos segundos.
       if (r.tipo === 'pendiente' && conSenal) programar(Date.now() + 5_000);

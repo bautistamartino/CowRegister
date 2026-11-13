@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { clasificarRespuesta } from '../src/sinconexion/clasificar';
-import { aceptada, pendiente, registroDe } from './ayudas';
+import { aceptada, aceptadaDe, ANULADO_EN, pendiente, pendienteDe, registroDe, REGISTRADO_EN } from './ayudas';
 
 // Tabla cerrada de respuestas del servidor al enviar un pendiente (spec 009, RF-24 y RF-29 a RF-32).
 
@@ -11,7 +11,7 @@ describe('aceptado', () => {
   it('201 con el registro que coincide con el pendiente', () => {
     const c = clasificarRespuesta(aceptada(p), p);
     expect(c.tipo).toBe('aceptado');
-    if (c.tipo === 'aceptado') expect(c.registro.id).toBe(p.id);
+    if (c.tipo === 'aceptado') expect(c.registro?.id).toBe(p.id);
   });
 
   it('200 (ya estaba guardado con el mismo id y los mismos datos) también es aceptado', () => {
@@ -85,5 +85,60 @@ describe('esperar: se reintenta solo, nunca rechazado', () => {
       const c = clasificarRespuesta(r, p);
       expect(c.tipo === 'esperar' && c.motivo.length > 0).toBe(true);
     }
+  });
+});
+
+// ─── Spec 010: forma aceptada por tipo (RF-25, RF-28) ───
+
+describe('aceptado por tipo de evento', () => {
+  it.each(['SERVICIO', 'TACTO', 'PARTO', 'SECADO', 'BAJA'] as const)('%s: el 201 de su ruta es aceptado, con la hora del servidor y sin registro de litros', (tipo) => {
+    const pe = pendienteDe(tipo);
+    const c = clasificarRespuesta(aceptadaDe(pe), pe);
+    expect(c).toMatchObject({ tipo: 'aceptado', registro: null, aceptadoEn: Date.parse(REGISTRADO_EN), avisos: [] });
+  });
+
+  it.each(['SERVICIO', 'TACTO', 'PARTO', 'SECADO', 'BAJA'] as const)('%s: el 200 "yaExistia" con el mismo id también es aceptado', (tipo) => {
+    const pe = pendienteDe(tipo);
+    expect(clasificarRespuesta(aceptadaDe(pe, { reenvio: true }), pe).tipo).toBe('aceptado');
+  });
+
+  it('los avisos del cuerpo (201 o 200) viajan en la clasificación', () => {
+    const avisos = [{ codigo: 'LOTE_1', mensaje: 'La vaca pasó al lote Ordeñe' }];
+    const pe = pendienteDe('PARTO');
+    expect(clasificarRespuesta(aceptadaDe(pe, { avisos }), pe)).toMatchObject({ tipo: 'aceptado', avisos });
+    expect(clasificarRespuesta(aceptadaDe(pe, { avisos, reenvio: true }), pe)).toMatchObject({ tipo: 'aceptado', avisos });
+  });
+
+  it.each(['SERVICIO', 'TACTO', 'PARTO', 'SECADO'] as const)('anulación de %s: aceptada con la hora de la anulación (también el reenvío "yaEstabaAnulado")', (tipoEvento) => {
+    const pe = pendienteDe('ANULACION', { datos: { eventoId: 'ev-9', tipoEvento, motivo: 'x' } });
+    expect(clasificarRespuesta(aceptadaDe(pe), pe)).toMatchObject({ tipo: 'aceptado', aceptadoEn: Date.parse(ANULADO_EN) });
+    expect(clasificarRespuesta(aceptadaDe(pe, { reenvio: true }), pe).tipo).toBe('aceptado');
+  });
+
+  it('un 2xx de otro evento (otro id), sin forma de la API o HTML de un portal NO es aceptado: espera', () => {
+    const pe = pendienteDe('SERVICIO');
+    const otro = aceptadaDe(pendienteDe('SERVICIO', { id: 'otro' }));
+    expect(clasificarRespuesta(otro, pe).tipo).toBe('esperar');
+    expect(clasificarRespuesta({ estado: 200, cuerpo: null }, pe).tipo).toBe('esperar');
+    expect(clasificarRespuesta({ estado: 200, cuerpo: { cosa: 1 } }, pe).tipo).toBe('esperar');
+    // Un parto cuyo 201 vino sin la caja { evento, avisos } no es de la API.
+    const parto = pendienteDe('PARTO');
+    expect(clasificarRespuesta({ estado: 201, cuerpo: (aceptadaDe(pendienteDe('SERVICIO', { id: parto.id })).cuerpo as object) }, parto).tipo).toBe('esperar');
+  });
+
+  it('una anulación cuya respuesta no trae el evento anulado, o es de otro evento, espera', () => {
+    const pe = pendienteDe('ANULACION');
+    const sinAnular = aceptadaDe(pendienteDe('SERVICIO', { id: 'evento-1' }));
+    expect(clasificarRespuesta(sinAnular, pe).tipo).toBe('esperar');
+    const otra = pendienteDe('ANULACION', { datos: { eventoId: 'distinto', tipoEvento: 'SERVICIO', motivo: 'x' } });
+    expect(clasificarRespuesta(aceptadaDe(otra), pe).tipo).toBe('esperar');
+  });
+
+  it('la tabla cerrada no cambia con los eventos: 409 es rechazo, 401 sesión, 503 y la red esperan', () => {
+    const pe = pendienteDe('TACTO');
+    expect(clasificarRespuesta(conError(409, 'La vaca tiene una preñez vigente'), pe)).toMatchObject({ tipo: 'rechazado', estado: 409 });
+    expect(clasificarRespuesta({ estado: 401, cuerpo: null }, pe).tipo).toBe('sesion');
+    expect(clasificarRespuesta({ estado: 503, cuerpo: null }, pe).tipo).toBe('esperar');
+    expect(clasificarRespuesta({ red: true }, pe)).toMatchObject({ tipo: 'esperar', red: true });
   });
 });

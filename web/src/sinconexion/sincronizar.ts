@@ -1,16 +1,19 @@
-// Sincronización de los litros pendientes con el servidor (spec 009, RF-29 a RF-32, RF-34, RF-37 a RF-39).
+// Sincronización de los pendientes con el servidor (spec 009, RF-29 a RF-32, RF-34, RF-37 a RF-39; spec 010,
+// RF-25 a RF-29: todos los tipos, con orden y espera por vaca).
 // Lógica pura: el envío real (`enviar`), el reloj y el candado entre pestañas se inyectan, así se prueba
 // con Vitest sin red ni navegador.
 //
 // Reglas principales:
-//   - De a UNO y en el orden en que se cargaron.
+//   - De a UNO y en el orden en que se cargaron. Un pendiente de una vaca espera a los EVENTOS anteriores de
+//     esa vaca (dependencias.ts); las demás vacas no se frenan.
 //   - Un pendiente solo sale de la cola si el servidor lo acepta (pasa a "enviado reciente") o si el usuario
 //     lo descarta. Nada se pierde solo.
 //   - La clasificación de respuestas (qué es rechazo, qué espera) vive en clasificar.ts.
 
-import type { Almacen, Pendiente } from './almacen';
+import type { Almacen, AvisoGuardado, Pendiente } from './almacen';
 import { clasificarRespuesta, enviarConLimite, type Respuesta } from './clasificar';
-import { delPropietario, enviadosDe, pendientesDe, type Persona } from './cola';
+import { avisosDe, enviadosDe, pendientesDe, type Persona } from './cola';
+import { estadoVisible, posterioresDe, puedeEnviarse } from './dependencias';
 import { ESPERA_ENVIO_MS, esperaTrasFallo } from './limites';
 
 export type OpcionesRonda = {
@@ -32,7 +35,7 @@ export type ResultadoRonda = {
 export type Dependencias = {
   almacen: Almacen;
   persona: Persona;
-  // El envío real al servidor (en la app: POST /api/animales/:id/produccion con el id del pendiente).
+  // El envío real al servidor (en la app: envio.ts, a la ruta del tipo y con el id del pendiente).
   enviar: (p: Pendiente, senal: AbortSignal) => Promise<Respuesta> | Respuesta;
   ahora: () => number;
   tiempoMs?: number;
@@ -62,7 +65,7 @@ export function crearSincronizador(deps: Dependencias) {
   // Envíos en curso en esta pestaña, por id del pendiente: "Descartar" espera a que terminen (RF-39).
   const enVuelo = new Map<string, Promise<void>>();
 
-  // Envía UN pendiente y guarda el resultado. Devuelve si hay que cortar la ronda.
+  // Envía UN pendiente y guarda el resultado.
   async function enviarUno(p: Pendiente, r: ResultadoRonda): Promise<void> {
     try {
       await almacen.guardarPendiente({ ...p, estado: 'enviando' });
@@ -75,7 +78,12 @@ export function crearSincronizador(deps: Dependencias) {
     const c = clasificarRespuesta(respuesta, p);
     try {
       if (c.tipo === 'aceptado') {
-        // El pendiente se borra y se guarda como "enviado reciente" en UNA operación (RF-34).
+        // El pendiente se borra y se guarda como "enviado reciente" y, si hubo, sus avisos, en UNA operación
+        // (RF-34, RF-28). Los avisos sobreviven al enviado: solo se borran cuando el usuario los cierra.
+        const avisos: AvisoGuardado | null =
+          c.avisos.length > 0
+            ? { id: p.id, usuarioId: p.usuarioId, establecimientoId: p.establecimientoId, animalId: p.animalId, numero: p.numero, tipo: p.tipo, avisos: c.avisos }
+            : null;
         await almacen.aceptarPendiente(
           p.id,
           {
@@ -86,14 +94,15 @@ export function crearSincronizador(deps: Dependencias) {
             numero: p.numero,
             tipo: p.tipo,
             datos: p.datos,
-            aceptadoEn: Date.parse(c.registro.registradoEn), // hora del servidor
+            aceptadoEn: c.aceptadoEn, // hora del servidor
             registro: c.registro,
           },
-          null, // los litros no traen avisos
+          avisos,
         );
         r.aceptados++;
       } else if (c.tipo === 'rechazado') {
-        // No se reintenta solo: queda con el motivo hasta que el usuario elija (RF-30).
+        // No se reintenta solo: queda con el motivo hasta que el usuario elija (RF-29). Los posteriores de la
+        // vaca quedan "en espera del anterior" (se calcula en dependencias.ts; no se toca ninguno).
         await almacen.guardarPendiente({ ...p, estado: 'rechazado', motivo: c.motivo, codigoRechazo: c.estado, proximoIntento: null });
         r.rechazados++;
       } else if (c.tipo === 'sesion') {
@@ -101,6 +110,8 @@ export function crearSincronizador(deps: Dependencias) {
         await almacen.guardarPendiente({ ...p, estado: 'esperando' });
         r.detenido = 'sesion';
       } else {
+        // Falla transitoria o respuesta cortada: vuelve a esperando con el MISMO id y datos (el pendiente es
+        // inmutable) y su espera creciente. Sigue en `pendientes`, así que frena a los siguientes de su vaca.
         const intentos = p.intentos + 1;
         await almacen.guardarPendiente({ ...p, estado: 'esperando', intentos, motivo: c.motivo, proximoIntento: ahora() + esperaTrasFallo(intentos) });
         if (c.red) r.detenido = 'red'; // sin red, los que siguen fallarían igual: no se insiste
@@ -112,20 +123,23 @@ export function crearSincronizador(deps: Dependencias) {
     deps.alCambiar?.();
   }
 
+  // Una ronda (RF-25): se repite "elegir el primero que puede enviarse por orden de carga, enviarlo y guardar el
+  // resultado" hasta que no quede ninguno. Cada pendiente se intenta UNA sola vez por ronda. Si el primero de una
+  // cadena (una vaca) se acepta, el siguiente puede salir en la misma ronda; si falla o se rechaza, sus
+  // siguientes quedan frenados y las demás vacas siguen.
   async function cuerpoDeLaRonda(opciones: OpcionesRonda, r: ResultadoRonda): Promise<void> {
-    const ahoraMs = ahora();
-    const debidos = (await pendientesDe(almacen, persona)).filter(
-      (p) =>
-        p.tipo === 'LITROS' && // hasta la T4 solo se envían litros: los demás tipos todavía no tienen ruta de envío
-        p.estado === 'esperando' &&
-        (opciones.soloId === undefined || p.id === opciones.soloId) &&
-        (opciones.ignorarEsperas || p.proximoIntento === null || p.proximoIntento <= ahoraMs),
-    );
-    for (const [i, listado] of debidos.entries()) {
-      // Se vuelve a leer: pudo descartarse o cambiar mientras se enviaban los anteriores.
-      const p = (await pendientesDe(almacen, persona)).find((x) => x.id === listado.id);
-      if (!p || p.estado !== 'esperando') continue;
-      deps.alProgreso?.({ actual: i + 1, total: debidos.length });
+    const intentados = new Set<string>();
+    const total = (await pendientesDe(almacen, persona)).filter((p) => p.estado === 'esperando' && (opciones.soloId === undefined || p.id === opciones.soloId)).length;
+    for (;;) {
+      // Se vuelve a leer en cada vuelta: pudo descartarse, reintentarse o cambiar mientras se enviaba.
+      const todos = await pendientesDe(almacen, persona);
+      const ahoraMs = ahora();
+      const p = todos.find(
+        (x) => !intentados.has(x.id) && (opciones.soloId === undefined || x.id === opciones.soloId) && puedeEnviarse(x, todos, ahoraMs, opciones.ignorarEsperas),
+      );
+      if (!p) break;
+      intentados.add(p.id);
+      deps.alProgreso?.({ actual: Math.min(intentados.size, total), total });
       const paso = enviarUno(p, r);
       enVuelo.set(p.id, paso);
       try {
@@ -181,7 +195,8 @@ export function crearSincronizador(deps: Dependencias) {
     return corriendo;
   }
 
-  // "Reintentar" de un pendiente rechazado: vuelve a esperar con el mismo id (RF-37).
+  // "Reintentar" de un pendiente rechazado: vuelve a esperar con el mismo id (RF-37). Los que esperaban por él
+  // se liberan solos (el estado "en espera" se calcula, no se guarda).
   async function reintentar(id: string): Promise<void> {
     const p = (await pendientesDe(almacen, persona)).find((x) => x.id === id);
     if (!p || p.estado !== 'rechazado') return;
@@ -189,18 +204,37 @@ export function crearSincronizador(deps: Dependencias) {
     deps.alCambiar?.();
   }
 
-  // "Descartar" (RF-38, RF-39): la confirmación la pide la pantalla antes de llamar a esto. Si el pendiente
-  // se está enviando, espera el resultado: si el servidor lo aceptó no se borra (ya quedó guardado).
-  async function descartar(id: string): Promise<'descartado' | 'ya-guardado' | 'no-existe'> {
+  // Los pendientes de la misma vaca cargados DESPUÉS de este (RF-17): lo que la pantalla puede avisar antes de
+  // descartarlo. No toca nada.
+  async function posteriores(id: string): Promise<Pendiente[]> {
+    const todos = await pendientesDe(almacen, persona);
+    const p = todos.find((x) => x.id === id);
+    return p ? posterioresDe(p, todos) : [];
+  }
+
+  // "Descartar" (RF-17, RF-27, RF-38, RF-39). Si el pendiente se está enviando, espera el resultado: si el servidor
+  // lo aceptó no se borra (ya quedó guardado). Si está "en espera del anterior" (un evento anterior de su vaca
+  // está rechazado) NO lo quita sin la confirmación del usuario: devuelve 'requiere-confirmacion' y la pantalla
+  // vuelve a llamar con `confirmado: true`. No descarta ni modifica a los posteriores.
+  async function descartar(id: string, opciones: { confirmado?: boolean } = {}): Promise<'descartado' | 'ya-guardado' | 'no-existe' | 'requiere-confirmacion'> {
     const enCurso = enVuelo.get(id);
     if (enCurso) await enCurso.catch(() => undefined);
-    const p = (await pendientesDe(almacen, persona)).find((x) => x.id === id);
+    const todos = await pendientesDe(almacen, persona);
+    const p = todos.find((x) => x.id === id);
     if (!p) return (await enviadosDe(almacen, persona)).some((e) => e.id === id) ? 'ya-guardado' : 'no-existe';
-    if (!delPropietario([p], persona).length) return 'no-existe';
+    if (estadoVisible(p, todos) === 'enEspera' && !opciones.confirmado) return 'requiere-confirmacion';
     await almacen.borrarPendiente(id);
     deps.alCambiar?.();
     return 'descartado';
   }
 
-  return { sincronizar, reintentar, descartar, enCurso: () => corriendo !== null };
+  // El usuario cierra avisos del servidor (RF-28). Solo los suyos.
+  async function cerrarAvisos(ids: string[]): Promise<void> {
+    const propios = new Set((await avisosDe(almacen, persona)).map((a) => a.id));
+    const aBorrar = ids.filter((id) => propios.has(id));
+    if (aBorrar.length > 0) await almacen.borrarAvisos(aBorrar);
+    deps.alCambiar?.();
+  }
+
+  return { sincronizar, reintentar, descartar, posteriores, cerrarAvisos, enCurso: () => corriendo !== null };
 }
