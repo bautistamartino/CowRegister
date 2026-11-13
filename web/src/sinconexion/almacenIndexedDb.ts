@@ -117,7 +117,7 @@ export class AlmacenIndexedDb implements Almacen {
       const animales = tx.objectStore(ANIMALES);
       animales.clear();
       for (const animal of copia.animales) animales.put(animal);
-      const meta: MetaCopia = { generadaEn: copia.generadaEn, totalAnimales: copia.totalAnimales, lotes: copia.lotes, propietario };
+      const meta: MetaCopia = { generadaEn: copia.generadaEn, totalAnimales: copia.totalAnimales, lotes: copia.lotes, propietario, ...(copia.semen && { semen: copia.semen }) };
       tx.objectStore(META).put(meta, 'copia');
     } catch (e) {
       // Una excepción síncrona (por ejemplo, un dato que no se puede clonar): se cancela todo.

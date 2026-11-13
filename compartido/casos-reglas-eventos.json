@@ -1,0 +1,4367 @@
+{
+ "descripcion": "Tabla de casos compartida (spec 010, RF-23). La corren api/tests/casos-compartidos.test.ts (contra las rutas reales) y web/tests/casos-compartidos.test.ts (contra las reglas locales). Formato y reglas en specs/010-eventos-sin-conexion/plan.md. Es un archivo de datos: se edita directo.",
+ "casos": [
+  {
+   "id": "servicio-ok",
+   "descripcion": "Un servicio válido a una vaca sin eventos se acepta",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-01"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "servicio-veterinario-ok",
+   "descripcion": "El veterinario puede cargar servicios",
+   "tipo": "SERVICIO",
+   "rol": "VETERINARIO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-01"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "servicio-fecha-igual-ultimo-ok",
+   "descripcion": "Una fecha igual a la del último evento se acepta",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "t1",
+        "tipo": "TACTO",
+        "fecha": "2026-10-01",
+        "resultado": "VACIA",
+        "fechaProbableIndicada": null,
+        "anomalias": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-10-01"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "servicio-fecha-ausente",
+   "descripcion": "Sin fecha: 400 con el mensaje de zod",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha es obligatoria",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "servicio-fecha-formato",
+   "descripcion": "Un 31 de febrero no es una fecha válida",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-02-31"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha no es válida: usá el formato AAAA-MM-DD con un día que exista",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "servicio-fecha-futura",
+   "descripcion": "Una fecha futura se rechaza",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-20"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha no puede ser futura",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "servicio-fecha-anterior-2000",
+   "descripcion": "Una fecha anterior al 01/01/2000 se rechaza",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "1999-12-31"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha no puede ser anterior al 01/01/2000",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "servicio-fecha-anterior-nacimiento",
+   "descripcion": "Una fecha anterior al nacimiento se rechaza",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2021-12-31"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha no puede ser anterior al nacimiento del animal",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "servicio-fecha-anterior-ultimo",
+   "descripcion": "Una fecha anterior a la del último evento se rechaza",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "t1",
+        "tipo": "TACTO",
+        "fecha": "2026-10-01",
+        "resultado": "VACIA",
+        "fechaProbableIndicada": null,
+        "anomalias": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-09-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha no puede ser anterior a la del último evento (01/10/2026). Si falta cargar un evento anterior, primero anulá los posteriores",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "servicio-tipo-invalido",
+   "descripcion": "Un tipo de servicio inválido se rechaza",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "OTRO",
+     "fecha": "2026-11-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "El tipo de servicio tiene que ser inseminación o monta natural",
+    "campo": "tipo"
+   }
+  },
+  {
+   "id": "servicio-macho",
+   "descripcion": "Un macho no admite servicios",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "MACHO",
+      "estado": "RECIEN_NACIDO",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Un macho no admite servicios ni tactos"
+   }
+  },
+  {
+   "id": "servicio-recien-nacida",
+   "descripcion": "Una recién nacida no admite servicios",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "RECIEN_NACIDO",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Una recién nacida todavía no admite servicios ni tactos"
+   }
+  },
+  {
+   "id": "servicio-prenez-vigente-copia",
+   "descripcion": "Con un tacto \"preñada\" vigente en la copia, el servicio se rechaza",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-08-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       },
+       {
+        "ref": "t1",
+        "tipo": "TACTO",
+        "fecha": "2026-10-01",
+        "resultado": "PRENADA",
+        "fechaProbableIndicada": null,
+        "anomalias": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-05"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "La vaca tiene una preñez vigente: primero registrá un tacto \"vacía\""
+   }
+  },
+  {
+   "id": "servicio-prenez-vigente-previa-esperando",
+   "descripcion": "Un tacto \"preñada\" cargado antes (esperando) frena al servicio del mismo día",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "TACTO",
+     "animal": "A",
+     "datos": {
+      "fecha": "2026-11-01",
+      "resultado": "PRENADA",
+      "fechaProbableParto": "2027-06-01"
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "La vaca tiene una preñez vigente: primero registrá un tacto \"vacía\""
+   }
+  },
+  {
+   "id": "servicio-prenez-vigente-previa-enviado",
+   "descripcion": "Un tacto \"preñada\" cargado antes (enviado) frena al servicio del mismo día",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "TACTO",
+     "animal": "A",
+     "datos": {
+      "fecha": "2026-11-01",
+      "resultado": "PRENADA",
+      "fechaProbableParto": "2027-06-01"
+     },
+     "estado": "enviado"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "La vaca tiene una preñez vigente: primero registrá un tacto \"vacía\""
+   }
+  },
+  {
+   "id": "servicio-prenez-anulada-por-previa-ok",
+   "descripcion": "Si el tacto \"preñada\" ya tiene una anulación cargada antes, el servicio se acepta",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-08-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       },
+       {
+        "ref": "t1",
+        "tipo": "TACTO",
+        "fecha": "2026-10-01",
+        "resultado": "PRENADA",
+        "fechaProbableIndicada": null,
+        "anomalias": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "ANULACION",
+     "animal": "A",
+     "datos": {
+      "eventoId": "t1",
+      "tipoEvento": "TACTO",
+      "motivo": "Tacto mal cargado"
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-05"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "servicio-semen-activo-ok",
+   "descripcion": "Un semen activo del catálogo se acepta",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": [
+     {
+      "ref": "sm1",
+      "nombre": "Toro Alfa",
+      "activo": true
+     },
+     {
+      "ref": "sm2",
+      "nombre": "Toro Beta",
+      "activo": false
+     }
+    ]
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-01",
+     "semenId": "sm1"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "servicio-semen-desactivado",
+   "descripcion": "Un semen desactivado antes de la copia se rechaza",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": [
+     {
+      "ref": "sm1",
+      "nombre": "Toro Alfa",
+      "activo": true
+     },
+     {
+      "ref": "sm2",
+      "nombre": "Toro Beta",
+      "activo": false
+     }
+    ]
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-01",
+     "semenId": "sm2"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "El semen o toro está desactivado: elegí otro o reactivalo"
+   }
+  },
+  {
+   "id": "servicio-semen-desactivado-despues",
+   "descripcion": "Un semen desactivado después de la copia solo lo sabe el servidor",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": [
+     {
+      "ref": "sm1",
+      "nombre": "Toro Alfa",
+      "activo": true
+     },
+     {
+      "ref": "sm2",
+      "nombre": "Toro Beta",
+      "activo": false
+     }
+    ]
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-01",
+     "semenId": "sm1"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "El semen o toro está desactivado: elegí otro o reactivalo"
+   },
+   "soloServidor": true,
+   "motivoSoloServidor": "La copia todavía lo trae como activo: la tablet no puede saber que lo desactivaron después",
+   "alServidor": {
+    "desactivarSemen": [
+     "sm1"
+    ]
+   }
+  },
+  {
+   "id": "servicio-semen-inexistente",
+   "descripcion": "Un semen que no existe da 400 en el servidor",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": [
+     {
+      "ref": "sm1",
+      "nombre": "Toro Alfa",
+      "activo": true
+     },
+     {
+      "ref": "sm2",
+      "nombre": "Toro Beta",
+      "activo": false
+     }
+    ]
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-01",
+     "semenId": "sm-inexistente"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "El semen o toro indicado no existe",
+    "campo": "semenId"
+   },
+   "soloServidor": true,
+   "motivoSoloServidor": "La copia solo trae los semen activos: la tablet no distingue entre inexistente y desactivado"
+  },
+  {
+   "id": "servicio-vaca-baja-por-otro-dispositivo",
+   "descripcion": "Una vaca dada de baja por otro dispositivo después de la copia da 404",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 404,
+    "mensaje": "Animal no encontrado"
+   },
+   "soloServidor": true,
+   "motivoSoloServidor": "La copia todavía trae a la vaca como activa",
+   "alServidor": {
+    "bajaAnimales": [
+     "A"
+    ]
+   }
+  },
+  {
+   "id": "servicio-vaca-con-baja-pendiente",
+   "descripcion": "Con una baja cargada antes (sin conexión), la vaca ya no admite servicios",
+   "tipo": "SERVICIO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "BAJA",
+     "animal": "A",
+     "datos": {
+      "motivo": "venta",
+      "fecha": "2026-11-10"
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "tipo": "INSEMINACION",
+     "fecha": "2026-11-11"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 404,
+    "mensaje": "Animal no encontrado"
+   }
+  },
+  {
+   "id": "tacto-vacia-ok",
+   "descripcion": "Un tacto \"vacía\" válido se acepta",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "VACIA",
+     "fecha": "2026-11-01"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "tacto-prenada-con-servicio-ok",
+   "descripcion": "Un tacto \"preñada\" con un servicio en la copia se acepta (la fecha probable sale del servicio)",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-08-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "PRENADA",
+     "fecha": "2026-10-01"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "tacto-prenada-con-servicio-previo-ok",
+   "descripcion": "Un tacto \"preñada\" con un servicio cargado antes se acepta",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "SERVICIO",
+     "animal": "A",
+     "datos": {
+      "fecha": "2026-08-01",
+      "tipo": "INSEMINACION"
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "PRENADA",
+     "fecha": "2026-10-01"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "tacto-prenada-sin-servicio",
+   "descripcion": "Un tacto \"preñada\" sin servicio ni fecha probable pide la fecha",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "PRENADA",
+     "fecha": "2026-10-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "Indicá la fecha probable de parto: no hay un servicio del que calcularla",
+    "campo": "fechaProbableParto"
+   }
+  },
+  {
+   "id": "tacto-prenada-con-fecha-ok",
+   "descripcion": "Un tacto \"preñada\" con la fecha probable indicada se acepta sin servicio",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "PRENADA",
+     "fecha": "2026-11-01",
+     "fechaProbableParto": "2027-06-01"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "tacto-vacia-con-fecha-probable",
+   "descripcion": "Un tacto \"vacía\" no lleva fecha probable",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "VACIA",
+     "fecha": "2026-11-01",
+     "fechaProbableParto": "2027-06-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "Un tacto \"vacía\" no lleva fecha probable de parto",
+    "campo": "fechaProbableParto"
+   }
+  },
+  {
+   "id": "tacto-fecha-probable-formato",
+   "descripcion": "La fecha probable tiene que existir",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "PRENADA",
+     "fecha": "2026-11-01",
+     "fechaProbableParto": "2027-13-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha probable de parto no es válida: usá el formato AAAA-MM-DD con un día que exista",
+    "campo": "fechaProbableParto"
+   }
+  },
+  {
+   "id": "tacto-fecha-probable-no-posterior",
+   "descripcion": "La fecha probable tiene que ser posterior al tacto",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "PRENADA",
+     "fecha": "2026-11-01",
+     "fechaProbableParto": "2026-11-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha probable de parto tiene que ser posterior a la fecha del tacto",
+    "campo": "fechaProbableParto"
+   }
+  },
+  {
+   "id": "tacto-fecha-probable-lejana",
+   "descripcion": "La fecha probable no puede superar los 283 días",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "PRENADA",
+     "fecha": "2026-11-01",
+     "fechaProbableParto": "2027-08-12"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha probable de parto no puede superar los 283 días después del tacto",
+    "campo": "fechaProbableParto"
+   }
+  },
+  {
+   "id": "tacto-resultado-invalido",
+   "descripcion": "Un resultado inválido se rechaza",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "DUDOSA",
+     "fecha": "2026-11-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "El resultado del tacto tiene que ser preñada o vacía",
+    "campo": "resultado"
+   }
+  },
+  {
+   "id": "tacto-anomalias-largas",
+   "descripcion": "Más de 200 caracteres de anomalías se rechazan",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "VACIA",
+     "fecha": "2026-11-01",
+     "anomalias": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "Las anomalías no pueden superar los 200 caracteres",
+    "campo": "anomalias"
+   }
+  },
+  {
+   "id": "tacto-fecha-futura",
+   "descripcion": "Una fecha futura se rechaza",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "VACIA",
+     "fecha": "2026-11-13"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha no puede ser futura",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "tacto-fecha-anterior-ultimo",
+   "descripcion": "Una fecha anterior al último evento se rechaza",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-10-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "VACIA",
+     "fecha": "2026-09-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha no puede ser anterior a la del último evento (01/10/2026). Si falta cargar un evento anterior, primero anulá los posteriores",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "tacto-macho",
+   "descripcion": "Un macho no admite tactos",
+   "tipo": "TACTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "MACHO",
+      "estado": "RECIEN_NACIDO",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "VACIA",
+     "fecha": "2026-11-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Un macho no admite servicios ni tactos"
+   }
+  },
+  {
+   "id": "tacto-veterinario-ok",
+   "descripcion": "El veterinario puede cargar tactos",
+   "tipo": "TACTO",
+   "rol": "VETERINARIO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "resultado": "VACIA",
+     "fecha": "2026-11-01"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "parto-ok",
+   "descripcion": "Un parto con una cría viva se acepta",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "parto-mellizos-ok",
+   "descripcion": "Un parto con una viva y una muerta se acepta",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      },
+      {
+       "sexo": "MACHO",
+       "nacidaMuerta": true
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "parto-veterinario",
+   "descripcion": "El veterinario no puede cargar partos",
+   "tipo": "PARTO",
+   "rol": "VETERINARIO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 403,
+    "mensaje": "No tenés permiso para hacer esto"
+   }
+  },
+  {
+   "id": "parto-sin-crias",
+   "descripcion": "Un parto sin crías se rechaza",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": []
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "El parto necesita al menos una cría",
+    "campo": "crias"
+   }
+  },
+  {
+   "id": "parto-tres-crias",
+   "descripcion": "Un parto con tres crías se rechaza",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      },
+      {
+       "sexo": "HEMBRA",
+       "numero": "C2"
+      },
+      {
+       "sexo": "HEMBRA",
+       "numero": "C3"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "Un parto puede tener como máximo dos crías",
+    "campo": "crias"
+   }
+  },
+  {
+   "id": "parto-cria-viva-sin-numero",
+   "descripcion": "Una cría viva sin número se rechaza",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "El número de la cría viva es obligatorio",
+    "campo": "crias.0.numero"
+   }
+  },
+  {
+   "id": "parto-cria-muerta-con-numero",
+   "descripcion": "Una cría muerta no lleva número",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1",
+       "nacidaMuerta": true
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "Una cría nacida muerta no lleva número",
+    "campo": "crias.0.numero"
+   }
+  },
+  {
+   "id": "parto-numeros-repetidos",
+   "descripcion": "Dos crías no pueden tener el mismo número",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      },
+      {
+       "sexo": "HEMBRA",
+       "numero": "c1"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "Las dos crías no pueden tener el mismo número",
+    "campo": "crias.1.numero"
+   }
+  },
+  {
+   "id": "parto-numero-formato",
+   "descripcion": "Un número con espacios se rechaza",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C 1"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "El número solo puede tener letras sin tildes, números, guion y punto (sin espacios)",
+    "campo": "crias.0.numero"
+   }
+  },
+  {
+   "id": "parto-numero-largo",
+   "descripcion": "Un número de más de 20 caracteres se rechaza",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "CCCCCCCCCCCCCCCCCCCCC"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "El número del animal no puede superar los 20 caracteres",
+    "campo": "crias.0.numero"
+   }
+  },
+  {
+   "id": "parto-sexo-invalido",
+   "descripcion": "Un sexo inválido se rechaza",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "OTRO",
+       "numero": "C1"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "El sexo de la cría tiene que ser hembra o macho",
+    "campo": "crias.0.sexo"
+   }
+  },
+  {
+   "id": "parto-observaciones-largas",
+   "descripcion": "Más de 200 caracteres de observaciones se rechazan",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1",
+       "observaciones": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "Las observaciones no pueden superar los 200 caracteres",
+    "campo": "crias.0.observaciones"
+   }
+  },
+  {
+   "id": "parto-fecha-futura",
+   "descripcion": "Una fecha futura se rechaza",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-13",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha no puede ser futura",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "parto-fecha-igual-nacimiento-madre",
+   "descripcion": "La fecha del parto tiene que ser posterior al nacimiento de la madre",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "VAQUILLONA",
+      "nacimiento": "2026-06-01",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-06-01",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha del parto tiene que ser posterior al nacimiento de la madre",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "parto-macho",
+   "descripcion": "Un macho no admite partos",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "MACHO",
+      "estado": "RECIEN_NACIDO",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Un macho no admite partos"
+   }
+  },
+  {
+   "id": "parto-recien-nacida",
+   "descripcion": "Una recién nacida no admite partos",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "RECIEN_NACIDO",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Una recién nacida todavía no admite partos"
+   }
+  },
+  {
+   "id": "parto-separacion-200-dias",
+   "descripcion": "Dos partos a menos de 200 días se rechazan",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "p1",
+        "tipo": "PARTO",
+        "fecha": "2026-08-01"
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "La vaca ya tiene un parto del 01/08/2026: tiene que haber al menos 200 días entre dos partos. Si fue un aborto o un parto prematuro, registralo como un tacto \"vacía\""
+   }
+  },
+  {
+   "id": "parto-separacion-parto-previo",
+   "descripcion": "Un parto cargado antes (sin conexión) también cuenta para los 200 días",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "PARTO",
+     "animal": "A",
+     "datos": {
+      "fecha": "2026-11-05",
+      "crias": [
+       {
+        "sexo": "HEMBRA",
+        "numero": "C1"
+       }
+      ]
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-11",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C2"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "La vaca ya tiene un parto del 05/11/2026: tiene que haber al menos 200 días entre dos partos. Si fue un aborto o un parto prematuro, registralo como un tacto \"vacía\""
+   }
+  },
+  {
+   "id": "parto-parto-anulado-no-cuenta-ok",
+   "descripcion": "Un parto anulado (por una anulación cargada antes) no cuenta para los 200 días",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "p1",
+        "tipo": "PARTO",
+        "fecha": "2026-08-01",
+        "crias": [
+         {
+          "sexo": "HEMBRA",
+          "numero": "C1-ANTIGUA"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "ANULACION",
+     "animal": "A",
+     "datos": {
+      "eventoId": "p1",
+      "tipoEvento": "PARTO",
+      "motivo": "Parto cargado por error"
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C2"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "parto-numero-ocupado",
+   "descripcion": "El número de una cría ya usado por un animal activo se rechaza",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     },
+     {
+      "ref": "B",
+      "numero": "C1",
+      "sexo": "HEMBRA",
+      "estado": "RECIEN_NACIDO",
+      "nacimiento": "2026-10-01",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Ya existe un animal activo con ese número",
+    "campo": "crias.0.numero"
+   }
+  },
+  {
+   "id": "parto-numero-ocupado-segunda-cria",
+   "descripcion": "Se marca la cría que repite el número",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     },
+     {
+      "ref": "B",
+      "numero": "C2",
+      "sexo": "HEMBRA",
+      "estado": "RECIEN_NACIDO",
+      "nacimiento": "2026-10-01",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      },
+      {
+       "sexo": "HEMBRA",
+       "numero": "C2"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Ya existe un animal activo con ese número",
+    "campo": "crias.1.numero"
+   }
+  },
+  {
+   "id": "parto-numero-ocupado-minusculas",
+   "descripcion": "El número se compara ya normalizado (mayúsculas y sin espacios en los extremos)",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     },
+     {
+      "ref": "B",
+      "numero": "C1",
+      "sexo": "HEMBRA",
+      "estado": "RECIEN_NACIDO",
+      "nacimiento": "2026-10-01",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": " c1 "
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Ya existe un animal activo con ese número",
+    "campo": "crias.0.numero"
+   }
+  },
+  {
+   "id": "parto-numero-de-parto-previo-esperando",
+   "descripcion": "El número de una cría de un parto de otra vaca cargado antes (esperando) está ocupado",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     },
+     {
+      "ref": "B",
+      "numero": "102",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "PARTO",
+     "animal": "B",
+     "datos": {
+      "fecha": "2026-11-05",
+      "crias": [
+       {
+        "sexo": "HEMBRA",
+        "numero": "C9"
+       }
+      ]
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C9"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Ya existe un animal activo con ese número",
+    "campo": "crias.0.numero"
+   }
+  },
+  {
+   "id": "parto-numero-de-parto-previo-enviado",
+   "descripcion": "El número de una cría de un parto de otra vaca cargado antes (enviado) está ocupado",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     },
+     {
+      "ref": "B",
+      "numero": "102",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "PARTO",
+     "animal": "B",
+     "datos": {
+      "fecha": "2026-11-05",
+      "crias": [
+       {
+        "sexo": "HEMBRA",
+        "numero": "C9"
+       }
+      ]
+     },
+     "estado": "enviado"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C9"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Ya existe un animal activo con ese número",
+    "campo": "crias.0.numero"
+   }
+  },
+  {
+   "id": "parto-numero-de-parto-previo-distinto-ok",
+   "descripcion": "Otro número de cría no choca con el parto cargado antes",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     },
+     {
+      "ref": "B",
+      "numero": "102",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "PARTO",
+     "animal": "B",
+     "datos": {
+      "fecha": "2026-11-05",
+      "crias": [
+       {
+        "sexo": "HEMBRA",
+        "numero": "C9"
+       }
+      ]
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C8"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "parto-numero-de-baja-previa-libre",
+   "descripcion": "El número de un animal con baja cargada antes queda libre",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     },
+     {
+      "ref": "B",
+      "numero": "C1",
+      "sexo": "HEMBRA",
+      "estado": "RECIEN_NACIDO",
+      "nacimiento": "2026-10-01",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "BAJA",
+     "animal": "B",
+     "datos": {
+      "motivo": "muerte",
+      "fecha": "2026-11-08"
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "parto-numero-de-baja-previa-enviada-libre",
+   "descripcion": "El número de un animal con baja ya enviada (que la copia no refleja) queda libre",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     },
+     {
+      "ref": "B",
+      "numero": "C1",
+      "sexo": "HEMBRA",
+      "estado": "RECIEN_NACIDO",
+      "nacimiento": "2026-10-01",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "BAJA",
+     "animal": "B",
+     "datos": {
+      "motivo": "venta",
+      "fecha": "2026-11-08"
+     },
+     "estado": "enviado"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C1"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "parto-numero-ocupado-despues-de-la-copia",
+   "descripcion": "Un número ocupado después de la copia solo lo sabe el servidor",
+   "tipo": "PARTO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10",
+     "crias": [
+      {
+       "sexo": "HEMBRA",
+       "numero": "C7"
+      }
+     ]
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Ya existe un animal activo con ese número",
+    "campo": "crias.0.numero"
+   },
+   "soloServidor": true,
+   "motivoSoloServidor": "Otro dispositivo creó un animal con ese número después de la copia",
+   "alServidor": {
+    "ocuparNumeros": [
+     "C7"
+    ]
+   }
+  },
+  {
+   "id": "secado-ok",
+   "descripcion": "Secar una vaca en ordeñe se acepta",
+   "tipo": "SECADO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "secado-veterinario",
+   "descripcion": "El veterinario no puede cargar secados",
+   "tipo": "SECADO",
+   "rol": "VETERINARIO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 403,
+    "mensaje": "No tenés permiso para hacer esto"
+   }
+  },
+  {
+   "id": "secado-vaca-seca",
+   "descripcion": "Una vaca seca no se puede secar",
+   "tipo": "SECADO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "SECA",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Solo se puede secar una vaca en ordeñe: esta está en estado «seca»"
+   }
+  },
+  {
+   "id": "secado-vaquillona",
+   "descripcion": "Una vaquillona no se puede secar",
+   "tipo": "SECADO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "VAQUILLONA",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Solo se puede secar una vaca en ordeñe: esta está en estado «vaquillona»"
+   }
+  },
+  {
+   "id": "secado-macho",
+   "descripcion": "Un macho no admite secados",
+   "tipo": "SECADO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "MACHO",
+      "estado": "RECIEN_NACIDO",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-10"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Un macho no admite secados"
+   }
+  },
+  {
+   "id": "secado-con-secado-previo",
+   "descripcion": "Con un secado cargado antes, la vaca ya está seca",
+   "tipo": "SECADO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "SECADO",
+     "animal": "A",
+     "datos": {
+      "fecha": "2026-11-10"
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-11"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Solo se puede secar una vaca en ordeñe: esta está en estado «seca»"
+   }
+  },
+  {
+   "id": "secado-con-parto-previo-ok",
+   "descripcion": "Con un parto cargado antes, una vaquillona pasa a ordeñe y se puede secar",
+   "tipo": "SECADO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "VAQUILLONA",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "PARTO",
+     "animal": "A",
+     "datos": {
+      "fecha": "2026-11-10",
+      "crias": [
+       {
+        "sexo": "HEMBRA",
+        "numero": "C1"
+       }
+      ]
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-11-11"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "secado-fecha-anterior-ultimo",
+   "descripcion": "Una fecha anterior al último evento se rechaza",
+   "tipo": "SECADO",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "t1",
+        "tipo": "TACTO",
+        "fecha": "2026-10-01",
+        "resultado": "VACIA",
+        "fechaProbableIndicada": null,
+        "anomalias": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "fecha": "2026-09-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha no puede ser anterior a la del último evento (01/10/2026). Si falta cargar un evento anterior, primero anulá los posteriores",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "baja-ok",
+   "descripcion": "Una baja por venta se acepta",
+   "tipo": "BAJA",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "motivo": "venta",
+     "fecha": "2026-11-10"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "baja-muerte-con-observaciones-ok",
+   "descripcion": "Una baja por muerte con observaciones se acepta",
+   "tipo": "BAJA",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "motivo": "muerte",
+     "fecha": "2026-11-10",
+     "observaciones": "Timpanismo"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "baja-veterinario",
+   "descripcion": "El veterinario no puede dar de baja",
+   "tipo": "BAJA",
+   "rol": "VETERINARIO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "motivo": "venta",
+     "fecha": "2026-11-10"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 403,
+    "mensaje": "No tenés permiso para hacer esto"
+   }
+  },
+  {
+   "id": "baja-motivo-invalido",
+   "descripcion": "Un motivo que no es venta ni muerte se rechaza",
+   "tipo": "BAJA",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "motivo": "robo",
+     "fecha": "2026-11-10"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "El motivo tiene que ser venta o muerte",
+    "campo": "motivo"
+   }
+  },
+  {
+   "id": "baja-fecha-formato",
+   "descripcion": "Un 31 de febrero no es una fecha válida",
+   "tipo": "BAJA",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "motivo": "venta",
+     "fecha": "2026-02-31"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha no es válida: usá el formato AAAA-MM-DD con un día que exista",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "baja-fecha-futura",
+   "descripcion": "Una fecha futura se rechaza",
+   "tipo": "BAJA",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "motivo": "venta",
+     "fecha": "2026-11-20"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha de la baja no puede ser futura (hoy es 12/11/2026)",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "baja-fecha-anterior-2000",
+   "descripcion": "Una fecha anterior al 2000 se rechaza",
+   "tipo": "BAJA",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "motivo": "venta",
+     "fecha": "1999-12-31"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha de la baja no puede ser anterior al 01/01/2000",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "baja-fecha-anterior-nacimiento",
+   "descripcion": "Una fecha anterior al nacimiento se rechaza",
+   "tipo": "BAJA",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "motivo": "venta",
+     "fecha": "2021-12-31"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha de la baja no puede ser anterior al nacimiento del animal (10/01/2022)",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "baja-fecha-anterior-ultimo",
+   "descripcion": "Una fecha anterior al último evento se rechaza",
+   "tipo": "BAJA",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "t1",
+        "tipo": "TACTO",
+        "fecha": "2026-10-01",
+        "resultado": "VACIA",
+        "fechaProbableIndicada": null,
+        "anomalias": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "motivo": "venta",
+     "fecha": "2026-09-01"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "La fecha de la baja no puede ser anterior a la del último evento del animal (01/10/2026)",
+    "campo": "fecha"
+   }
+  },
+  {
+   "id": "baja-observaciones-largas",
+   "descripcion": "Más de 200 caracteres de observaciones se rechazan",
+   "tipo": "BAJA",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "motivo": "venta",
+     "fecha": "2026-11-10",
+     "observaciones": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "Las observaciones no pueden superar los 200 caracteres",
+    "campo": "observaciones"
+   }
+  },
+  {
+   "id": "baja-doble",
+   "descripcion": "Una vaca con una baja cargada antes ya no admite otra",
+   "tipo": "BAJA",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "BAJA",
+     "animal": "A",
+     "datos": {
+      "motivo": "venta",
+      "fecha": "2026-11-10"
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "motivo": "muerte",
+     "fecha": "2026-11-11"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 404,
+    "mensaje": "Animal no encontrado"
+   }
+  },
+  {
+   "id": "baja-despues-de-evento-previo-ok",
+   "descripcion": "La baja puede ser del mismo día que un evento cargado antes",
+   "tipo": "BAJA",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "SERVICIO",
+     "animal": "A",
+     "datos": {
+      "fecha": "2026-11-10",
+      "tipo": "INSEMINACION"
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "motivo": "venta",
+     "fecha": "2026-11-10"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 201
+   }
+  },
+  {
+   "id": "anular-servicio-ok",
+   "descripcion": "Anular el último servicio se acepta",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-10-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "s1",
+     "tipoEvento": "SERVICIO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 200
+   }
+  },
+  {
+   "id": "anular-tacto-veterinario-ok",
+   "descripcion": "El veterinario puede anular un tacto",
+   "tipo": "ANULACION",
+   "rol": "VETERINARIO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "t1",
+        "tipo": "TACTO",
+        "fecha": "2026-10-01",
+        "resultado": "VACIA",
+        "fechaProbableIndicada": null,
+        "anomalias": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "t1",
+     "tipoEvento": "TACTO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 200
+   }
+  },
+  {
+   "id": "anular-motivo-vacio",
+   "descripcion": "Anular sin motivo se rechaza",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-10-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "s1",
+     "tipoEvento": "SERVICIO",
+     "motivo": "   "
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "El motivo de la anulación es obligatorio",
+    "campo": "motivo"
+   }
+  },
+  {
+   "id": "anular-motivo-largo",
+   "descripcion": "Un motivo de más de 200 caracteres se rechaza",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-10-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "s1",
+     "tipoEvento": "SERVICIO",
+     "motivo": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 400,
+    "mensaje": "El motivo no puede superar los 200 caracteres",
+    "campo": "motivo"
+   }
+  },
+  {
+   "id": "anular-no-es-el-ultimo",
+   "descripcion": "Solo se anula el último evento: antes hay que anular el tacto",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-09-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       },
+       {
+        "ref": "t1",
+        "tipo": "TACTO",
+        "fecha": "2026-10-01",
+        "resultado": "PRENADA",
+        "fechaProbableIndicada": null,
+        "anomalias": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "s1",
+     "tipoEvento": "SERVICIO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Primero tenés que anular el tacto del 01/10/2026"
+   }
+  },
+  {
+   "id": "anular-no-es-el-ultimo-veterinario",
+   "descripcion": "El veterinario que no puede anular el parto posterior recibe el mensaje que se lo explica",
+   "tipo": "ANULACION",
+   "rol": "VETERINARIO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-09-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       },
+       {
+        "ref": "p1",
+        "tipo": "PARTO",
+        "fecha": "2026-10-01",
+        "crias": [
+         {
+          "sexo": "HEMBRA",
+          "numero": "C-P1"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "s1",
+     "tipoEvento": "SERVICIO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Primero hay que anular el parto del 01/10/2026; lo tiene que hacer un dueño o encargado"
+   }
+  },
+  {
+   "id": "anular-detras-de-evento-previo",
+   "descripcion": "Un evento cargado antes (sin conexión) pasa a ser el último y hay que anularlo primero",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-09-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "TACTO",
+     "animal": "A",
+     "datos": {
+      "fecha": "2026-10-01",
+      "resultado": "VACIA"
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "s1",
+     "tipoEvento": "SERVICIO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Primero tenés que anular el tacto del 01/10/2026"
+   }
+  },
+  {
+   "id": "anular-tras-anulacion-previa-ok",
+   "descripcion": "Con el tacto ya anulado (anulación cargada antes), el servicio pasa a ser el último",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-09-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       },
+       {
+        "ref": "t1",
+        "tipo": "TACTO",
+        "fecha": "2026-10-01",
+        "resultado": "PRENADA",
+        "fechaProbableIndicada": null,
+        "anomalias": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "ANULACION",
+     "animal": "A",
+     "datos": {
+      "eventoId": "t1",
+      "tipoEvento": "TACTO",
+      "motivo": "Tacto mal cargado"
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "s1",
+     "tipoEvento": "SERVICIO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 200
+   }
+  },
+  {
+   "id": "anular-evento-previo-ok",
+   "descripcion": "Un servicio cargado antes (sin conexión) se puede anular",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": []
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "SERVICIO",
+     "animal": "A",
+     "datos": {
+      "fecha": "2026-10-01",
+      "tipo": "INSEMINACION"
+     },
+     "estado": "esperando",
+     "ref": "sp"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "sp",
+     "tipoEvento": "SERVICIO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 200
+   }
+  },
+  {
+   "id": "anular-ya-anulado-otro-motivo",
+   "descripcion": "Un evento ya anulado con otro motivo da 409",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-10-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null,
+        "anulacion": {
+         "motivo": "Primer motivo"
+        }
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "s1",
+     "tipoEvento": "SERVICIO",
+     "motivo": "Otro motivo"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Este servicio ya fue anulado"
+   }
+  },
+  {
+   "id": "anular-ya-anulado-por-previa-otro-motivo",
+   "descripcion": "Un evento con una anulación cargada antes con otro motivo da 409",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-10-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "ANULACION",
+     "animal": "A",
+     "datos": {
+      "eventoId": "s1",
+      "tipoEvento": "SERVICIO",
+      "motivo": "Primer motivo"
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "s1",
+     "tipoEvento": "SERVICIO",
+     "motivo": "Otro motivo"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "Este servicio ya fue anulado"
+   }
+  },
+  {
+   "id": "anular-evento-inexistente",
+   "descripcion": "Un evento que no existe da 404",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-10-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "no-existe",
+     "tipoEvento": "SERVICIO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 404,
+    "mensaje": "Evento no encontrado"
+   }
+  },
+  {
+   "id": "anular-evento-de-otro-tipo",
+   "descripcion": "Un id de otro tipo es \"no encontrado\"",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-10-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "s1",
+     "tipoEvento": "TACTO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 404,
+    "mensaje": "Evento no encontrado"
+   }
+  },
+  {
+   "id": "anular-parto-ok",
+   "descripcion": "Anular el último parto se acepta",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "p1",
+        "tipo": "PARTO",
+        "fecha": "2026-10-01"
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "p1",
+     "tipoEvento": "PARTO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 200
+   }
+  },
+  {
+   "id": "anular-secado-ok",
+   "descripcion": "Anular el último secado se acepta",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "SECA",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "d1",
+        "tipo": "SECADO",
+        "fecha": "2026-10-01"
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "d1",
+     "tipoEvento": "SECADO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "ok",
+    "codigo": 200
+   }
+  },
+  {
+   "id": "anular-parto-veterinario",
+   "descripcion": "El veterinario no puede anular un parto",
+   "tipo": "ANULACION",
+   "rol": "VETERINARIO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "p1",
+        "tipo": "PARTO",
+        "fecha": "2026-10-01"
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "p1",
+     "tipoEvento": "PARTO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 403,
+    "mensaje": "No tenés permiso para hacer esto"
+   }
+  },
+  {
+   "id": "anular-secado-veterinario",
+   "descripcion": "El veterinario no puede anular un secado",
+   "tipo": "ANULACION",
+   "rol": "VETERINARIO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "SECA",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "d1",
+        "tipo": "SECADO",
+        "fecha": "2026-10-01"
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "d1",
+     "tipoEvento": "SECADO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 403,
+    "mensaje": "No tenés permiso para hacer esto"
+   }
+  },
+  {
+   "id": "anular-parto-estado-cambiado",
+   "descripcion": "No se anula un parto si la vaca ya no está en ordeñe",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "SECA",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "p1",
+        "tipo": "PARTO",
+        "fecha": "2026-10-01"
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "p1",
+     "tipoEvento": "PARTO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "No se puede anular el parto del 01/10/2026: la vaca ya no está en estado «en ordeñe», ahora está «seca»"
+   }
+  },
+  {
+   "id": "anular-secado-estado-cambiado",
+   "descripcion": "No se anula un secado si la vaca ya no está seca",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "d1",
+        "tipo": "SECADO",
+        "fecha": "2026-10-01"
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "d1",
+     "tipoEvento": "SECADO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "No se puede anular el secado del 01/10/2026: la vaca ya no está en estado «seca», ahora está «en ordeñe»"
+   }
+  },
+  {
+   "id": "anular-parto-con-crias-con-eventos",
+   "descripcion": "No se anula un parto si sus crías ya tienen eventos",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "p1",
+        "tipo": "PARTO",
+        "fecha": "2026-10-01",
+        "crias": [
+         {
+          "sexo": "HEMBRA",
+          "numero": "C5"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "p1",
+     "tipoEvento": "PARTO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 409,
+    "mensaje": "No se puede anular el parto: la cría N.º C5 tiene eventos registrados, primero hay que anularlos"
+   },
+   "soloServidor": true,
+   "motivoSoloServidor": "Las crías del parto de la copia no son animales de la tablet: solo el servidor sabe si tienen eventos",
+   "alServidor": {
+    "eventosEnAnimales": [
+     {
+      "numero": "C5",
+      "fecha": "2026-10-05"
+     }
+    ]
+   }
+  },
+  {
+   "id": "anular-con-baja-previa",
+   "descripcion": "Con una baja cargada antes, la vaca ya no está y no hay evento que anular",
+   "tipo": "ANULACION",
+   "rol": "DUENO",
+   "hoy": "2026-11-12",
+   "base": {
+    "animales": [
+     {
+      "ref": "A",
+      "numero": "101",
+      "sexo": "HEMBRA",
+      "estado": "EN_ORDENE",
+      "nacimiento": "2022-01-10",
+      "eventos": [
+       {
+        "ref": "s1",
+        "tipo": "SERVICIO",
+        "fecha": "2026-10-01",
+        "tipoServicio": "INSEMINACION",
+        "semen": null
+       }
+      ]
+     }
+    ],
+    "semen": []
+   },
+   "previas": [
+    {
+     "tipo": "BAJA",
+     "animal": "A",
+     "datos": {
+      "motivo": "venta",
+      "fecha": "2026-11-10"
+     },
+     "estado": "esperando"
+    }
+   ],
+   "pedido": {
+    "animal": "A",
+    "datos": {
+     "eventoId": "s1",
+     "tipoEvento": "SERVICIO",
+     "motivo": "Error de carga"
+    }
+   },
+   "esperado": {
+    "resultado": "rechazo",
+    "codigo": 404,
+    "mensaje": "Evento no encontrado"
+   }
+  }
+ ]
+}

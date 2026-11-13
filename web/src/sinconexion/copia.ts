@@ -33,6 +33,7 @@ function esCopiaValida(x: unknown): x is CopiaLocal {
     !Number.isNaN(Date.parse(c.generadaEn)) &&
     Array.isArray(c.lotes) &&
     Array.isArray(c.animales) &&
+    (c.semen === undefined || Array.isArray(c.semen)) && // el semen es opcional (una copia vieja no lo trae)
     c.totalAnimales === c.animales.length // una copia cortada o recortada no coincide con su total
   );
 }

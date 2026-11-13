@@ -45,7 +45,7 @@ export class AlmacenMemoria implements Almacen {
       borrador.push(animal);
     }
     this.animales = borrador;
-    this.meta = { generadaEn: copia.generadaEn, totalAnimales: copia.totalAnimales, lotes: copia.lotes, propietario };
+    this.meta = { generadaEn: copia.generadaEn, totalAnimales: copia.totalAnimales, lotes: copia.lotes, propietario, ...(copia.semen && { semen: copia.semen }) };
   }
 
   async borrarCopia(): Promise<void> {

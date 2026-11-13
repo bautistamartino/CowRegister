@@ -120,6 +120,15 @@ describe.each(implementaciones)('almacén %s', (_nombre, crear) => {
     expect(await almacen.leerMeta()).toMatchObject({ generadaEn: copia.generadaEn, totalAnimales: 1, propietario: persona });
     expect((await almacen.leerAnimales()).map((a) => a.ficha.id)).toEqual(['a1']);
   });
+
+  // Spec 010, RF-8: el semen activo viaja con la copia y se guarda en la meta (la regla local de "semen activo" lo usa).
+  it('guarda el semen de la copia en la meta, y una copia sin semen no lo inventa', async () => {
+    const semen = [{ id: 'sm1', nombre: 'Toro Alfa', raza: 'Holando' }, { id: 'sm2', nombre: 'Toro Beta', raza: null }];
+    await almacen.reemplazarCopia({ ...copia, semen }, persona);
+    expect((await almacen.leerMeta())?.semen).toEqual(semen);
+    await almacen.reemplazarCopia(copia, persona);
+    expect((await almacen.leerMeta())?.semen).toBeUndefined();
+  });
 });
 
 describe('falta de espacio (memoria)', () => {

@@ -251,6 +251,9 @@ export type EventoReproductivo = {
   fecha: string; // AAAA-MM-DD
   registradoPor: string;
   registradoEn: string;
+  // Hora que tenía la tablet al cargar el evento (spec 010, RF-3): solo informativa. Opcional porque una copia
+  // guardada antes de la spec 010 no la trae.
+  cargadoEnDispositivo?: string | null;
   anulacion: { motivo: string | null; por: string | null; en: string } | null;
   servicio: { tipoServicio: TipoServicio; semen: { id: string; nombre: string } | null } | null;
   tacto: { resultado: ResultadoTacto; fechaProbableIndicada: string | null; fechaProbable: string | null; anomalias: string | null } | null;
@@ -508,5 +511,10 @@ export type CopiaLocal = {
   generadaEn: string; // instante ISO
   totalAnimales: number;
   lotes: Lote[];
+  // Semen y toros ACTIVOS del tambo (spec 010, RF-8). Opcional: una copia guardada antes de la 010 no lo trae.
+  semen?: SemenCopia[];
   animales: AnimalCopia[];
 };
+
+// Un semen o toro activo de la copia (sin `activo`: solo viajan los activos).
+export type SemenCopia = { id: string; nombre: string; raza: string | null };

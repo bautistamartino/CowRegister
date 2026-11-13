@@ -6,7 +6,9 @@
 //   - almacenMemoria.ts: la de los tests (sin navegador).
 // Así toda la lógica se prueba con Vitest sin tocar IndexedDB.
 
-import type { AnimalCopia, Aviso, CopiaLocal, Lote, Perfil, RegistroProduccion, TurnoOrdeno } from '../compartido/api';
+import type { AnimalCopia, Aviso, CopiaLocal, Lote, Perfil, RegistroProduccion, SemenCopia, TurnoOrdeno } from '../compartido/api';
+
+export type { SemenCopia };
 
 // Se lanza cuando el navegador no tiene espacio para guardar (QuotaExceededError en IndexedDB).
 export class ErrorSinEspacio extends Error {
@@ -26,11 +28,9 @@ export type MetaCopia = {
   lotes: Lote[];
   propietario: Propietario;
   // Semen y toros activos del tambo (spec 010, RF-8). Opcional: una copia guardada antes de la 010 no lo tiene;
-  // mientras falte, la regla local de "semen activo" no se aplica y decide el servidor. (La copia lo guarda en la T3.)
+  // mientras falte, la regla local de "semen activo" no se aplica y decide el servidor.
   semen?: SemenCopia[];
 };
-
-export type SemenCopia = { id: string; nombre: string; raza: string | null };
 
 // ─── Pendientes de sincronizar (spec 009 para litros; spec 010 para todos los tipos) ───
 
