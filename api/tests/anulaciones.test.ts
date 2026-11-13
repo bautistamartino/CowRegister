@@ -124,7 +124,8 @@ describe('solo el último evento no anulado (RF-20)', () => {
   it('ya anulado: 409', async () => {
     const { agente, tacto } = await vacaServidaYPrenada();
     await anularTacto(agente, tacto.id).expect(200);
-    const res = await anularTacto(agente, tacto.id).expect(409);
+    // Spec 010: el mismo usuario con el mismo motivo es una repetición aceptada; con otro motivo, 409.
+    const res = await anularTacto(agente, tacto.id, 'Otro motivo').expect(409);
     expect(res.body.error).toMatch(/ya fue anulado/i);
   });
 

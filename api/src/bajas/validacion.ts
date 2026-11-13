@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { FECHA_MINIMA } from '../animales/reglas.js';
 import { aFechaCorta, fechaEventoSchema } from '../reproduccion/fechas.js';
+import { horaTabletSchema } from '../horaTablet.js';
+import { idPropioSchema } from '../idPropio.js';
 
 // Validación de las bajas por venta o muerte (spec 006). Acá vive todo lo que NO necesita la base:
 // el cuerpo de los pedidos (zod, mensajes en español) y las reglas de la fecha de baja.
@@ -43,7 +45,14 @@ const observacionesSchema = z
   });
 
 // Cualquier otro campo del cuerpo (por ejemplo un establecimientoId) se descarta: z.object ignora lo no declarado.
-export const bajaSchema = z.object({ motivo: motivoSchema, fecha: fechaEventoSchema, observaciones: observacionesSchema });
+// Spec 010: `id` propio de la tablet (reenvío idempotente) y la hora en que se cargó (solo informativa).
+export const bajaSchema = z.object({
+  motivo: motivoSchema,
+  fecha: fechaEventoSchema,
+  observaciones: observacionesSchema,
+  id: idPropioSchema,
+  cargadoEnDispositivo: horaTabletSchema,
+});
 
 // Motivo de la reversión: obligatorio, texto, recortado, de 1 a 200 caracteres.
 const motivoReversionSchema = z

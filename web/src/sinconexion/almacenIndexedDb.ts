@@ -3,33 +3,62 @@
 // Base "cowregister-local", con estas "tablas" (object stores):
 //   - animales: un registro por animal de la copia (la clave es el id de la ficha).
 //   - meta: pares clave-valor: "copia" (generadaEn, total, lotes, propietario) y "perfil".
-//   - pendientes: litros cargados que el servidor todavía no aceptó (clave: su id).
-//   - enviados: litros aceptados que la copia local todavía no trae (clave: su id).
+//   - pendientes: cargas (litros y eventos) que el servidor todavía no aceptó (clave: su id).
+//   - enviados: cargas aceptadas que la copia local todavía no refleja (clave: su id).
+//   - avisos: avisos que dio el servidor al aceptar; solo se borran al cerrarlos (clave: el id del pendiente).
 
 import type { AnimalCopia, CopiaLocal, Perfil } from '../compartido/api';
-import { ErrorSinEspacio, type Almacen, type Enviado, type MetaCopia, type Pendiente, type Propietario } from './almacen';
+import { migrarEnviado009, migrarPendiente009 } from './formatoAlmacen';
+import { ErrorSinEspacio, type Almacen, type AvisoGuardado, type Enviado, type MetaCopia, type Pendiente, type Propietario } from './almacen';
 
 const NOMBRE_BD = 'cowregister-local';
-const VERSION = 2; // la 2 suma las tablas de pendientes y enviados (spec 009, T4)
+// La 2 suma pendientes y enviados (spec 009). La 3 suma avisos y pasa los pendientes y enviados al formato
+// general con `tipo` y `datos` (spec 010, RF-13).
+const VERSION = 3;
 const ANIMALES = 'animales';
 const META = 'meta';
 const PENDIENTES = 'pendientes';
 const ENVIADOS = 'enviados';
+const AVISOS = 'avisos';
 
 function abrir(): Promise<IDBDatabase> {
   return new Promise((resolver, rechazar) => {
     const pedido = indexedDB.open(NOMBRE_BD, VERSION);
-    pedido.onupgradeneeded = () => {
+    pedido.onupgradeneeded = (evento) => {
       const bd = pedido.result;
       // La clave de un animal es el id de su ficha ("ficha.id": ruta dentro del objeto).
       if (!bd.objectStoreNames.contains(ANIMALES)) bd.createObjectStore(ANIMALES, { keyPath: 'ficha.id' });
       if (!bd.objectStoreNames.contains(META)) bd.createObjectStore(META);
       if (!bd.objectStoreNames.contains(PENDIENTES)) bd.createObjectStore(PENDIENTES, { keyPath: 'id' });
       if (!bd.objectStoreNames.contains(ENVIADOS)) bd.createObjectStore(ENVIADOS, { keyPath: 'id' });
+      if (!bd.objectStoreNames.contains(AVISOS)) bd.createObjectStore(AVISOS, { keyPath: 'id' });
+
+      // Migración 2 -> 3: se reescriben los litros de la 009 dentro de la propia transacción de actualización
+      // ("versionchange"). Es atómica: si algo falla, el navegador deshace todo y queda la versión 2 intacta.
+      // Una base nueva (oldVersion 0) tiene los almacenes vacíos y el recorrido no hace nada.
+      if (evento.oldVersion < 3) {
+        const tx = pedido.transaction;
+        if (tx) {
+          reescribir(tx.objectStore(PENDIENTES), migrarPendiente009);
+          reescribir(tx.objectStore(ENVIADOS), migrarEnviado009);
+        }
+      }
     };
     pedido.onsuccess = () => resolver(pedido.result);
     pedido.onerror = () => rechazar(pedido.error);
   });
+}
+
+// Recorre un almacén con un cursor y reemplaza cada registro por su versión migrada (solo si cambió).
+function reescribir(almacen: IDBObjectStore, migrar: (viejo: unknown) => unknown): void {
+  const cursor = almacen.openCursor();
+  cursor.onsuccess = () => {
+    const c = cursor.result;
+    if (!c) return;
+    const nuevo = migrar(c.value);
+    if (nuevo !== c.value) c.update(nuevo);
+    c.continue();
+  };
 }
 
 // Convierte el error de IndexedDB: la falta de espacio se distingue del resto.
@@ -88,7 +117,7 @@ export class AlmacenIndexedDb implements Almacen {
       const animales = tx.objectStore(ANIMALES);
       animales.clear();
       for (const animal of copia.animales) animales.put(animal);
-      const meta: MetaCopia = { generadaEn: copia.generadaEn, totalAnimales: copia.totalAnimales, lotes: copia.lotes, propietario };
+      const meta: MetaCopia = { generadaEn: copia.generadaEn, totalAnimales: copia.totalAnimales, lotes: copia.lotes, propietario, ...(copia.semen && { semen: copia.semen }) };
       tx.objectStore(META).put(meta, 'copia');
     } catch (e) {
       // Una excepción síncrona (por ejemplo, un dato que no se puede clonar): se cancela todo.
@@ -126,11 +155,12 @@ export class AlmacenIndexedDb implements Almacen {
 
   async borrarTodo(): Promise<void> {
     const bd = await this.conexion();
-    const tx = bd.transaction([ANIMALES, META, PENDIENTES, ENVIADOS], 'readwrite');
+    const tx = bd.transaction([ANIMALES, META, PENDIENTES, ENVIADOS, AVISOS], 'readwrite');
     tx.objectStore(ANIMALES).clear();
     tx.objectStore(META).clear();
     tx.objectStore(PENDIENTES).clear();
     tx.objectStore(ENVIADOS).clear();
+    tx.objectStore(AVISOS).clear();
     await terminar(tx);
   }
 
@@ -156,11 +186,12 @@ export class AlmacenIndexedDb implements Almacen {
     await terminar(tx);
   }
 
-  // Una sola transacción: o se borra el pendiente Y se guarda el enviado, o no pasa ninguna de las dos.
-  async aceptarPendiente(id: string, enviado: Enviado): Promise<void> {
+  // Una sola transacción: o se borra el pendiente Y se guarda el enviado Y los avisos, o no pasa ninguna.
+  async aceptarPendiente(id: string, enviado: Enviado, avisos: AvisoGuardado | null): Promise<void> {
     const bd = await this.conexion();
-    const tx = bd.transaction([PENDIENTES, ENVIADOS], 'readwrite');
+    const tx = bd.transaction([PENDIENTES, ENVIADOS, AVISOS], 'readwrite');
     tx.objectStore(ENVIADOS).put(enviado);
+    if (avisos) tx.objectStore(AVISOS).put(avisos);
     tx.objectStore(PENDIENTES).delete(id);
     await terminar(tx);
   }
@@ -181,6 +212,27 @@ export class AlmacenIndexedDb implements Almacen {
     const bd = await this.conexion();
     const tx = bd.transaction(ENVIADOS, 'readwrite');
     for (const id of ids) tx.objectStore(ENVIADOS).delete(id);
+    await terminar(tx);
+  }
+
+  // ── Avisos del servidor ──
+
+  async listarAvisos(): Promise<AvisoGuardado[]> {
+    const bd = await this.conexion();
+    return leer(bd.transaction(AVISOS, 'readonly').objectStore(AVISOS).getAll());
+  }
+
+  async guardarAvisos(avisos: AvisoGuardado): Promise<void> {
+    const bd = await this.conexion();
+    const tx = bd.transaction(AVISOS, 'readwrite');
+    tx.objectStore(AVISOS).put(avisos);
+    await terminar(tx);
+  }
+
+  async borrarAvisos(ids: string[]): Promise<void> {
+    const bd = await this.conexion();
+    const tx = bd.transaction(AVISOS, 'readwrite');
+    for (const id of ids) tx.objectStore(AVISOS).delete(id);
     await terminar(tx);
   }
 }

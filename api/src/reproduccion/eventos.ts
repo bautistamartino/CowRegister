@@ -27,6 +27,8 @@ export type CriaDeParto = {
 // Un evento leído de la base: lo que necesita el cálculo más lo que se muestra.
 export type FilaEvento = EventoCalculo & {
   registradoPor: string;
+  // Hora que tenía la tablet al cargar el evento (spec 010, RF-3): solo informativa, nula si no vino.
+  cargadoEnDispositivo: Date | null;
   anuladoEn: Date | null;
   anuladoPor: string | null;
   motivoAnulacion: string | null;
@@ -65,6 +67,7 @@ export async function leerEventosDeAnimales(
       tipo: true,
       fecha: true,
       creadoEn: true,
+      cargadoEnDispositivo: true,
       anuladoEn: true,
       motivoAnulacion: true,
       registradoPor: { select: { nombre: true } },
@@ -128,6 +131,7 @@ export async function leerEventosDeAnimales(
     resultado: f.tacto?.resultado ?? null,
     fechaProbableIndicada: f.tacto?.fechaProbableIndicada ? aTexto(f.tacto.fechaProbableIndicada) : null,
     registradoPor: f.registradoPor.nombre,
+    cargadoEnDispositivo: f.cargadoEnDispositivo,
     anuladoEn: f.anuladoEn,
     anuladoPor: f.anuladoPor?.nombre ?? null,
     motivoAnulacion: f.motivoAnulacion,
@@ -178,6 +182,8 @@ export function armarEvento(fila: FilaEvento, fechasTactos: Map<string, string>,
     fecha: fila.fecha,
     registradoPor: fila.registradoPor,
     registradoEn: fila.creadoEn,
+    // Hora de la tablet (ISO) o null: solo para consultar, nunca ordena ni calcula.
+    cargadoEnDispositivo: fila.cargadoEnDispositivo ? fila.cargadoEnDispositivo.toISOString() : null,
     anulacion: fila.anuladoEn
       ? { motivo: fila.motivoAnulacion, por: fila.anuladoPor, en: fila.anuladoEn }
       : null,

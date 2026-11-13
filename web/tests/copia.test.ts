@@ -65,6 +65,19 @@ describe('actualizarCopia', () => {
     expect(await almacen.leerAnimales()).toHaveLength(3);
   });
 
+  it('guarda el semen que trae la copia (spec 010) y rechaza uno que no es una lista', async () => {
+    const almacen = new AlmacenMemoria();
+    const semen = [{ id: 'sm1', nombre: 'Toro Alfa', raza: null }];
+    const r = await actualizarCopia({ almacen, propietario, descargar: async () => ({ ...NUEVA, semen }) });
+    expect(r.ok).toBe(true);
+    expect((await almacen.leerMeta())?.semen).toEqual(semen);
+
+    const otro = new AlmacenMemoria();
+    const mala = await actualizarCopia({ almacen: otro, propietario, descargar: async () => ({ ...NUEVA, semen: 'no es una lista' as never }) });
+    expect(mala).toMatchObject({ ok: false, motivo: 'servidor' });
+    expect(await otro.leerMeta()).toBeNull();
+  });
+
   it('actualización exitosa: reemplaza todo y deja de ser primera', async () => {
     const almacen = await almacenConVieja();
     const r = await actualizarCopia({ almacen, propietario, descargar: async () => NUEVA });

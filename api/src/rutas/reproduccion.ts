@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
@@ -7,9 +6,12 @@ import { anomaliasSchema } from '../validacion.js';
 import { requiereSesion, usuarioActual } from '../auth/middleware.js';
 import { esFechaValida, fechaADate, hoyArgentina } from '../animales/reglas.js';
 import { ahora } from '../reloj.js';
+import { horaTabletSchema } from '../horaTablet.js';
 import { puedeRecibirEventoReproductivo } from '../reproduccion/aptitud.js';
-import { bloquearAnimal, siguienteRegistro } from '../reproduccion/bloqueo.js';
+import { siguienteRegistro } from '../reproduccion/bloqueo.js';
 import { armarRespuesta, eventoPorId, leerEventos } from '../reproduccion/eventos.js';
+import { idPropioSchema } from '../idPropio.js';
+import { ejecutarCarga } from '../reproduccion/idempotencia.js';
 import { DIAS_GESTACION, fechaEventoSchema, sumarDias, validarFechaEvento } from '../reproduccion/fechas.js';
 import { calcularSituacion, resolverFechaProbable, ultimoNoAnulado } from '../reproduccion/situacion.js';
 
@@ -34,6 +36,9 @@ const servicioSchema = z.object({
   tipo: z.enum(['INSEMINACION', 'MONTA_NATURAL'], { error: 'El tipo de servicio tiene que ser inseminación o monta natural' }),
   // Un semenId con formato inválido es 400 con mensaje (no 404); "No especificado" llega como null, vacío o ausente.
   semenId: z.preprocess(vacioANulo, z.uuid({ error: 'El semen o toro indicado no es válido' }).nullish()),
+  // Spec 010: `id` propio de la tablet (reenvío idempotente) y la hora en que se cargó (solo informativa).
+  id: idPropioSchema,
+  cargadoEnDispositivo: horaTabletSchema,
   // Cualquier otro campo (por ejemplo un establecimientoId) se descarta: z.object ignora lo no declarado.
 });
 
@@ -43,6 +48,8 @@ const tactoSchema = z
     resultado: z.enum(['PRENADA', 'VACIA'], { error: 'El resultado del tacto tiene que ser preñada o vacía' }),
     fechaProbableParto: z.preprocess(vacioANulo, z.string({ error: 'La fecha probable de parto tiene que ser un texto AAAA-MM-DD' }).nullish()),
     anomalias: anomaliasSchema,
+    id: idPropioSchema,
+    cargadoEnDispositivo: horaTabletSchema,
   })
   // Reglas que solo dependen del cuerpo (RF-14): se controlan acá, antes de buscar el animal.
   .superRefine((d, ctx) => {
@@ -68,16 +75,6 @@ function idAnimal(texto: string | string[] | undefined): string {
   return id.data;
 }
 
-// Primeros pasos de todo registro, dentro de la transacción: bloquea el animal (404 si no hay)
-// y lee sus eventos. Devuelve lo necesario para las reglas.
-async function abrirRegistro(tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0], animalId: string, establecimientoId: string) {
-  const animal = await bloquearAnimal(tx, animalId, establecimientoId);
-  if (!animal) throw new HttpError(404, NO_ENCONTRADO);
-  const filas = await leerEventos(tx, animalId, establecimientoId);
-  const hoy = hoyArgentina(ahora());
-  return { animal, filas, hoy };
-}
-
 // GET /api/animales/:id/eventos — situación reproductiva y lista de eventos (RF-23 a RF-27).
 rutasReproduccion.get('/:id/eventos', async (req, res) => {
   const { establecimientoId } = usuarioActual(req);
@@ -97,14 +94,20 @@ rutasReproduccion.get('/:id/eventos', async (req, res) => {
 });
 
 // POST /api/animales/:id/servicios — registra un servicio (RF-7 a RF-11, RF-18).
+// Spec 010: acepta `id` propio y `cargadoEnDispositivo`. 201 con el evento; si ya estaba guardado
+// (mismo `id` y mismos datos), 200 con { evento, avisos, yaExistia: true } (ver `ejecutarCarga`).
 rutasReproduccion.post('/:id/servicios', async (req, res) => {
   const { establecimientoId, id: usuarioId } = usuarioActual(req);
   const datos = servicioSchema.parse(req.body);
   const animalId = idAnimal(req.params.id);
 
-  const evento = await prisma.$transaction(
-    async (tx) => {
-      const { animal, filas, hoy } = await abrirRegistro(tx, animalId, establecimientoId);
+  const resultado = await ejecutarCarga({
+    idPropio: datos.id,
+    establecimientoId,
+    animalId,
+    pedido: { tipo: 'SERVICIO', animalId, usuarioId, fecha: datos.fecha, tipoServicio: datos.tipo, semenId: datos.semenId },
+    crear: async (tx, { id, animal, hoy }) => {
+      const filas = await leerEventos(tx, animalId, establecimientoId);
 
       // Semen o toro del cuerpo: inexistente o de otro tambo = 400 con el mismo mensaje.
       let semen: { activo: boolean } | null = null;
@@ -129,8 +132,7 @@ rutasReproduccion.post('/:id/servicios', async (req, res) => {
       }
       if (semen && !semen.activo) throw new HttpError(409, 'El semen o toro está desactivado: elegí otro o reactivalo');
 
-      // Inserción: el evento común y su detalle, con ids generados acá (constitución §5).
-      const id = randomUUID();
+      // Inserción: el evento común y su detalle. El id lo trae la tablet o lo genera el servidor (constitución §5).
       await tx.evento.create({
         data: {
           id,
@@ -140,6 +142,7 @@ rutasReproduccion.post('/:id/servicios', async (req, res) => {
           fecha: fechaADate(datos.fecha),
           registradoPorId: usuarioId,
           creadoEn: await siguienteRegistro(tx, animalId),
+          cargadoEnDispositivo: datos.cargadoEnDispositivo ?? null,
         },
       });
       await tx.servicio.create({
@@ -147,20 +150,31 @@ rutasReproduccion.post('/:id/servicios', async (req, res) => {
       });
       return eventoPorId(await leerEventos(tx, animalId, establecimientoId), id, hoy);
     },
-    { timeout: 15_000 },
-  );
-  res.status(201).json(evento);
+  });
+  res.status(resultado.status).json(resultado.cuerpo);
 });
 
-// POST /api/animales/:id/tactos — registra un tacto (RF-12 a RF-18).
+// POST /api/animales/:id/tactos — registra un tacto (RF-12 a RF-18). Idempotente como los servicios.
 rutasReproduccion.post('/:id/tactos', async (req, res) => {
   const { establecimientoId, id: usuarioId } = usuarioActual(req);
   const datos = tactoSchema.parse(req.body);
   const animalId = idAnimal(req.params.id);
 
-  const evento = await prisma.$transaction(
-    async (tx) => {
-      const { animal, filas, hoy } = await abrirRegistro(tx, animalId, establecimientoId);
+  const resultado = await ejecutarCarga({
+    idPropio: datos.id,
+    establecimientoId,
+    animalId,
+    pedido: {
+      tipo: 'TACTO',
+      animalId,
+      usuarioId,
+      fecha: datos.fecha,
+      resultado: datos.resultado,
+      fechaProbableParto: datos.fechaProbableParto,
+      anomalias: datos.anomalias,
+    },
+    crear: async (tx, { id, animal, hoy }) => {
+      const filas = await leerEventos(tx, animalId, establecimientoId);
 
       // Reglas de fecha contra el estado del animal (RF-18).
       const errorFecha = validarFechaEvento(datos.fecha, {
@@ -181,7 +195,6 @@ rutasReproduccion.post('/:id/tactos', async (req, res) => {
       const aptitud = puedeRecibirEventoReproductivo(animal.sexo, animal.estado);
       if (!aptitud.ok) throw new HttpError(409, aptitud.motivo);
 
-      const id = randomUUID();
       await tx.evento.create({
         data: {
           id,
@@ -191,6 +204,7 @@ rutasReproduccion.post('/:id/tactos', async (req, res) => {
           fecha: fechaADate(datos.fecha),
           registradoPorId: usuarioId,
           creadoEn: await siguienteRegistro(tx, animalId),
+          cargadoEnDispositivo: datos.cargadoEnDispositivo ?? null,
         },
       });
       await tx.tacto.create({
@@ -206,7 +220,6 @@ rutasReproduccion.post('/:id/tactos', async (req, res) => {
       });
       return eventoPorId(await leerEventos(tx, animalId, establecimientoId), id, hoy);
     },
-    { timeout: 15_000 },
-  );
-  res.status(201).json(evento);
+  });
+  res.status(resultado.status).json(resultado.cuerpo);
 });

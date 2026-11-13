@@ -248,6 +248,12 @@ model Evento {
   // Momento de registro: además de ser la fecha de creación, desempata el orden
   // entre eventos de la misma fecha. La API lo hace estrictamente creciente por animal.
   creadoEn          DateTime   @default(now())
+  // Spec 010: hora que tenía la tablet al cargar el evento. Solo informativa (nunca ordena, valida
+  // ni calcula); nula si no vino o si venía de un reloj desfasado. CHECK eventos_hora_dispositivo_rango.
+  cargadoEnDispositivo DateTime?
+  // Spec 010: avisos que el servidor dio al aceptar el evento, para devolverlos idénticos en un
+  // reenvío. Siempre una lista (CHECK eventos_avisos_es_lista); se escribe al insertar y no cambia.
+  avisosAlAceptar   Json        @default("[]")
   // Anulación: las tres columnas van juntas (CHECK eventos_anulacion_completa).
   anuladoEn         DateTime?
   anuladoPorId      String?    @db.Uuid

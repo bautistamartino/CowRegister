@@ -34,12 +34,12 @@ const SECCIONES: { a: string; texto: string; end?: boolean; sinConexion: boolean
 export function Layout() {
   const { usuario, logout } = useAuth();
   const enLinea = useEnLinea();
-  const { total: pendientes, rechazados } = useCola(); // litros pendientes de sincronizar (RF-42)
+  const { total: pendientes, rechazados } = useCola(); // pendientes de sincronizar de todos los tipos (spec 009 RF-42, spec 010 RF-30)
   const { pathname } = useLocation();
   const [error, setError] = useState<string | null>(null);
   // Se muestra al tocar una opción deshabilitada del menú (en una tablet no hay "tooltip").
   const [avisoMenu, setAvisoMenu] = useState(false);
-  // Confirmación de cierre de sesión cuando quedan litros pendientes (spec 009, RF-44).
+  // Confirmación de cierre de sesión cuando quedan pendientes (spec 009, RF-44).
   const [confirmandoCierre, setConfirmandoCierre] = useState(false);
   const [cerrando, setCerrando] = useState(false);
 
@@ -48,7 +48,7 @@ export function Layout() {
 
   if (!usuario) return null;
 
-  // Cierra la sesión: borra TODO lo guardado en la tablet (RF-43). Si quedan litros pendientes (esperando o
+  // Cierra la sesión: borra TODO lo guardado en la tablet (RF-43). Si quedan pendientes de cualquier tipo (esperando o
   // rechazados) primero pide confirmación con la cantidad (RF-44); si cancela, no se cierra nada.
   // Sin conexión igual se cierra y se borra; el aviso de que el servidor no se cerró lo muestra el ingreso (RF-45).
   // No hace falta navegar a mano: logout() deja usuario = null y RutaPrivada redirige al login.
@@ -109,9 +109,9 @@ export function Layout() {
                 </button>
               ),
             )}
-            {/* Pendientes de sincronizar (spec 009): solo dueño y encargado cargan litros. Se puede abrir sin
+            {/* Pendientes de sincronizar (spec 009): los litros los cargan dueño y encargado; el veterinario la ve si le quedó algo. Se puede abrir sin
                 conexión. El número se ve también con conexión; con rechazados se destaca (color y "!"). */}
-            {puedeCargar(usuario.rol) && (
+            {(puedeCargar(usuario.rol) || pendientes > 0) && (
               <NavLink
                 to="/pendientes"
                 className="menu-enlace"
@@ -152,14 +152,14 @@ export function Layout() {
       {confirmandoCierre && (
         <div className="contenido">
           <Confirmar
-            titulo="¿Cerrar sesión con litros sin enviar?"
+            titulo="¿Cerrar sesión con registros sin enviar?"
             confirmarTexto="Cerrar sesión y borrar"
             alConfirmar={() => void ejecutarCierre()}
             alCancelar={() => setConfirmandoCierre(false)}
             ocupado={cerrando}
           >
             <p>
-              Se van a perder {pendientes} {pendientes === 1 ? 'litro cargado' : 'litros cargados'} que todavía no se{' '}
+              Se van a perder {pendientes} {pendientes === 1 ? 'registro cargado' : 'registros cargados'} que todavía no se{' '}
               {pendientes === 1 ? 'envió' : 'enviaron'} al servidor
               {rechazados > 0 ? ` (${rechazados} ${rechazados === 1 ? 'rechazado' : 'rechazados'})` : ''}. Al cerrar sesión se borran todos los datos
               guardados en la tablet.

@@ -1,9 +1,10 @@
-// Cola de litros pendientes de sincronizar (spec 009, RF-18 a RF-23, RF-34, RF-36, RF-42).
-// Lógica pura: no usa React ni el navegador. Recibe el almacén, así se prueba con Vitest.
+// Cola de pendientes de sincronizar: litros (spec 009, RF-18 a RF-23, RF-34, RF-36, RF-42) y, desde la spec 010,
+// cualquier tipo de carga (RF-12, RF-14, RF-30). Lógica pura: no usa React ni el navegador. Recibe el almacén,
+// así se prueba con Vitest.
 
 import type { RegistroProduccion, TurnoOrdeno } from '../compartido/api';
 import { validarLitros } from '../produccion/produccionDatos';
-import { ErrorSinEspacio, type Almacen, type Enviado, type Pendiente } from './almacen';
+import { datosLitros, ErrorSinEspacio, type Almacen, type AvisoGuardado, type Enviado, type Pendiente, type TipoPendiente } from './almacen';
 import { fechaYTurnoArgentina, horaParaApi } from './horaArgentina';
 import { MAX_PENDIENTES } from './limites';
 
@@ -27,7 +28,13 @@ export async function enviadosDe(almacen: Almacen, persona: Persona): Promise<En
   return delPropietario(await almacen.listarEnviados(), persona);
 }
 
-// Cantidades para el menú (RF-42): todos los pendientes y cuántos están rechazados.
+// Avisos del servidor que el usuario todavía no cerró (spec 010, RF-28).
+export async function avisosDe(almacen: Almacen, persona: Persona): Promise<AvisoGuardado[]> {
+  return delPropietario(await almacen.listarAvisos(), persona);
+}
+
+// Cantidades para el menú y las confirmaciones (RF-42, RF-30): todos los pendientes NO aceptados, de cualquier
+// tipo (esperando, enviando o rechazados), y cuántos están rechazados. Los enviados (ya aceptados) no cuentan.
 export function contarPendientes(pendientes: Pendiente[]): { total: number; rechazados: number } {
   return { total: pendientes.length, rechazados: pendientes.filter((p) => p.estado === 'rechazado').length };
 }
@@ -88,7 +95,9 @@ export async function controlarCarga(args: {
   const misma = (x: { animalId: string; fecha: string; turno: string }) => x.animalId === datos.animalId && x.fecha === datos.fecha && x.turno === turno;
   const cual = `del ordeño de ${NOMBRE_TURNO[turno]} del ${aFechaCorta(datos.fecha)}`;
 
-  if ((await pendientesDe(almacen, persona)).some(misma)) {
+  // Solo los litros pendientes cuentan como duplicado (los demás tipos no tienen fecha ni turno de ordeñe).
+  const mismaCarga = (p: Pendiente) => p.tipo === 'LITROS' && misma({ animalId: p.animalId, ...datosLitros(p) });
+  if ((await pendientesDe(almacen, persona)).some(mismaCarga)) {
     return {
       ok: false,
       tipo: 'invalido',
@@ -97,7 +106,7 @@ export async function controlarCarga(args: {
     };
   }
   const yaCargado =
-    (await enviadosDe(almacen, persona)).some((e) => e.registro.anulado === null && misma(e.registro)) ||
+    (await enviadosDe(almacen, persona)).some((e) => e.tipo === 'LITROS' && e.registro !== null && e.registro.anulado === null && misma(e.registro)) ||
     (registrosCopia ?? []).some((r) => r.anulado === null && misma(r));
   if (yaCargado) {
     return {
@@ -110,24 +119,28 @@ export async function controlarCarga(args: {
   return { ok: true, litros: v.litros };
 }
 
-// ─── Guardar un pendiente (RF-18, RF-22) ───
+// ─── Guardar un pendiente (RF-18, RF-22; spec 010 RF-12, RF-14) ───
 
 const MENSAJE_SIN_LUGAR = (motivo: string) => `No se pudo guardar en la tablet: ${motivo}. Conectate para sincronizar los pendientes`;
 
-// Guarda el pendiente en el almacén. `datos` ya pasó por `controlarCarga` (`litros` con punto).
-// Si ya hay `maxPendientes` o el navegador no tiene espacio, NO se confirma como guardado.
-export async function guardarNuevoPendiente(args: {
+// Guarda un pendiente de CUALQUIER tipo con el orden de carga siguiente y la hora de la tablet. `datos` es lo que
+// se va a mandar al servidor (ya validado por quien llama). Si ya hay `maxPendientes` (de todos los tipos juntos)
+// o el navegador no tiene espacio, NO se confirma como guardado.
+export async function guardarPendienteNuevo(args: {
   almacen: Almacen;
   persona: Persona;
-  datos: DatosCarga;
+  tipo: TipoPendiente;
+  animalId: string;
+  numero: string;
+  datos: Record<string, unknown>;
   id: string;
   ahora: Date;
   maxPendientes?: number;
 }): Promise<{ ok: true; pendiente: Pendiente } | Extract<ErrorDeCarga, { tipo: 'sinLugar' }>> {
-  const { almacen, persona, datos, id, ahora, maxPendientes = MAX_PENDIENTES } = args;
+  const { almacen, persona, tipo, animalId, numero, datos, id, ahora, maxPendientes = MAX_PENDIENTES } = args;
   const propios = await pendientesDe(almacen, persona);
   if (propios.length >= maxPendientes) {
-    return { ok: false, tipo: 'sinLugar', mensaje: MENSAJE_SIN_LUGAR(`ya hay ${maxPendientes} litros pendientes`) };
+    return { ok: false, tipo: 'sinLugar', mensaje: MENSAJE_SIN_LUGAR(`ya hay ${maxPendientes} pendientes`) };
   }
 
   // El orden de carga crece siempre, aunque se cargue dos veces en el mismo milisegundo.
@@ -136,11 +149,10 @@ export async function guardarNuevoPendiente(args: {
     id,
     usuarioId: persona.usuarioId,
     establecimientoId: persona.establecimientoId,
-    animalId: datos.animalId,
-    numero: datos.numero,
-    fecha: datos.fecha,
-    turno: datos.turno as TurnoOrdeno,
-    litros: datos.litros,
+    animalId,
+    numero,
+    tipo,
+    datos,
     cargadoEnDispositivo: horaParaApi(ahora),
     orden: Math.max(ahora.getTime(), mayor + 1),
     estado: 'esperando',
@@ -156,6 +168,25 @@ export async function guardarNuevoPendiente(args: {
     return { ok: false, tipo: 'sinLugar', mensaje: MENSAJE_SIN_LUGAR(motivo) };
   }
   return { ok: true, pendiente };
+}
+
+// Guarda un pendiente de litros. `datos` ya pasó por `controlarCarga` (`litros` con punto).
+export function guardarNuevoPendiente(args: {
+  almacen: Almacen;
+  persona: Persona;
+  datos: DatosCarga;
+  id: string;
+  ahora: Date;
+  maxPendientes?: number;
+}): Promise<{ ok: true; pendiente: Pendiente } | Extract<ErrorDeCarga, { tipo: 'sinLugar' }>> {
+  const { datos, ...resto } = args;
+  return guardarPendienteNuevo({
+    ...resto,
+    tipo: 'LITROS',
+    animalId: datos.animalId,
+    numero: datos.numero,
+    datos: { fecha: datos.fecha, turno: datos.turno, litros: datos.litros },
+  });
 }
 
 // Controla y guarda en un solo paso (carga sin conexión directa).
@@ -181,7 +212,7 @@ export async function crearPendiente(args: {
   });
 }
 
-// Al abrir la app: un pendiente que quedó "enviando" (se cerró la app a mitad del envío) vuelve a esperar.
+// Al abrir la app (de cualquier tipo): un pendiente que quedó "enviando" (se cerró la app a mitad del envío) vuelve a esperar.
 // Reenviarlo es seguro: lleva el mismo id y el servidor no duplica.
 export async function restablecerEnviando(almacen: Almacen, persona: Persona): Promise<void> {
   for (const p of delPropietario(await almacen.listarPendientes(), persona)) {
@@ -210,10 +241,12 @@ export function ultimoRegistro(args: {
   const candidatos: UltimoRegistro[] = [];
   if (args.ultimoServidor) candidatos.push({ ...args.ultimoServidor, marca: null });
   for (const p of args.pendientes) {
-    if (p.animalId === args.animalId && p.estado !== 'rechazado') candidatos.push({ fecha: p.fecha, turno: p.turno, litros: Number(p.litros), marca: 'pendiente' });
+    if (p.tipo !== 'LITROS' || p.animalId !== args.animalId || p.estado === 'rechazado') continue;
+    const d = datosLitros(p);
+    candidatos.push({ fecha: d.fecha, turno: d.turno, litros: Number(d.litros), marca: 'pendiente' });
   }
   for (const e of args.enviados) {
-    if (e.animalId === args.animalId && e.registro.anulado === null) candidatos.push({ fecha: e.registro.fecha, turno: e.registro.turno, litros: e.registro.litros, marca: 'enviado' });
+    if (e.tipo === 'LITROS' && e.registro && e.animalId === args.animalId && e.registro.anulado === null) candidatos.push({ fecha: e.registro.fecha, turno: e.registro.turno, litros: e.registro.litros, marca: 'enviado' });
   }
   if (candidatos.length === 0) return null;
   // El primero que gana queda: ante un empate manda el orden en que se agregaron (servidor, pendientes, enviados).
@@ -236,11 +269,12 @@ export function registrosParaFicha(args: { animalId: string; registros: Registro
   const ids = new Set(args.registros.map((r) => r.id));
   const extras: FilaFicha[] = [];
   for (const p of args.pendientes) {
-    if (p.animalId !== args.animalId) continue;
-    extras.push({ id: p.id, fecha: p.fecha, turno: p.turno, marca: p.estado === 'rechazado' ? 'rechazado' : 'pendiente', registro: null, pendiente: p });
+    if (p.tipo !== 'LITROS' || p.animalId !== args.animalId) continue; // los demás tipos son de la 011
+    const d = datosLitros(p);
+    extras.push({ id: p.id, fecha: d.fecha, turno: d.turno, marca: p.estado === 'rechazado' ? 'rechazado' : 'pendiente', registro: null, pendiente: p });
   }
   for (const e of args.enviados) {
-    if (e.animalId !== args.animalId || ids.has(e.id)) continue;
+    if (e.tipo !== 'LITROS' || !e.registro || e.animalId !== args.animalId || ids.has(e.id)) continue;
     extras.push({ id: e.id, fecha: e.registro.fecha, turno: e.registro.turno, marca: 'enviado', registro: e.registro, pendiente: null });
   }
   // sort es estable: a igual fecha y turno quedan primero los extras, después los del servidor.
@@ -251,11 +285,12 @@ export function registrosParaFicha(args: { animalId: string; registros: Registro
 // alguien lo anuló o quedó fuera del tope de 200 registros por ficha): evita que quede "enviado" para siempre.
 const MARGEN_ENVIADO_MS = 10 * 60 * 1000;
 
-// Tras actualizar la copia: se quitan los enviados que la copia ya incluye (RF-34).
+// Tras actualizar la copia: se quitan los enviados de litros que la copia ya incluye (RF-34). Los enviados de los
+// demás tipos los limpia reflejo.ts (T3 de la spec 010); acá no se tocan.
 export async function limpiarEnviadosIncluidos(almacen: Almacen, persona: Persona): Promise<void> {
   const meta = await almacen.leerMeta();
   if (!meta) return;
-  const enviados = await enviadosDe(almacen, persona);
+  const enviados = (await enviadosDe(almacen, persona)).filter((e) => e.tipo === 'LITROS' && e.registro !== null);
   if (enviados.length === 0) return;
   const animales = await almacen.leerAnimales();
   const generada = Date.parse(meta.generadaEn);
@@ -263,7 +298,7 @@ export async function limpiarEnviadosIncluidos(almacen: Almacen, persona: Person
     const animal = animales.find((a) => a.ficha.id === e.animalId);
     if (!animal) return true; // ya no está en la copia (por ejemplo, se vendió): nada que mostrar
     if (animal.produccion.registros.some((r) => r.id === e.id)) return true;
-    return generada - Date.parse(e.registro.registradoEn) > MARGEN_ENVIADO_MS;
+    return generada - Date.parse(e.registro!.registradoEn) > MARGEN_ENVIADO_MS;
   });
   if (incluidos.length > 0) await almacen.borrarEnviados(incluidos.map((e) => e.id));
 }

@@ -41,7 +41,7 @@ Litros por vaca en cada ordeño; informes de producción.
 App instalable (PWA), datos locales en la tablet y sincronización al volver la conexión. Se hace en dos partes (**Etapa 6 parcial**):
 
 - [x] 6.1 App instalable, consulta sin conexión (listado, buscador y fichas) y carga de **litros** sin conexión con envío automático al volver la señal (spec [009-sin-conexion](../specs/009-sin-conexion/spec.md))
-- [ ] 6.2 Los demás eventos sin conexión (servicios, tactos, partos, secados, bajas y anulaciones) y el orden por fecha y hora con relojes distintos (spec 010, por hacer)
+- [~] 6.2 Los demás eventos sin conexión (servicios, tactos, partos, secados, bajas y anulaciones) y el orden por fecha y hora con relojes distintos. **Parcial:** la spec [010-eventos-sin-conexion](../specs/010-eventos-sin-conexion/spec.md) está hecha (API idempotente y motor local, sin pantallas de carga); la **interfaz** (formularios y marcas en las fichas) es la spec 011, por hacer
 
 ## Etapa 7 — Publicación
 Subir la app a un hosting con HTTPS y backups de la base de datos.

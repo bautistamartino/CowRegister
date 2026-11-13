@@ -73,6 +73,17 @@ async function leerCopia(tx: Transaccion, establecimientoId: string) {
   // 5. Producción (registros recientes, total, promedio de 30 días y último registro).
   const produccion = await leerProduccionDeTambo(tx, establecimientoId, topeProd, sumarDias(hoy, -29), hoy);
 
+  // 6. Semen y toros ACTIVOS del tambo (spec 010, RF-8), en la misma foto. No tienen tope propio ni cuentan
+  //    para el de los animales; los desactivados no viajan. Ordenados por nombre sin distinguir mayúsculas.
+  const filasSemen = await tx.semenToro.findMany({
+    where: { establecimientoId, activo: true },
+    select: { id: true, nombre: true, raza: true },
+  });
+  await gancho?.('semen');
+  const semen = filasSemen.sort(
+    (a, b) => a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase(), 'es') || (a.id < b.id ? -1 : 1),
+  );
+
   // Orden natural por número (A2 antes que A10): la tablet lo puede cambiar, pero así sale estable.
   const ordenadas = [...filas].sort((a, b) => compararNumeros(a.numero, b.numero));
   const animales = ordenadas.map((fila) => {
@@ -94,5 +105,5 @@ async function leerCopia(tx: Transaccion, establecimientoId: string) {
     };
   });
 
-  return { generadaEn, totalAnimales: animales.length, lotes, animales };
+  return { generadaEn, totalAnimales: animales.length, lotes, semen, animales };
 }

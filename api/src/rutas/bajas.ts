@@ -37,12 +37,14 @@ export const rutasBajasAnimal = Router();
 rutasBajasAnimal.use(requiereSesion);
 const soloBajas = requiereRol('DUENO', 'ENCARGADO');
 
-// POST /api/animales/:id/baja — { motivo: "venta"|"muerte", fecha, observaciones? }. 201 con la baja.
+// POST /api/animales/:id/baja — { motivo: "venta"|"muerte", fecha, observaciones?, id?, cargadoEnDispositivo? }. 201 con la baja.
 rutasBajasAnimal.post('/:id/baja', soloBajas, async (req, res) => {
   const { establecimientoId, id: usuarioId, nombre: usuarioNombre } = usuarioActual(req);
   const datos = bajaSchema.parse(req.body); // 400 antes de buscar al animal, aunque no exista
   const animalId = idAnimal(req.params.id);
-  res.status(201).json(await registrarBaja({ animalId, establecimientoId, usuarioId, usuarioNombre, ...datos }));
+  // 201 al crear la baja; 200 con { evento, avisos, yaExistia: true } si es el reenvío de una ya guardada (spec 010).
+  const resultado = await registrarBaja({ animalId, establecimientoId, usuarioId, usuarioNombre, ...datos });
+  res.status(resultado.status).json(resultado.cuerpo);
 });
 
 // POST /api/animales/:id/revertir-baja — { motivoReversion }. 200 con la ficha activa y `avisos`.

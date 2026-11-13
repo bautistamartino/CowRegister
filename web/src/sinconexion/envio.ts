@@ -1,23 +1,45 @@
-// Envío real de un litro al servidor (spec 009). Es la pieza que habla con la red: la lógica de qué hacer
-// con la respuesta está en clasificar.ts, cola.ts y sincronizar.ts (puras y con tests).
+// Envío real de un pendiente al servidor (spec 009 para litros; spec 010 para todos los tipos). Es la pieza que
+// habla con la red: la lógica de qué hacer con la respuesta está en clasificar.ts, cola.ts y sincronizar.ts (puras
+// y con tests).
 //
 // No pasa por `api()` a propósito: `api()` convierte los errores en excepciones y, sin conexión, responde
 // desde la copia; acá hace falta la respuesta CRUDA (código y cuerpo) para clasificarla.
 
 import { avisarSesionVencida } from '../compartido/api';
-import type { Pendiente } from './almacen';
+import { datosLitros, type Pendiente } from './almacen';
 import type { Respuesta } from './clasificar';
 import { obtenerConexion } from './conexion';
 
-export async function enviarLitros(p: Pendiente, senal: AbortSignal): Promise<Respuesta> {
+// Ruta de cada anulación: una por tipo de evento (el tipo sale de la ruta, no del cuerpo).
+const RUTA_ANULACION: Record<string, string> = { SERVICIO: 'servicios', TACTO: 'tactos', PARTO: 'partos', SECADO: 'secados' };
+// Ruta de cada carga bajo /api/animales/:id.
+const RUTA_CARGA: Record<string, string> = { LITROS: 'produccion', SERVICIO: 'servicios', TACTO: 'tactos', PARTO: 'partos', SECADO: 'secados', BAJA: 'baja' };
+
+// Dirección y cuerpo del pedido de un pendiente. El tambo y el usuario salen de la sesión (cookie), nunca del cuerpo.
+//   - Cargas: el `id` del pendiente (hace el envío repetible sin duplicar) y la hora de la tablet (solo informativa).
+//   - Anulación: va a la ruta del tipo del evento con solo el motivo; no tiene `id` propio (es idempotente por
+//     evento + usuario + motivo).
+export function pedidoDe(p: Pendiente): { url: string; cuerpo: Record<string, unknown> } {
+  if (p.tipo === 'ANULACION') {
+    const ruta = RUTA_ANULACION[String(p.datos.tipoEvento)] ?? 'eventos-desconocidos';
+    return { url: `/api/${ruta}/${encodeURIComponent(String(p.datos.eventoId))}/anular`, cuerpo: { motivo: p.datos.motivo } };
+  }
+  const datos = p.tipo === 'LITROS' ? { ...datosLitros(p) } : p.datos;
+  return {
+    url: `/api/animales/${encodeURIComponent(p.animalId)}/${RUTA_CARGA[p.tipo]}`,
+    cuerpo: { ...datos, id: p.id, cargadoEnDispositivo: p.cargadoEnDispositivo },
+  };
+}
+
+export async function enviarPendiente(p: Pendiente, senal: AbortSignal): Promise<Respuesta> {
   const conexion = obtenerConexion();
+  const { url, cuerpo: cuerpoPedido } = pedidoDe(p);
   let res: Response;
   try {
-    res = await fetch(`/api/animales/${encodeURIComponent(p.animalId)}/produccion`, {
+    res = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      // El tambo sale de la sesión (cookie), nunca del cuerpo. `id` hace el envío repetible sin duplicar.
-      body: JSON.stringify({ id: p.id, fecha: p.fecha, turno: p.turno, litros: p.litros, cargadoEnDispositivo: p.cargadoEnDispositivo }),
+      body: JSON.stringify(cuerpoPedido),
       credentials: 'same-origin',
       signal: senal,
     });

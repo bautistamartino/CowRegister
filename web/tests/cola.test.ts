@@ -4,6 +4,8 @@ import { fechaYTurnoArgentina, horaParaApi } from '../src/sinconexion/horaArgent
 import {
   contarPendientes,
   crearPendiente,
+  guardarPendienteNuevo,
+  pendientesDe,
   delPropietario,
   limpiarEnviadosIncluidos,
   registrosParaFicha,
@@ -57,9 +59,8 @@ describe('crear un pendiente', () => {
       establecimientoId: 'e1',
       animalId: 'a1',
       numero: '12',
-      fecha: '2026-11-12',
-      turno: 'manana',
-      litros: '12.5', // la coma se convierte a punto, sin pasar por número
+      tipo: 'LITROS',
+      datos: { fecha: '2026-11-12', turno: 'manana', litros: '12.5' }, // la coma se convierte a punto, sin pasar por número
       cargadoEnDispositivo: '2026-11-12T08:15:00-03:00',
       estado: 'esperando',
       intentos: 0,
@@ -354,5 +355,69 @@ describe('enviados recientes y la copia nueva (RF-34)', () => {
     await conCopia(almacen, '2026-11-12T13:30:00.000Z', [vacaCopia('a1', '12')]);
     await limpiarEnviadosIncluidos(almacen, persona);
     expect((await almacen.listarEnviados()).length).toBe(1);
+  });
+});
+
+// ─── Cola general (spec 010, RF-12, RF-14, RF-30) ───
+
+describe('guardar un pendiente de cualquier tipo (RF-12)', () => {
+  const nuevo = (almacen: AlmacenMemoria, cambios: Partial<Parameters<typeof guardarPendienteNuevo>[0]> = {}) =>
+    guardarPendienteNuevo({ almacen, persona, tipo: 'SERVICIO', animalId: 'a1', numero: '12', datos: { fecha: '2026-11-12' }, id: 'x1', ahora: AHORA, ...cambios });
+
+  it('guarda cada tipo con todos sus datos, el dueño, el id y el orden creciente', async () => {
+    const almacen = new AlmacenMemoria();
+    const tipos = ['SERVICIO', 'TACTO', 'PARTO', 'SECADO', 'BAJA', 'ANULACION', 'LITROS'] as const;
+    for (const [i, tipo] of tipos.entries()) {
+      const datos = { tipo, i };
+      const r = await nuevo(almacen, { tipo, id: `id-${i}`, datos });
+      expect(r.ok).toBe(true);
+    }
+    const guardados = await pendientesDe(almacen, persona);
+    expect(guardados.map((p) => p.tipo)).toEqual([...tipos]);
+    expect(guardados.map((p) => p.datos)).toEqual(tipos.map((tipo, i) => ({ tipo, i })));
+    for (const p of guardados) {
+      expect(p).toMatchObject({ usuarioId: 'u1', establecimientoId: 'e1', animalId: 'a1', numero: '12', estado: 'esperando', cargadoEnDispositivo: '2026-11-12T08:15:00-03:00' });
+    }
+    const ordenes = guardados.map((p) => p.orden);
+    expect([...ordenes].sort((a, b) => a - b)).toEqual(ordenes);
+    expect(new Set(ordenes).size).toBe(ordenes.length);
+  });
+
+  it('el límite de 500 cuenta los pendientes de todos los tipos juntos y el 501.º no se confirma', async () => {
+    const almacen = new AlmacenMemoria();
+    for (let i = 0; i < 500; i++) await almacen.guardarPendiente(pendiente({ id: `p${i}`, orden: i, ...(i % 2 ? {} : { tipo: 'TACTO' as const, datos: {} }) }));
+    const r = await nuevo(almacen, { tipo: 'PARTO', id: 'el-501' });
+    expect(r).toEqual({ ok: false, tipo: 'sinLugar', mensaje: 'No se pudo guardar en la tablet: ya hay 500 pendientes. Conectate para sincronizar los pendientes' });
+    expect((await almacen.listarPendientes()).length).toBe(500);
+  });
+
+  it('el límite es inyectable y la falta de espacio no se confirma como guardado', async () => {
+    const chico = new AlmacenMemoria();
+    expect((await nuevo(chico, { id: 'a', maxPendientes: 1 })).ok).toBe(true);
+    expect(await nuevo(chico, { id: 'b', maxPendientes: 1 })).toMatchObject({ ok: false, tipo: 'sinLugar' });
+
+    const lleno = new AlmacenMemoria();
+    lleno.configurar({ capacidadPendientes: 0 });
+    const r = await nuevo(lleno);
+    expect(r).toEqual({ ok: false, tipo: 'sinLugar', mensaje: 'No se pudo guardar en la tablet: no hay espacio en la tablet. Conectate para sincronizar los pendientes' });
+    expect(await lleno.listarPendientes()).toEqual([]);
+  });
+});
+
+describe('conteo de no aceptados de todos los tipos (RF-30)', () => {
+  it('cuenta todos los tipos y destaca los rechazados; los enviados no cuentan', async () => {
+    const almacen = new AlmacenMemoria();
+    await almacen.guardarPendiente(pendiente({ id: '1', tipo: 'PARTO', datos: {} }));
+    await almacen.guardarPendiente(pendiente({ id: '2', tipo: 'BAJA', datos: {}, estado: 'rechazado' }));
+    await almacen.guardarPendiente(pendiente({ id: '3' }));
+    await almacen.guardarEnviado(enviado(pendiente({ id: '4' })));
+    expect(contarPendientes(await pendientesDe(almacen, persona))).toEqual({ total: 3, rechazados: 1 });
+  });
+
+  it('un pendiente de otro tipo "enviando" vuelve a esperando al abrir la app', async () => {
+    const almacen = new AlmacenMemoria();
+    await almacen.guardarPendiente(pendiente({ id: '1', tipo: 'SECADO', datos: {}, estado: 'enviando' }));
+    await restablecerEnviando(almacen, persona);
+    expect((await almacen.listarPendientes())[0]!.estado).toBe('esperando');
   });
 });

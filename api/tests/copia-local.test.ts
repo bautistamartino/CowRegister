@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../src/db.js';
 import { fijarReloj } from '../src/reloj.js';
 import { fijarTopes } from '../src/topes.js';
-import { app, crearAnimalDirecto, crearBajaRegistradaDirecta, crearProduccionDirecta, crearUsuario, limpiarBase, prepararVaca, registrarTambo } from './ayudas.js';
+import { app, crearAnimalDirecto, crearBajaRegistradaDirecta, crearProduccionDirecta, crearSemenDirecto, crearUsuario, limpiarBase, prepararVaca, registrarTambo } from './ayudas.js';
 
 // Spec 009: GET /api/copia-local — descarga completa del tambo para el modo sin conexión
 // (RF-4, RF-6, RF-8, RF-14, RF-49 a RF-52, RF-54). Reloj fijado en las 12:00 ART del 11/11/2026.
@@ -64,6 +64,43 @@ describe('contenido (RF-4, RF-14)', () => {
     expect(deVaca.historial).toHaveProperty('entradas');
     const deMacho = res.body.animales.find((a: any) => a.ficha.id === macho.id);
     expect(deMacho.eventos).toEqual({ situacion: null, eventos: [] });
+  });
+
+  // Spec 010, RF-8: la copia suma el catálogo de semen y toros ACTIVOS (hasta la 009 no lo traía).
+  it('las claves de la copia incluyen el semen', async () => {
+    const { agente } = await registrarTambo();
+    const res = await agente.get(URL_COPIA).expect(200);
+    expect(Object.keys(res.body).sort()).toEqual(['animales', 'generadaEn', 'lotes', 'semen', 'totalAnimales']);
+    expect(res.body.semen).toEqual([]);
+  });
+
+  it('trae el semen y los toros activos (id, nombre y raza), ordenados por nombre sin distinguir mayúsculas, y no los desactivados', async () => {
+    const { agente, perfil } = await registrarTambo();
+    const tambo = perfil.establecimiento.id;
+    const zeta = await crearSemenDirecto(tambo, 'zeta', { raza: null });
+    const beta = await crearSemenDirecto(tambo, 'Beta', { raza: 'Holando' });
+    const alfa = await crearSemenDirecto(tambo, 'alfa', { raza: 'Jersey' });
+    await crearSemenDirecto(tambo, 'Desactivado', { raza: 'Angus', activo: false });
+    const res = await agente.get(URL_COPIA).expect(200);
+    expect(res.body.semen).toEqual([
+      { id: alfa.id, nombre: 'alfa', raza: 'Jersey' },
+      { id: beta.id, nombre: 'Beta', raza: 'Holando' },
+      { id: zeta.id, nombre: 'zeta', raza: null },
+    ]);
+    // Sin `activo` ni `establecimientoId`.
+    for (const s of res.body.semen) expect(Object.keys(s).sort()).toEqual(['id', 'nombre', 'raza']);
+  });
+
+  it('el semen no cuenta para el tope de animales y el 422 no lee nada', async () => {
+    const { agente, tambo } = await prepararVaca({ numero: '1' });
+    await crearAnimalDirecto(tambo, '2');
+    for (let i = 0; i < 5; i++) await crearSemenDirecto(tambo, `Toro ${i}`);
+    fijarTopes({ copia: 2 });
+    const ok = await agente.get(URL_COPIA).expect(200); // 2 animales + 5 semen: entra
+    expect(ok.body.semen).toHaveLength(5);
+    fijarTopes({ copia: 1 });
+    const res = await agente.get(URL_COPIA).expect(422);
+    expect(res.body).not.toHaveProperty('semen');
   });
 
   it('los lotes son los de GET /api/lotes', async () => {
