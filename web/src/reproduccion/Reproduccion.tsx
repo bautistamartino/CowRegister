@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AvisoReloj } from '../sinconexion/AvisoReloj';
 import { useRelojTablet } from '../sinconexion/useRelojTablet';
+import { useFechaConReloj } from '../sinconexion/useFechaConReloj';
 import { Link } from 'react-router';
 import { api, ApiError, type Aviso, type EstadoAnimal, type EventoReproductivo, type RespuestaEventos, type SemenToro, type Sexo } from '../compartido/api';
 import { useAuth } from '../sesion/auth';
@@ -391,7 +392,7 @@ function FormTacto({ animal, alCancelar, alRegistrar }: PropsForm) {
   const [resultado, setResultado] = useState<'PRENADA' | 'VACIA'>('PRENADA');
   // Fecha del tacto elegida: acota la fecha probable (RF-14: posterior al tacto, hasta 283 días después).
   const reloj = useRelojTablet();
-  const [fechaTacto, setFechaTacto] = useState(reloj.valorInicial);
+  const [fechaTacto, setFechaTacto] = useFechaConReloj(reloj.valorInicial);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const { guardar, guardando: enviando } = useGuardarCarga();
@@ -433,13 +434,12 @@ function FormTacto({ animal, alCancelar, alRegistrar }: PropsForm) {
         </div>
       )}
       <Campo
-        key={`f-${reloj.atrasado}`} 
         etiqueta="Fecha"
         name="fecha"
         id="tacto-fecha"
         type="date"
         required
-        defaultValue={reloj.valorInicial}
+        value={fechaTacto}
         min={FECHA_MINIMA}
         max={reloj.max}
         ayuda={reloj.ayuda ?? undefined}

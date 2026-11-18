@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MARGEN_RELOJ_MS, opcionesFecha, relojAtrasado } from '../src/sinconexion/relojTablet';
+import { MARGEN_RELOJ_MS, fechaTrasCambioReloj, opcionesFecha, relojAtrasado } from '../src/sinconexion/relojTablet';
 
 // Aviso de reloj atrasado (spec 012, RF-14 a RF-16). Reloj inyectable: nunca se lee la hora real.
 
@@ -45,5 +45,24 @@ describe('opcionesFecha (RF-15)', () => {
 
   it('con el reloj atrasado el campo queda vacío, obligatorio y sin máximo, y pide elegir la fecha', () => {
     expect(opcionesFecha(true, '2026-11-12')).toEqual({ valorInicial: '', max: undefined, obligatorio: true, ayuda: 'Elegí la fecha del evento' });
+  });
+});
+
+describe('fechaTrasCambioReloj (RF-14, RF-15: reloj corregido)', () => {
+  it('fecha vacía por el atraso: al corregirse el reloj toma la nueva por defecto', () => {
+    expect(fechaTrasCambioReloj('', '', '2026-11-12')).toBe('2026-11-12');
+  });
+
+  it('fecha que seguía siendo la por defecto: se actualiza a la nueva', () => {
+    expect(fechaTrasCambioReloj('2026-11-10', '2026-11-10', '')).toBe('');
+  });
+
+  it('fecha elegida por el usuario: no se pisa', () => {
+    expect(fechaTrasCambioReloj('2026-11-05', '', '2026-11-12')).toBe('2026-11-05');
+    expect(fechaTrasCambioReloj('2026-11-05', '2026-11-10', '')).toBe('2026-11-05');
+  });
+
+  it('la fecha vacía vuelve a quedar vacía si el reloj se atrasa', () => {
+    expect(fechaTrasCambioReloj('', '2026-11-10', '')).toBe('');
   });
 });

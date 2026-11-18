@@ -29,3 +29,11 @@ export function opcionesFecha(atrasado: boolean, hoy: string): OpcionesFecha {
   if (atrasado) return { valorInicial: '', max: undefined, obligatorio: true, ayuda: AYUDA_ELEGIR_FECHA };
   return { valorInicial: hoy, max: hoy, obligatorio: true, ayuda: null };
 }
+
+// Qué fecha queda en un formulario cuando cambia el reloj (llegó una copia nueva). Si el usuario ya eligió una fecha
+// distinta de la que traía el campo y no está vacía, se respeta; si no (vacía por el atraso, o sin tocar), se aplica
+// la nueva por defecto.
+export function fechaTrasCambioReloj(actual: string, inicialAnterior: string, inicialNueva: string): string {
+  if (actual === '' || actual === inicialAnterior) return inicialNueva;
+  return actual;
+}

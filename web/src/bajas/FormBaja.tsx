@@ -4,6 +4,7 @@ import { formatearFecha } from '../animales/animalesDatos';
 import { FECHA_MINIMA } from '../reproduccion/reproduccionDatos';
 import { AvisoReloj } from '../sinconexion/AvisoReloj';
 import { useRelojTablet } from '../sinconexion/useRelojTablet';
+import { useFechaConReloj } from '../sinconexion/useFechaConReloj';
 import { Campo } from '../compartido/Campo';
 import { useGuardarCarga } from '../sinconexion/useGuardarCarga';
 import type { ConfirmacionCarga } from '../sinconexion/guardadoCarga';
@@ -28,7 +29,7 @@ export function FormBaja({ animal, alCancelar, alPendiente, alRegistrar, alNoDis
   // Sin valor por defecto en el motivo (el usuario tiene que elegirlo); la fecha arranca en hoy.
   const [motivo, setMotivo] = useState<MotivoBaja | ''>('');
   const reloj = useRelojTablet();
-  const [fecha, setFecha] = useState(reloj.valorInicial);
+  const [fecha, setFecha] = useFechaConReloj(reloj.valorInicial);
   const [observaciones, setObservaciones] = useState('');
   const [confirmando, setConfirmando] = useState(false);
   const [errores, setErrores] = useState<Record<string, string>>({});
