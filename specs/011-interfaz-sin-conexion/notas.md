@@ -1,6 +1,9 @@
-# 011 — Interfaz sin conexión (notas, sin redactar todavía)
+# 011 y 012 — Interfaz sin conexión (notas de origen)
 
-Depende de la 010 (API idempotente y motor local). Estas ideas salen de la partición de la 010; la spec se redacta cuando la 010 esté cerrada.
+Estas notas salieron de la partición de la 010. La interfaz se partió en dos specs (2026-11-18):
+- **011** (`specs/011-interfaz-sin-conexion/spec.md`): "Formularios sin conexión", el adaptador de la ficha (fichas locales: parto, secado y baja pendientes) y la base de la hora de Argentina.
+- **012** (`specs/012-marcas-pendientes/spec.md`): marcas del historial, "Cargado sin conexión", listado, "Pendientes de sincronizar", "Avisos" (reloj atrasado) y el menú.
+Las secciones de abajo se conservan como estaban.
 
 ## Formularios sin conexión (un RF por evento)
 - Servicio (fecha, inseminación o monta natural, semen o toro activos de la copia más "No especificado"), tacto (preñada o vacía, fecha probable opcional, anomalías), parto (fecha y una o más crías: sexo, nacida muerta, número de las vivas, observaciones; **un solo pendiente**), secado, baja por venta o muerte.

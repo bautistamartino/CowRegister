@@ -3,14 +3,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '../sesion/auth';
 import { api, ApiError, type AltaAnimal, type EstadoAnimal, type Sexo } from '../compartido/api';
 import { Campo } from '../compartido/Campo';
+// "Hoy" para el `max` del campo de fecha: hora de Argentina, no la del dispositivo (spec 011, RF-26).
+import { hoyIso as hoy } from '../reproduccion/reproduccionDatos';
 import { ESTADOS_INICIALES, NOMBRE_ESTADO, NOMBRE_SEXO, puedeCargar, textoAvisoNumeroDeBaja } from './animalesDatos';
 
-// "Hoy" en formato AAAA-MM-DD (hora local) para el `max` del campo de fecha.
-function hoy(): string {
-  const d = new Date();
-  const dos = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`;
-}
 
 // Alta manual de un animal (RF-1 a RF-8). El número puede venir precargado desde
 // el buscador (?numero=X). Al guardar se abre la ficha.

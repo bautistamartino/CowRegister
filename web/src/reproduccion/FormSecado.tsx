@@ -1,38 +1,43 @@
 import { useState, type FormEvent } from 'react';
-import { api, type RespuestaRegistro } from '../compartido/api';
-import { FECHA_MINIMA, hoyIso, interpretar } from './reproduccionDatos';
+import { FECHA_MINIMA, hoyIso } from './reproduccionDatos';
 import { Campo } from '../compartido/Campo';
+import { useGuardarCarga } from '../sinconexion/useGuardarCarga';
+import type { ConfirmacionCarga } from '../sinconexion/guardadoCarga';
 
 type Props = {
-  animalId: string;
+  animal: { id: string; numero: string };
   alCancelar: () => void;
-  alRegistrar: (r: RespuestaRegistro) => Promise<void>;
+  // Se llama cuando el secado quedó guardado: aceptado en el momento o pendiente de sincronizar.
+  alGuardado: (c: ConfirmacionCarga) => Promise<void>;
 };
 
-// Formulario de secado: solo la fecha (RF-18). La API pasa la vaca a "seca" y a su lote destino.
-export function FormSecado({ animalId, alCancelar, alRegistrar }: Props) {
+// Formulario de secado: solo la fecha (RF-18). Con señal la API pasa la vaca a "seca" y a su lote destino; sin señal
+// (o con pendientes delante) queda pendiente y la ficha la muestra "seca" desde la vista local (spec 011).
+export function FormSecado({ animal, alCancelar, alGuardado }: Props) {
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
+  const { guardar, guardando: enviando } = useGuardarCarga();
 
   async function enviar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const d = new FormData(e.currentTarget);
     setErrores({});
     setError(null);
-    setEnviando(true);
-    try {
-      const r = await api<RespuestaRegistro>(`/animales/${encodeURIComponent(animalId)}/secados`, {
-        method: 'POST',
-        body: { fecha: String(d.get('fecha')) },
-      });
-      await alRegistrar(r);
-    } catch (err) {
-      const r = interpretar(err);
-      setErrores(r.campos);
-      setError(r.general);
-      setEnviando(false);
+    const salida = await guardar({
+      tipo: 'SECADO',
+      animal,
+      datos: { fecha: String(d.get('fecha')) },
+      tituloAceptado: 'Secado registrado',
+      camposDibujados: ['fecha'],
+    });
+    if (!salida) return;
+    if (salida.tipo === 'error') {
+      // El formulario sigue abierto con lo escrito.
+      setErrores(salida.errores.campos);
+      setError(salida.errores.general);
+      return;
     }
+    await alGuardado(salida.confirmacion);
   }
 
   return (

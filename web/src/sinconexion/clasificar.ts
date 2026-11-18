@@ -21,7 +21,9 @@ export type Respuesta = { red: true; motivo?: 'tiempo' | 'red' } | { red?: false
 export type Clasificacion =
   // `registro` solo viene en los litros (como en la 009). `aceptadoEn` es la hora del SERVIDOR (milisegundos) y
   // `avisos` los que dio al aceptar (en un reenvío, los del primer envío).
-  | { tipo: 'aceptado'; registro: RegistroProduccion | null; aceptadoEn: number; avisos: Aviso[] }
+  // `evento` (spec 011): el cuerpo del evento tal como lo devolvió el servidor (para mostrar, por ejemplo, las crías
+  // de un parto aceptado en el momento). Es opcional y solo informativo: nada de la cola depende de él.
+  | { tipo: 'aceptado'; registro: RegistroProduccion | null; aceptadoEn: number; avisos: Aviso[]; evento?: Record<string, unknown> | null }
   | { tipo: 'rechazado'; estado: number; motivo: string; campos: Record<string, string> }
   | { tipo: 'sesion' }
   | { tipo: 'esperar'; motivo: string; red: boolean };
@@ -49,7 +51,7 @@ const mismoId = (a: unknown, b: string) => typeof a === 'string' && a.toLowerCas
 //   anulación             : 200 con el evento anulado (servicio, tacto) o { evento, avisos } (parto, secado);
 //                           en el reenvío se suma `yaEstabaAnulado: true`.
 // Devuelve null si no es esa forma o si el `id` no es el del pendiente (algo que no es de la API: se espera).
-function leerAceptadoEvento(cuerpo: unknown, p: Pendiente): { aceptadoEn: number; avisos: Aviso[] } | null {
+function leerAceptadoEvento(cuerpo: unknown, p: Pendiente): { aceptadoEn: number; avisos: Aviso[]; evento: Record<string, unknown> } | null {
   if (!esObjeto(cuerpo)) return null;
   let evento: unknown;
   let avisos: unknown = [];
@@ -63,7 +65,7 @@ function leerAceptadoEvento(cuerpo: unknown, p: Pendiente): { aceptadoEn: number
     const anulacion = evento.anulacion;
     if (!esObjeto(anulacion) || typeof anulacion.en !== 'string') return null;
     const aceptadoEn = Date.parse(anulacion.en);
-    return Number.isNaN(aceptadoEn) ? null : { aceptadoEn, avisos: leerAvisos(avisos) };
+    return Number.isNaN(aceptadoEn) ? null : { aceptadoEn, avisos: leerAvisos(avisos), evento };
   }
 
   if (cuerpo.yaExistia === true || p.tipo === 'PARTO' || p.tipo === 'SECADO') {
@@ -77,7 +79,7 @@ function leerAceptadoEvento(cuerpo: unknown, p: Pendiente): { aceptadoEn: number
   if (typeof evento.tipo === 'string' && evento.tipo !== p.tipo) return null;
   if (typeof evento.registradoEn !== 'string') return null;
   const aceptadoEn = Date.parse(evento.registradoEn);
-  return Number.isNaN(aceptadoEn) ? null : { aceptadoEn, avisos: leerAvisos(avisos) };
+  return Number.isNaN(aceptadoEn) ? null : { aceptadoEn, avisos: leerAvisos(avisos), evento };
 }
 
 function esObjeto(x: unknown): x is Record<string, unknown> {

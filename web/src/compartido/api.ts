@@ -2,7 +2,8 @@
 
 import { obtenerConexion } from '../sinconexion/conexion';
 import { resolverLocal } from '../sinconexion/copiaLocal';
-import { leerCopiaLocal } from '../sinconexion/lecturaLocal';
+import { rutaDeFicha, resolverFichaLocal } from '../sinconexion/fichaLocal';
+import { leerContextoFicha, leerCopiaLocal } from '../sinconexion/lecturaLocal';
 
 export class ApiError extends Error {
   constructor(
@@ -53,12 +54,25 @@ function esDeSesionOCopia(ruta: string): boolean {
 // Devuelve `{ usado: false }` si la ruta no es de la lista o no hay copia utilizable.
 // Si la copia dice que el pedido tiene que dar un error (animal ausente, filtro inválido), lo lanza.
 async function responderDesdeCopia<T>(metodo: string, ruta: string): Promise<{ usado: true; valor: T } | { usado: false }> {
+  // Las tres lecturas de la ficha salen de la vista local (copia + pendientes), no de la copia pelada (spec 011).
+  const vista = await fichaDesdeVistaLocal<T>(metodo, ruta, false);
+  if (vista.usado) return vista;
   const copia = await leerCopiaLocal();
   if (!copia) return { usado: false };
   const r = resolverLocal(metodo, ruta, copia);
   if (r.tipo === 'fuera') return { usado: false };
   if (r.tipo === 'error') throw new ApiError(r.status, r.mensaje);
   return { usado: true, valor: r.datos as T };
+}
+
+// Ficha, eventos e historial de una vaca con lo que sabe la tablet (copia + pendientes). Con `enLinea` true solo
+// responde si la vaca tiene eventos sin aceptar (el servidor todavía no los conoce); si no, deja que decida el servidor.
+async function fichaDesdeVistaLocal<T>(metodo: string, ruta: string, enLinea: boolean): Promise<{ usado: true; valor: T } | { usado: false }> {
+  if (!rutaDeFicha(metodo, ruta)) return { usado: false };
+  const ctx = await leerContextoFicha();
+  if (!ctx) return { usado: false };
+  const datos = resolverFichaLocal(metodo, ruta, enLinea, ctx, new Date());
+  return datos === null ? { usado: false } : { usado: true, valor: datos as T };
 }
 
 export async function api<T>(ruta: string, opciones: { method?: string; body?: unknown; timeoutMs?: number } = {}): Promise<T> {
@@ -72,6 +86,12 @@ export async function api<T>(ruta: string, opciones: { method?: string; body?: u
     const local = await responderDesdeCopia<T>(metodo, ruta);
     if (local.usado) return local.valor;
     throw new ApiError(0, TEXTO_NECESITA_CONEXION);
+  }
+
+  // Con conexión pero con eventos de esa vaca sin aceptar: la ficha sale de la vista local (spec 011, RF-18).
+  if (!intentaSiempre) {
+    const vista = await fichaDesdeVistaLocal<T>(metodo, ruta, true);
+    if (vista.usado) return vista.valor;
   }
 
   // Si el pedido no llega al servidor, se avisa a `conexion` (pasa a "sin conexión") y, si es una
@@ -201,6 +221,18 @@ export type AnimalFicha = {
   criasDeBaja?: { id: string; numero: string; motivo: 'venta' | 'muerte' | 'parto_anulado' }[];
   // Parto del que nació (spec 004). null si el animal no nació de un parto cargado.
   parto: { eventoId: string; fecha: string; genetica: Genetica | null } | null;
+  // Spec 011: solo lo agrega el adaptador de la ficha cuando se muestra la vista local (nunca viene de la API).
+  locales?: LocalesFicha;
+};
+
+// Lo que la tablet sabe de la vaca y el servidor todavía no (spec 011, RF-21, RF-23 y RF-24).
+export type LocalesFicha = {
+  // Pendientes rechazados o "en espera del anterior": no cuentan en la ficha pero se avisan ("revisalos en Pendientes").
+  sinAceptar: number;
+  // Hay un parto cargado en la tablet: el lote de la madre se asigna al sincronizar.
+  avisoLotePendiente: boolean;
+  // Baja cargada en la tablet (esperando, enviando, en espera del anterior) o enviada que la copia todavía no refleja.
+  bajaPendiente?: { id: string; estado: 'esperando' | 'enviando' | 'enEspera' | 'enviada'; fecha: string; resumen: string };
 };
 
 // ─── Carga desde planilla (spec 002) ───
@@ -257,10 +289,14 @@ export type EventoReproductivo = {
   anulacion: { motivo: string | null; por: string | null; en: string } | null;
   servicio: { tipoServicio: TipoServicio; semen: { id: string; nombre: string } | null } | null;
   tacto: { resultado: ResultadoTacto; fechaProbableIndicada: string | null; fechaProbable: string | null; anomalias: string | null } | null;
-  parto: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior; genetica: Genetica | null; crias: CriaDeParto[] } | null;
-  secado: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior } | null;
+  // `loteAnterior` null solo en un evento pendiente de sincronizar (spec 011): el servidor lo calcula al aceptarlo.
+  parto: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior | null; genetica: Genetica | null; crias: CriaDeParto[] } | null;
+  secado: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior | null } | null;
   // Baja por venta o muerte (spec 006). Solo aparece en la ficha de baja o, anulada, tras revertirla.
   baja: { motivo: MotivoBaja; observaciones: string | null; estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior } | null;
+  // Spec 011: solo lo arma el adaptador de la ficha (sinconexion/adaptadorFicha.ts), nunca la API. true = el
+  // evento está cargado en la tablet y el servidor todavía no lo aceptó.
+  pendiente?: boolean;
 };
 
 // ─── Partos y secados (spec 004) ───
@@ -277,6 +313,8 @@ export type CriaDeParto = {
   sexo: Sexo;
   nacidaMuerta: boolean;
   observaciones: string | null;
+  // Spec 011: número de una cría de un parto pendiente (todavía no tiene ficha: `animal` es null y no hay enlace).
+  numeroPendiente?: string | null;
   // motivoBaja (spec 006): "venta" o "muerte" tienen ficha de baja; "parto_anulado" no.
   animal: { id: string; numero: string; activo: boolean; motivoBaja?: 'venta' | 'muerte' | 'parto_anulado' | null } | null;
 };

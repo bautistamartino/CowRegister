@@ -44,6 +44,7 @@ export function SinConexionProvider({ children }: { children: ReactNode }) {
 
   const usuarioId = usuario?.id ?? null;
   const establecimientoId = usuario?.establecimiento.id ?? null;
+  const usuarioNombre = usuario?.nombre ?? '';
 
   const actualizar = useCallback(async () => {
     if (enCurso.current || !usuarioId || !establecimientoId) return;
@@ -80,7 +81,7 @@ export function SinConexionProvider({ children }: { children: ReactNode }) {
       return;
     }
     // Las lecturas sin conexión (api.ts) solo usan una copia de ESTE usuario y tambo (RF-17).
-    fijarPropietarioLocal({ usuarioId, establecimientoId });
+    fijarPropietarioLocal({ usuarioId, establecimientoId }, usuarioNombre);
     let cancelado = false;
     (async () => {
       const almacen = obtenerAlmacen();
@@ -100,7 +101,7 @@ export function SinConexionProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelado = true;
     };
-  }, [usuarioId, establecimientoId, actualizar]);
+  }, [usuarioId, establecimientoId, usuarioNombre, actualizar]);
 
   // Al volver la señal, si la última actualización falló, se reintenta sola (RF-10). Se usa el estado
   // de conexión de la app (que confirma con la sonda), no solo el evento del navegador.
