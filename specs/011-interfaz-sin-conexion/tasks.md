@@ -25,7 +25,7 @@ Cada tarea es autónoma: releé `spec.md`, `plan.md`, `docs/constitution.md` y e
   - RF: RF-1, RF-2, RF-4, RF-5, RF-8 a RF-15, RF-17, RF-26, RF-27
   - Hecho cuando: `npm test` y `npm run typecheck` en verde; en el navegador a **768 px, modo claro**, con la red cortada: se carga cada uno de los cuatro eventos, aparece la confirmación y la ficha refleja el cambio; un rechazo local (por ejemplo servicio con preñez vigente) se ve junto al campo sin perder lo escrito; con señal se acepta en el momento como hoy; el veterinario solo ve servicio y tacto.
 
-- [ ] **T4** — Parto (una o dos crías) y anulación o descarte
+- [x] **T4** — Parto (una o dos crías) y anulación o descarte
   - `FormParto.tsx`: sin observaciones del parto, una o dos crías, ayuda "Un parto admite hasta 2 crías", errores por cría con `formularioRechazo`, guardado con `useGuardarCarga` como un solo pendiente; aceptado en el momento, conservar los enlaces "Ver la ficha de la cría" si T1 dejó el `evento` en el resultado.
   - `Historial.tsx` (`FilaEvento`): "Anular" con motivo obligatorio vía `useCola().anularLocal` (con y sin conexión); si el evento es pendiente (o tiene anulación pendiente), "Descartar" con `Confirmar` (vaca, tipo y fecha) y lista de los posteriores de la misma vaca que seguirán enviándose; el veterinario solo anula servicio y tacto.
   - RF: RF-3, RF-6, RF-7, RF-8 a RF-11, RF-14, RF-21, RF-27

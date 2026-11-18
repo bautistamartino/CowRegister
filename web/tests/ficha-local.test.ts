@@ -54,6 +54,17 @@ describe('resolverFichaLocal', () => {
     expect(f.locales?.sinAceptar).toBe(1);
   });
 
+  it('con conexión y una baja enviada sin reflejar: ficha en solo lectura "Baja enviada" desde la vista local', () => {
+    const enviadaBaja = { id: 'b-1', usuarioId: 'u1', establecimientoId: 'e1', animalId: 'a1', numero: '12', tipo: 'BAJA' as const, datos: { fecha: '2026-11-12', motivo: 'venta' }, aceptadoEn: Date.parse('2026-11-12T14:00:00.000Z'), registro: null };
+    const ctx = { ...contexto(), enviados: [enviadaBaja] };
+    const f = resolverFichaLocal('GET', '/animales/a1', true, ctx, AHORA) as AnimalFicha;
+    expect(f.estado).toBe('BAJA');
+    expect(f.locales?.bajaPendiente?.estado).toBe('enviada');
+    // La sección de reproducción y el historial también salen de la vista local (no dan 404).
+    expect(resolverFichaLocal('GET', '/animales/a1/eventos', true, ctx, AHORA)).not.toBeNull();
+    expect(resolverFichaLocal('GET', '/animales/a1/historial', true, ctx, AHORA)).not.toBeNull();
+  });
+
   it('un animal que no está en la copia, o una ruta que no es de ficha, devuelve null', () => {
     expect(resolverFichaLocal('GET', '/animales/zzz', false, contexto(), AHORA)).toBeNull();
     expect(resolverFichaLocal('GET', '/animales/a1/produccion', false, contexto(), AHORA)).toBeNull();

@@ -91,6 +91,9 @@ export function AnimalFicha() {
   // Cuando se corta o vuelve la conexión se relee la ficha (de la copia o del servidor) sin tocar
   // paneles ni avisos. La primera vez no hace falta: ya la leyó el efecto de arriba.
   const primeraVez = useRef(true);
+  // Última ficha mostrada, para decidir dentro de un `catch` sin depender de un valor viejo.
+  const fichaRef = useRef<Ficha | null>(null);
+  fichaRef.current = ficha;
   useEffect(() => {
     if (primeraVez.current) {
       primeraVez.current = false;
@@ -98,7 +101,13 @@ export function AnimalFicha() {
     }
     api<Ficha>(`/animales/${encodeURIComponent(id ?? '')}`)
       .then(setFicha)
-      .catch(() => undefined); // si falla, queda lo que ya se veía
+      .catch((err) => {
+        // La baja enviada ya la refleja el servidor: la ficha activa da 404 (ya es de baja) y se pasa a su ficha de baja.
+        if (err instanceof ApiError && err.status === 404 && fichaRef.current?.locales?.bajaPendiente) {
+          navigate(`/bajas/${encodeURIComponent(id ?? '')}`, { replace: true });
+        }
+        // Cualquier otro fallo: queda lo que ya se veía.
+      });
   }, [enLinea, versionCola]);
 
   // Tras un parto o secado cambian el estado, el lote y las crías de la madre: se vuelve a leer
@@ -423,7 +432,8 @@ export function AnimalFicha() {
       )}
 
       {/* Producción de leche (spec 008): solo hembras. Después del historial; este no cambia. */}
-      {ficha.sexo === 'HEMBRA' && (
+      {/* Con la baja ya enviada el servidor da 404 para la producción de una vaca de baja: no se muestra hasta actualizar. */}
+      {ficha.sexo === 'HEMBRA' && bajaPendiente?.estado !== 'enviada' && (
         <Produccion
           animalId={ficha.id}
           contexto="animales"

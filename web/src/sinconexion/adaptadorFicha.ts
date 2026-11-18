@@ -42,9 +42,14 @@ export function contarSinAceptar(animalId: string, pendientes: Pendiente[]): num
   return eventosDe(animalId, pendientes).length;
 }
 
-export function decidirFuente(args: { enLinea: boolean; animalId: string; pendientes: Pendiente[] }): FuenteFicha {
+export function decidirFuente(args: { enLinea: boolean; animalId: string; pendientes: Pendiente[]; enviados?: Enviado[] }): FuenteFicha {
   if (!args.enLinea) return 'local';
-  return contarSinAceptar(args.animalId, args.pendientes) > 0 ? 'local' : 'servidor';
+  if (contarSinAceptar(args.animalId, args.pendientes) > 0) return 'local';
+  // Una baja ENVIADA que la copia todavía no refleja: el servidor ya la aceptó y para un animal de baja la ficha
+  // activa da 404, así que seguimos con la vista local ("Baja enviada: se confirma al actualizar", RF-23).
+  // Los demás enviados no desvían: el servidor sí conoce esos eventos.
+  if ((args.enviados ?? []).some((e) => e.animalId === args.animalId && e.tipo === 'BAJA')) return 'local';
+  return 'servidor';
 }
 
 export type ArgsFichaLocal = {

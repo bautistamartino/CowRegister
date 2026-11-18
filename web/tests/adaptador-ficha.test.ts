@@ -77,6 +77,14 @@ describe('decidirFuente y contarSinAceptar (RF-18)', () => {
     expect(decidirFuente({ enLinea: true, animalId: 'a1', pendientes: [] })).toBe('servidor');
   });
 
+  it('con conexión y una baja ENVIADA que la copia todavía no refleja manda la vista local (el servidor da 404)', () => {
+    const bajaEnviada = env(baja());
+    expect(decidirFuente({ enLinea: true, animalId: 'a1', pendientes: [], enviados: [bajaEnviada] })).toBe('local');
+    // Otra vaca, u otro tipo de enviado (el servidor sí los conoce), no desvían la fuente.
+    expect(decidirFuente({ enLinea: true, animalId: 'a2', pendientes: [], enviados: [bajaEnviada] })).toBe('servidor');
+    expect(decidirFuente({ enLinea: true, animalId: 'a1', pendientes: [], enviados: [env(servicio('2026-11-01'))] })).toBe('servidor');
+  });
+
   it('cuenta los eventos sin aceptar de la vaca, de todos los estados, sin litros', () => {
     const lista = [servicio('2026-11-01'), tacto('2026-11-02', 'VACIA', {}, { estado: 'rechazado' }), servicio('2026-11-03', {}, { animalId: 'a2' }), pendiente({ id: 'l-2', orden: 91 })];
     expect(contarSinAceptar('a1', lista)).toBe(2);

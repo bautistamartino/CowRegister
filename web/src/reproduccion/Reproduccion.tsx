@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
-import { api, ApiError, type Aviso, type EstadoAnimal, type EventoReproductivo, type RespuestaEventos, type RespuestaRegistro, type SemenToro, type Sexo } from '../compartido/api';
+import { api, ApiError, type Aviso, type EstadoAnimal, type EventoReproductivo, type RespuestaEventos, type SemenToro, type Sexo } from '../compartido/api';
 import { useAuth } from '../sesion/auth';
 import { useEnLinea } from '../sinconexion/useConexion';
 import { useVersionCola } from '../sinconexion/useVersionCola';
 import { useGuardarCarga } from '../sinconexion/useGuardarCarga';
-import type { ConfirmacionCarga } from '../sinconexion/guardadoCarga';
+import { TEXTO_GUARDADO_PENDIENTE, type ConfirmacionCarga } from '../sinconexion/guardadoCarga';
+import { resumenPendiente } from '../sinconexion/resumenPendiente';
 import { leerSemenActivoLocal } from '../sinconexion/lecturaLocal';
-import { NotaNecesitaConexion, TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
 import { formatearFecha, NOMBRE_ESTADO, NOMBRE_SEXO } from '../animales/animalesDatos';
 import {
   fechaArgentinaIso,
@@ -111,14 +111,13 @@ export function Reproduccion({ animalId, numero, sexo, estado, alCambiarAnimal, 
     await Promise.all([recargar(), alCambiarAnimal()]);
   }
 
-  // Parto o secado: se recarga la ficha y se muestran los avisos de la respuesta una sola vez.
-  async function alRegistrarParto(r: RespuestaRegistro) {
+  // Parto guardado: se recarga la ficha y se muestra la confirmación una sola vez. Si el servidor lo aceptó en el
+  // momento (`evento`), se ofrecen los enlaces a la ficha de cada cría viva; si quedó pendiente, las crías se ven
+  // dentro del parto en el historial (todavía no son animales).
+  async function alGuardarParto(c: ConfirmacionCarga, evento: Record<string, unknown> | null) {
     setFormulario(null);
-    setResultado({
-      titulo: r.evento.tipo === 'PARTO' ? 'Parto registrado' : 'Secado registrado',
-      avisos: r.avisos,
-      crias: (r.evento.parto?.crias ?? []).flatMap((c) => (c.animal ? [{ id: c.animal.id, numero: c.animal.numero }] : [])),
-    });
+    const crias = ((evento as Partial<EventoReproductivo> | null)?.parto?.crias ?? []).flatMap((cria) => (cria.animal ? [{ id: cria.animal.id, numero: cria.animal.numero }] : []));
+    setResultado({ ...c, crias });
     await Promise.all([recargar(), alCambiarAnimal()]);
   }
 
@@ -130,7 +129,13 @@ export function Reproduccion({ animalId, numero, sexo, estado, alCambiarAnimal, 
 
   // Anulación: tras anular un parto o secado cambian estado, lote y crías de la madre, así que
   // se relee la ficha. Los avisos 6 y 7 (lote previo) se muestran en la misma caja de resultado.
-  async function alAnularEvento(tipo: EventoReproductivo['tipo'], avisos: Aviso[]) {
+  async function alAnularEvento(tipo: EventoReproductivo['tipo'], avisos: Aviso[], pendiente: boolean) {
+    if (pendiente) {
+      // La anulación quedó en la tablet: se confirma así y la fila pasa a verse anulada desde la vista local.
+      setResultado({ titulo: TEXTO_GUARDADO_PENDIENTE, detalle: resumenPendiente('ANULACION', { tipoEvento: tipo }), avisos: [], crias: [] });
+      await Promise.all([recargar(), alCambiarAnimal()]);
+      return;
+    }
     const titulo = tipo === 'PARTO' ? 'Parto anulado' : tipo === 'SECADO' ? 'Secado anulado' : null;
     setResultado(titulo ? { titulo, avisos, crias: [] } : null);
     await Promise.all([recargar(), titulo ? alCambiarAnimal() : Promise.resolve()]);
@@ -248,7 +253,7 @@ export function Reproduccion({ animalId, numero, sexo, estado, alCambiarAnimal, 
                 Registrar tacto
               </button>
               {puedeRegistrarPartos && (
-                <button type="button" className="boton necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setFormulario(formulario === 'parto' ? null : 'parto')}>
+                <button type="button" className="boton" onClick={() => setFormulario(formulario === 'parto' ? null : 'parto')}>
                   Registrar parto
                 </button>
               )}
@@ -259,14 +264,12 @@ export function Reproduccion({ animalId, numero, sexo, estado, alCambiarAnimal, 
                 </button>
               )}
             </div>
-            {/* El parto se carga con el mismo punto de registro en la tarea siguiente (T4): hasta entonces sigue necesitando conexión. */}
-            {!enLinea && puedeRegistrarPartos && <NotaNecesitaConexion />}
             {prenada && <p className="campo-ayuda">Para registrar un nuevo servicio, primero registrá un tacto &quot;vacía&quot;.</p>}
             {formulario === 'servicio' && (
               <FormServicio animal={{ id: animalId, numero }} alCancelar={() => setFormulario(null)} alRegistrar={alRegistrar} />
             )}
             {formulario === 'parto' && puedeRegistrarPartos && (
-              <FormParto animalId={animalId} alCancelar={() => setFormulario(null)} alRegistrar={alRegistrarParto} />
+              <FormParto animal={{ id: animalId, numero }} alCancelar={() => setFormulario(null)} alGuardado={alGuardarParto} />
             )}
             {formulario === 'secado' && puedeRegistrarPartos && (
               <FormSecado animal={{ id: animalId, numero }} alCancelar={() => setFormulario(null)} alGuardado={alGuardarSecado} />
@@ -280,6 +283,7 @@ export function Reproduccion({ animalId, numero, sexo, estado, alCambiarAnimal, 
 
       <Historial
         animalId={animalId}
+        numero={numero}
         contexto="animales"
         version={versionHistorial + versionExterna}
         alAnular={soloLectura ? undefined : alAnularEvento}

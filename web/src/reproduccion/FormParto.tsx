@@ -1,26 +1,30 @@
 import { useState, type FormEvent } from 'react';
-import { api, type RespuestaRegistro, type Sexo } from '../compartido/api';
+import type { Sexo } from '../compartido/api';
 import { NOMBRE_SEXO } from '../animales/animalesDatos';
-import { FECHA_MINIMA, hoyIso, interpretar } from './reproduccionDatos';
+import { FECHA_MINIMA, hoyIso } from './reproduccionDatos';
 import { Campo } from '../compartido/Campo';
+import { useGuardarCarga } from '../sinconexion/useGuardarCarga';
+import type { ConfirmacionCarga } from '../sinconexion/guardadoCarga';
 
 type Props = {
-  animalId: string;
+  animal: { id: string; numero: string };
   alCancelar: () => void;
-  alRegistrar: (r: RespuestaRegistro) => Promise<void>;
+  // Se llama cuando el parto quedó guardado. `evento` solo viene si el servidor lo aceptó en el momento
+  // (de ahí salen los enlaces "Ver la ficha de la cría"); si quedó pendiente es null.
+  alGuardado: (c: ConfirmacionCarga, evento: Record<string, unknown> | null) => Promise<void>;
 };
 
-// Lo que se carga de una cría en pantalla (todo texto, la API valida de verdad).
+// Lo que se carga de una cría en pantalla (todo texto, la validación de verdad la hace el punto de registro).
 type CriaForm = { sexo: Sexo; nacidaMuerta: boolean; numero: string; observaciones: string };
 const criaVacia = (): CriaForm => ({ sexo: 'HEMBRA', nacidaMuerta: false, numero: '', observaciones: '' });
 
 // Formulario de parto: fecha y una o dos crías (RF-45). "Nacida muerta" oculta el número
-// porque esa cría no se da de alta. Todo se guarda junto o no se guarda nada (RF-4).
-export function FormParto({ animalId, alCancelar, alRegistrar }: Props) {
+// porque esa cría no se da de alta. Todo se guarda junto como UN solo pendiente o no se guarda nada (RF-4, spec 011).
+export function FormParto({ animal, alCancelar, alGuardado }: Props) {
   const [crias, setCrias] = useState<CriaForm[]>([criaVacia()]);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
+  const { guardar, guardando: enviando } = useGuardarCarga();
 
   function cambiar(i: number, cambio: Partial<CriaForm>) {
     setCrias((actual) => actual.map((c, j) => (j === i ? { ...c, ...cambio } : c)));
@@ -31,31 +35,29 @@ export function FormParto({ animalId, alCancelar, alRegistrar }: Props) {
     const d = new FormData(e.currentTarget);
     setErrores({});
     setError(null);
-    setEnviando(true);
-    try {
-      const r = await api<RespuestaRegistro>(`/animales/${encodeURIComponent(animalId)}/partos`, {
-        method: 'POST',
-        body: {
-          fecha: String(d.get('fecha')),
-          crias: crias.map((c) =>
-            c.nacidaMuerta
-              ? { sexo: c.sexo, nacidaMuerta: true, observaciones: c.observaciones }
-              : { sexo: c.sexo, nacidaMuerta: false, numero: c.numero, observaciones: c.observaciones },
-          ),
-        },
-      });
-      await alRegistrar(r);
-    } catch (err) {
-      const r = interpretar(err);
-      setErrores(r.campos);
-      // Los errores de campos que el formulario no dibuja (por ejemplo "crias") van en la alerta.
-      const dibujados = new Set(['fecha', ...crias.flatMap((_, i) => [`crias.${i}.sexo`, `crias.${i}.numero`, `crias.${i}.observaciones`])]);
-      const sueltos = Object.entries(r.campos)
-        .filter(([k]) => !dibujados.has(k))
-        .map(([, m]) => m);
-      setError(r.general ?? (sueltos.length ? sueltos.join(' ') : null));
-      setEnviando(false);
+    const salida = await guardar({
+      tipo: 'PARTO',
+      animal,
+      datos: {
+        fecha: String(d.get('fecha')),
+        crias: crias.map((c) =>
+          c.nacidaMuerta
+            ? { sexo: c.sexo, nacidaMuerta: true, observaciones: c.observaciones }
+            : { sexo: c.sexo, nacidaMuerta: false, numero: c.numero, observaciones: c.observaciones },
+        ),
+      },
+      tituloAceptado: 'Parto registrado',
+      // Los errores de campos que el formulario no dibuja (por ejemplo "crias") van en la alerta de arriba.
+      camposDibujados: ['fecha', ...crias.flatMap((_, i) => [`crias.${i}.sexo`, `crias.${i}.numero`, `crias.${i}.observaciones`])],
+    });
+    if (!salida) return;
+    if (salida.tipo === 'error') {
+      // El formulario sigue abierto con todo lo escrito.
+      setErrores(salida.errores.campos);
+      setError(salida.errores.general);
+      return;
     }
+    await alGuardado(salida.confirmacion, salida.evento);
   }
 
   return (
@@ -108,16 +110,19 @@ export function FormParto({ animalId, alCancelar, alRegistrar }: Props) {
             ayuda="Hasta 200 caracteres"
           />
           {i === 1 && (
-            <button type="button" className="boton-secundario" onClick={() => setCrias([crias[0]])} disabled={enviando}>
+            <button type="button" className="boton-secundario" onClick={() => setCrias([crias[0]!])} disabled={enviando}>
               Quitar segunda cría
             </button>
           )}
         </fieldset>
       ))}
-      {crias.length === 1 && (
+      {crias.length === 1 ? (
         <button type="button" className="boton-secundario" onClick={() => setCrias([...crias, criaVacia()])} disabled={enviando}>
           Agregar segunda cría
         </button>
+      ) : (
+        // Con dos crías ya no se ofrece agregar otra: se explica el tope.
+        <p className="campo-ayuda">Un parto admite hasta 2 crías</p>
       )}
 
       <div className="acciones">

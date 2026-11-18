@@ -43,7 +43,7 @@ export function rutaDeFicha(metodo: string, ruta: string): RutaDeFicha | null {
 export function resolverFichaLocal(metodo: string, ruta: string, enLinea: boolean, ctx: ContextoFicha, ahora: Date): unknown | null {
   const r = rutaDeFicha(metodo, ruta);
   if (!r) return null;
-  if (decidirFuente({ enLinea, animalId: r.animalId, pendientes: ctx.pendientes }) === 'servidor') return null;
+  if (decidirFuente({ enLinea, animalId: r.animalId, pendientes: ctx.pendientes, enviados: ctx.enviados }) === 'servidor') return null;
   // Un animal que no está en la copia no tiene vista local: lo resuelve el camino de siempre (error "no está en la tablet").
   const copia = ctx.animales.find((a) => a.ficha.id === r.animalId);
   if (!copia) return null;
