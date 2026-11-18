@@ -2,7 +2,7 @@
 
 Cada tarea es autónoma: releé `spec.md`, `plan.md`, `docs/constitution.md` y el código antes de empezar. Tests primero (Vitest en `web/tests/`, con reloj inyectable). Sin dependencias nuevas. No tocar la API ni las reglas de la 010.
 
-- [ ] **T1** — Base pura: adaptador de la ficha, resúmenes, conversión de rechazos y hora de Argentina única
+- [x] **T1** — Base pura: adaptador de la ficha, resúmenes, conversión de rechazos y hora de Argentina única
   - Crear `web/src/sinconexion/adaptadorFicha.ts` (decisión de fuente + ficha, situación, eventos e historial a partir de la vista local, con los campos opcionales nuevos en los tipos de `web/src/compartido/api.ts`), `resumenPendiente.ts` y `formularioRechazo.ts`.
   - Unificar la hora de Argentina: exportar `fechaIsoArgentina` y `formatearFechaHoraArgentina` desde `horaArgentina.ts` y hacer que `reproduccionDatos.ts` (`fechaArgentinaIso`, `hoyIso`), `fechaHora.ts`, `Historial.tsx` (`textoMomento`) y `produccionDatos.ts` deleguen en ellas, sin cambiar los textos de salida.
   - Agregar a `registrar.ts` y `clasificar.ts` el campo opcional `evento` en el resultado `enviado` (aditivo; si complica, omitirlo y dejarlo anotado).
@@ -10,7 +10,7 @@ Cada tarea es autónoma: releé `spec.md`, `plan.md`, `docs/constitution.md` y e
   - RF: RF-10, RF-11, RF-12, RF-16, RF-18 a RF-24 (lógica), RF-26
   - Hecho cuando: los tests nuevos pasan; `npm test` y `npm run typecheck` en verde; los tests de la 009 y la 010 siguen en verde; no se ve ningún cambio de pantalla (no hace falta navegador).
 
-- [ ] **T2** — Ficha, reproducción e historial con la vista local (lectura)
+- [x] **T2** — Ficha, reproducción e historial con la vista local (lectura)
   - En `web/src/compartido/api.ts` (con `lecturaLocal.ts` / `copiaLocal.ts` si hace falta) las tres lecturas `/animales/:id`, `/eventos` e `/historial` usan el adaptador según la tabla de fuentes del plan; pasar el nombre del usuario de la sesión al adaptador. Agregar la lectura de `/semen` a lo que resuelve la copia si falta.
   - `useVersionCola.ts` y sumarlo a los efectos de lectura de `AnimalFicha`, `Reproduccion` e `Historial` (se actualizan solos al cambiar la cola o la copia, sin cerrar formularios).
   - Dibujar: estado y situación de la vista; eventos pendientes con "Pendiente de sincronizar" y "Se completa al sincronizar" en lugar del lote anterior y la genética; parto con crías dentro (sin enlaces) y "El lote se asigna al sincronizar"; secado ("seca", sin litros); ficha de baja pendiente en solo lectura con "Baja pendiente de sincronizar", "Descartar baja" (con `Confirmar`, según estado) o "Baja enviada: se confirma al actualizar"; nota "Esta vaca tiene N pendientes sin aceptar: revisalos en Pendientes" con enlace.

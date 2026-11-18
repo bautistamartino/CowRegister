@@ -2,7 +2,8 @@
 
 import { obtenerConexion } from '../sinconexion/conexion';
 import { resolverLocal } from '../sinconexion/copiaLocal';
-import { leerCopiaLocal } from '../sinconexion/lecturaLocal';
+import { rutaDeFicha, resolverFichaLocal } from '../sinconexion/fichaLocal';
+import { leerContextoFicha, leerCopiaLocal } from '../sinconexion/lecturaLocal';
 
 export class ApiError extends Error {
   constructor(
@@ -53,12 +54,25 @@ function esDeSesionOCopia(ruta: string): boolean {
 // Devuelve `{ usado: false }` si la ruta no es de la lista o no hay copia utilizable.
 // Si la copia dice que el pedido tiene que dar un error (animal ausente, filtro inválido), lo lanza.
 async function responderDesdeCopia<T>(metodo: string, ruta: string): Promise<{ usado: true; valor: T } | { usado: false }> {
+  // Las tres lecturas de la ficha salen de la vista local (copia + pendientes), no de la copia pelada (spec 011).
+  const vista = await fichaDesdeVistaLocal<T>(metodo, ruta, false);
+  if (vista.usado) return vista;
   const copia = await leerCopiaLocal();
   if (!copia) return { usado: false };
   const r = resolverLocal(metodo, ruta, copia);
   if (r.tipo === 'fuera') return { usado: false };
   if (r.tipo === 'error') throw new ApiError(r.status, r.mensaje);
   return { usado: true, valor: r.datos as T };
+}
+
+// Ficha, eventos e historial de una vaca con lo que sabe la tablet (copia + pendientes). Con `enLinea` true solo
+// responde si la vaca tiene eventos sin aceptar (el servidor todavía no los conoce); si no, deja que decida el servidor.
+async function fichaDesdeVistaLocal<T>(metodo: string, ruta: string, enLinea: boolean): Promise<{ usado: true; valor: T } | { usado: false }> {
+  if (!rutaDeFicha(metodo, ruta)) return { usado: false };
+  const ctx = await leerContextoFicha();
+  if (!ctx) return { usado: false };
+  const datos = resolverFichaLocal(metodo, ruta, enLinea, ctx, new Date());
+  return datos === null ? { usado: false } : { usado: true, valor: datos as T };
 }
 
 export async function api<T>(ruta: string, opciones: { method?: string; body?: unknown; timeoutMs?: number } = {}): Promise<T> {
@@ -72,6 +86,12 @@ export async function api<T>(ruta: string, opciones: { method?: string; body?: u
     const local = await responderDesdeCopia<T>(metodo, ruta);
     if (local.usado) return local.valor;
     throw new ApiError(0, TEXTO_NECESITA_CONEXION);
+  }
+
+  // Con conexión pero con eventos de esa vaca sin aceptar: la ficha sale de la vista local (spec 011, RF-18).
+  if (!intentaSiempre) {
+    const vista = await fichaDesdeVistaLocal<T>(metodo, ruta, true);
+    if (vista.usado) return vista.valor;
   }
 
   // Si el pedido no llega al servidor, se avisa a `conexion` (pasa a "sin conexión") y, si es una

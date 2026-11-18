@@ -13,6 +13,9 @@ import { textoGenetica } from '../reproduccion/reproduccionDatos';
 import { useEnLinea } from '../sinconexion/useConexion';
 import { AvisoDatosLocales } from '../sinconexion/AvisoConexion';
 import { NotaNecesitaConexion, TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
+import { useCola } from '../sinconexion/ColaProvider';
+import { Confirmar } from '../sinconexion/Confirmar';
+import { useVersionCola } from '../sinconexion/useVersionCola';
 
 // Ficha de un animal (RF-28, RF-29). Dueño y encargado pueden editarlo y moverlo de lote (spec 005).
 export function AnimalFicha() {
@@ -47,6 +50,13 @@ export function AnimalFicha() {
   const [avisosEdicion, setAvisosEdicion] = useState<string[]>([]);
   // Aviso del alta: se reemplaza al editar (si no, quedaría uno viejo junto al nuevo).
   const [avisoNumeroAlta, setAvisoNumeroAlta] = useState<string | null>(avisoNumeroInicial);
+  // Descartar una baja pendiente (spec 011, RF-23): confirmación, espera y resultado.
+  const { descartar } = useCola();
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  const [descartando, setDescartando] = useState(false);
+  const [avisoDescarte, setAvisoDescarte] = useState<string | null>(null);
+  // Cambia cuando cambia la cola de pendientes o la copia: la ficha se relee sola, sin tocar paneles ni avisos (RF-25).
+  const versionCola = useVersionCola();
 
   useEffect(() => {
     let vigente = true;
@@ -59,6 +69,8 @@ export function AnimalFicha() {
     setAvisoNoDisponible(false);
     setAvisosEdicion([]);
     setAvisoNumeroAlta(avisoNumeroInicial);
+    setAvisoDescarte(null);
+    setConfirmandoDescarte(false);
     api<Ficha>(`/animales/${encodeURIComponent(id ?? '')}`)
       .then((f) => {
         if (vigente) setFicha(f);
@@ -87,7 +99,7 @@ export function AnimalFicha() {
     api<Ficha>(`/animales/${encodeURIComponent(id ?? '')}`)
       .then(setFicha)
       .catch(() => undefined); // si falla, queda lo que ya se veía
-  }, [enLinea]);
+  }, [enLinea, versionCola]);
 
   // Tras un parto o secado cambian el estado, el lote y las crías de la madre: se vuelve a leer
   // la ficha sin vaciarla (si no, Reproduccion se desmontaría y perdería los avisos recién recibidos).
@@ -132,6 +144,20 @@ export function AnimalFicha() {
     </div>
   );
 
+  // Descartar la baja pendiente: la confirmación ya se pidió en pantalla, por eso se llama con `confirmado`.
+  async function descartarBaja(idBaja: string) {
+    setDescartando(true);
+    try {
+      const r = await descartar(idBaja, { confirmado: true });
+      setAvisoDescarte(r === 'ya-guardado' ? 'Ya estaba guardado en el servidor' : r === 'descartado' ? 'Baja descartada' : null);
+    } catch {
+      setAvisoDescarte('No se pudo descartar la baja. Probá de nuevo');
+    } finally {
+      setDescartando(false);
+      setConfirmandoDescarte(false);
+    }
+  }
+
   if (noEncontrado) {
     return (
       <main className="contenido">
@@ -163,6 +189,10 @@ export function AnimalFicha() {
     );
   }
 
+  // Lo que sabe la tablet y el servidor todavía no (solo existe cuando la ficha sale de la vista local).
+  const locales = ficha.locales;
+  const bajaPendiente = locales?.bajaPendiente;
+
   return (
     <main className="contenido pantalla-lotes">
       <h1>Animal {ficha.numero}</h1>
@@ -170,6 +200,55 @@ export function AnimalFicha() {
       <AvisoDatosLocales />
 
       {alertaNoDisponible}
+
+      {/* Baja cargada en la tablet: la ficha queda en solo lectura (RF-23). */}
+      {bajaPendiente && (
+        <div className="resultado-registro" role="status">
+          <p className="resultado-titulo">{bajaPendiente.estado === 'enviada' ? 'Baja enviada: se confirma al actualizar' : 'Baja pendiente de sincronizar'}</p>
+          <p>{bajaPendiente.resumen}{bajaPendiente.fecha ? ` · ${formatearFecha(bajaPendiente.fecha)}` : ''}</p>
+          {bajaPendiente.estado === 'enviada' ? null : confirmandoDescarte ? (
+            <Confirmar
+              titulo="¿Descartar esta baja?"
+              confirmarTexto="Sí, descartar la baja"
+              alConfirmar={() => void descartarBaja(bajaPendiente.id)}
+              alCancelar={() => setConfirmandoDescarte(false)}
+              ocupado={descartando}
+            >
+              <p>
+                {bajaPendiente.resumen} del {formatearFecha(bajaPendiente.fecha)} del animal {ficha.numero}. El animal sigue activo y no se envía la baja.
+              </p>
+            </Confirmar>
+          ) : (
+            usuario?.rol !== 'VETERINARIO' && (
+              <button type="button" className="boton-secundario boton-peligro" onClick={() => setConfirmandoDescarte(true)}>
+                Descartar baja
+              </button>
+            )
+          )}
+        </div>
+      )}
+
+      {avisoDescarte && (
+        <p className="aviso" role="status">
+          {avisoDescarte}
+        </p>
+      )}
+
+      {/* Rechazados o "en espera del anterior": no cuentan en la ficha pero hay que revisarlos (RF-24). */}
+      {!bajaPendiente && locales && locales.sinAceptar > 0 && (
+        <p className="aviso" role="status">
+          Esta vaca tiene {locales.sinAceptar} {locales.sinAceptar === 1 ? 'pendiente sin aceptar' : 'pendientes sin aceptar'}:{' '}
+          <Link to="/pendientes" className="enlace-fila">
+            revisalos en Pendientes
+          </Link>
+        </p>
+      )}
+
+      {locales?.avisoLotePendiente && (
+        <p className="aviso" role="status">
+          El lote se asigna al sincronizar
+        </p>
+      )}
 
       {avisoSinLote && (
         <p className="aviso" role="status">
@@ -293,7 +372,7 @@ export function AnimalFicha() {
         </div>
       </dl>
 
-      {puedeEditar && (
+      {puedeEditar && !bajaPendiente && (
         <>
           <div className="acciones">
             <button type="button" className="boton necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setPanel(panel === 'editar' ? null : 'editar')}>
@@ -332,7 +411,7 @@ export function AnimalFicha() {
 
       {/* Hembras: situación, formularios e historial (embebido). Machos: solo el historial. */}
       {ficha.sexo === 'HEMBRA' ? (
-        <Reproduccion animalId={ficha.id} sexo={ficha.sexo} estado={ficha.estado} alCambiarAnimal={recargarFicha} versionExterna={versionCambios} />
+        <Reproduccion animalId={ficha.id} sexo={ficha.sexo} estado={ficha.estado} alCambiarAnimal={recargarFicha} versionExterna={versionCambios} soloLectura={!!bajaPendiente} />
       ) : (
         <Historial animalId={ficha.id} contexto="animales" version={versionCambios} />
       )}

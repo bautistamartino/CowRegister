@@ -8,6 +8,7 @@ import { Campo } from '../compartido/Campo';
 import { formatearFechaHoraArgentina } from '../sinconexion/horaArgentina';
 import { useEnLinea } from '../sinconexion/useConexion';
 import { NotaNecesitaConexion, TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
+import { useVersionCola } from '../sinconexion/useVersionCola';
 
 const NOMBRE_CAMPO: Record<CampoCambio, string> = {
   NUMERO: 'Número',
@@ -50,6 +51,8 @@ export function Historial({ animalId, contexto, version, alAnular, alRefrescar }
   const enLinea = useEnLinea();
   // El veterinario solo anula servicios y tactos (RF-43); la API igual responde 403.
   const puedeAnularTodo = !!usuario && usuario.rol !== 'VETERINARIO';
+  // Cambia cuando cambia la cola de pendientes o la copia: el historial se relee solo (spec 011, RF-25).
+  const versionCola = useVersionCola();
 
   useEffect(() => {
     let vigente = true; // descarta una respuesta vieja si cambió la ficha o la versión
@@ -66,7 +69,7 @@ export function Historial({ animalId, contexto, version, alAnular, alRefrescar }
     return () => {
       vigente = false;
     };
-  }, [animalId, contexto, version, enLinea]);
+  }, [animalId, contexto, version, enLinea, versionCola]);
 
   return (
     <section className="seccion">
@@ -103,6 +106,8 @@ export function Historial({ animalId, contexto, version, alAnular, alRefrescar }
               const anulable =
                 contexto === 'animales' &&
                 !!alAnular &&
+                // Un evento pendiente todavía no existe en el servidor: no se anula (descartarlo llega en la T4).
+                !e.pendiente &&
                 e.id === datos.ultimoEventoNoAnuladoId &&
                 (e.tipo === 'SERVICIO' || e.tipo === 'TACTO' || puedeAnularTodo);
               return (
@@ -174,6 +179,7 @@ function FilaEvento({
     <li id={`evento-${evento.id}`} className={anulado ? 'evento evento-anulado' : 'evento'}>
       <p className="evento-titulo">
         <strong>{formatearFecha(evento.fecha)}</strong> · {resumenEvento(evento)}
+        {evento.pendiente && <span className="etiqueta-estado etiqueta-pendiente">Pendiente de sincronizar</span>}
         {anulado && <span className="etiqueta-anulado">{evento.tipo === 'BAJA' ? 'Revertida' : 'Anulado'}</span>}
       </p>
       <CuerpoEvento evento={evento} />
@@ -233,7 +239,7 @@ function CuerpoEvento({ evento }: { evento: EventoReproductivo }) {
   return (
     <>
       {evento.tacto?.anomalias && <p className="texto-suave">Anomalías: {evento.tacto.anomalias}</p>}
-      {evento.parto && <DetalleParto parto={evento.parto} />}
+      {evento.parto && <DetalleParto parto={evento.parto} pendiente={!!evento.pendiente} />}
       {evento.secado && (
         <p className="texto-suave">
           Estaba {NOMBRE_ESTADO[evento.secado.estadoAnterior].toLowerCase()} · {textoLoteAnterior(evento.secado.loteAnterior)}
@@ -261,13 +267,20 @@ function CuerpoEvento({ evento }: { evento: EventoReproductivo }) {
 }
 
 // Detalle de un parto en la lista: crías, genética y lote previo (RF-38).
-function DetalleParto({ parto }: { parto: NonNullable<EventoReproductivo['parto']> }) {
+function DetalleParto({ parto, pendiente }: { parto: NonNullable<EventoReproductivo['parto']>; pendiente: boolean }) {
   return (
     <>
       <ul className="lista-crias">
         {parto.crias.map((c) => (
           <li key={c.orden}>
-            {c.nacidaMuerta || !c.animal ? (
+            {c.nacidaMuerta ? (
+              <>Cría {NOMBRE_SEXO[c.sexo].toLowerCase()} · nacida muerta</>
+            ) : !c.animal && pendiente ? (
+              // Parto pendiente: la cría todavía no es un animal, así que se muestra el número sin enlace (spec 011, RF-21).
+              <>
+                Cría {NOMBRE_SEXO[c.sexo].toLowerCase()} · {c.numeroPendiente ?? 'sin número'}
+              </>
+            ) : !c.animal ? (
               <>Cría {NOMBRE_SEXO[c.sexo].toLowerCase()} · nacida muerta</>
             ) : c.animal.activo ? (
               <>
@@ -294,8 +307,7 @@ function DetalleParto({ parto }: { parto: NonNullable<EventoReproductivo['parto'
           </li>
         ))}
       </ul>
-      <p className="texto-suave">Genética: {textoGenetica(parto.genetica)}</p>
-      <p className="texto-suave">
+      <p className="texto-suave">Genética: {pendiente ? 'se completa al sincronizar' : textoGenetica(parto.genetica)}</p>      <p className="texto-suave">
         Estaba {NOMBRE_ESTADO[parto.estadoAnterior].toLowerCase()} · {textoLoteAnterior(parto.loteAnterior)}
       </p>
     </>

@@ -1046,3 +1046,8 @@ h1 .etiqueta-baja {
 .confirmar-titulo {
   font-weight: 700;
 }
+
+/* Marca "Pendiente de sincronizar" junto al título de un evento del historial (spec 011). */
+.evento-titulo .etiqueta-estado {
+  margin-left: 0.5rem;
+}

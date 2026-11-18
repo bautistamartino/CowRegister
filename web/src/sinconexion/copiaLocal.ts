@@ -14,7 +14,7 @@
 //
 // Los mensajes y códigos de error son los de la API (api/src/rutas/animales.ts).
 
-import type { AnimalCopia, Lote } from '../compartido/api';
+import type { AnimalCopia, Lote, SemenCopia } from '../compartido/api';
 import { compararNumeros, normalizarNumero } from './numeros';
 import { formatearFechaHora } from './fechaHora';
 
@@ -23,6 +23,7 @@ export type CopiaEnMemoria = {
   generadaEn: string;
   lotes: Lote[];
   animales: AnimalCopia[];
+  semen?: SemenCopia[]; // activos (spec 010); lo usa el formulario de servicio, no `resolverLocal`
 };
 
 export type ResultadoLocal =

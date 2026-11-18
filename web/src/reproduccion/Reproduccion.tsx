@@ -3,6 +3,8 @@ import { Link } from 'react-router';
 import { api, ApiError, type Aviso, type EstadoAnimal, type EventoReproductivo, type RespuestaEventos, type RespuestaRegistro, type SemenToro, type Sexo } from '../compartido/api';
 import { useAuth } from '../sesion/auth';
 import { useEnLinea } from '../sinconexion/useConexion';
+import { useVersionCola } from '../sinconexion/useVersionCola';
+import { leerSemenActivoLocal } from '../sinconexion/lecturaLocal';
 import { NotaNecesitaConexion, TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
 import { formatearFecha, NOMBRE_ESTADO, NOMBRE_SEXO } from '../animales/animalesDatos';
 import {
@@ -25,7 +27,8 @@ import { Historial } from '../historial/Historial';
 
 // alCambiarAnimal: la ficha debe releerse porque el parto o el secado cambian estado, lote y crías.
 // versionExterna: sube cuando la ficha guarda algo (editar, mover) para que el historial se relea.
-type Props = { animalId: string; sexo: Sexo; estado: EstadoAnimal; alCambiarAnimal: () => Promise<void>; versionExterna: number };
+// soloLectura: la vaca tiene una baja pendiente (spec 011, RF-23): se ve todo pero no se ofrece ninguna carga ni anulación.
+type Props = { animalId: string; sexo: Sexo; estado: EstadoAnimal; alCambiarAnimal: () => Promise<void>; versionExterna: number; soloLectura?: boolean };
 type Formulario = 'servicio' | 'tacto' | 'parto' | 'secado' | null;
 
 // Resultado de un parto o secado recién registrado: avisos de la lista cerrada y accesos a las
@@ -35,7 +38,7 @@ type Resultado = { titulo: string; avisos: Aviso[]; crias: { id: string; numero:
 // Sección "Reproducción" de la ficha: situación y formularios; embebe el Historial único (RF-23 a RF-26, spec 007).
 // Los tres roles (dueño, encargado y veterinario) pueden registrar y anular servicios y tactos,
 // así que no se esconde nada por rol. Si una spec futura restringe algo, la API decide (403).
-export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionExterna }: Props) {
+export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionExterna, soloLectura = false }: Props) {
   const [datos, setDatos] = useState<RespuestaEventos | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [formulario, setFormulario] = useState<Formulario>(null);
@@ -47,6 +50,8 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionE
   const enLinea = useEnLinea();
   // El veterinario no registra partos ni secados (RF-43); la API igual responde 403.
   const puedeRegistrarPartos = !!usuario && usuario.rol !== 'VETERINARIO';
+  // Cambia cuando cambia la cola de pendientes o la copia: la situación se relee sola, sin cerrar el formulario (RF-25).
+  const versionCola = useVersionCola();
 
   const recargar = useCallback(async () => {
     try {
@@ -60,7 +65,7 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionE
 
   useEffect(() => {
     if (sexo === 'HEMBRA') void recargar();
-  }, [sexo, recargar, enLinea]);
+  }, [sexo, recargar, enLinea, versionCola]);
 
   // Los machos no tienen nada reproductivo (RF-25).
   if (sexo === 'MACHO') return null;
@@ -86,7 +91,7 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionE
 
   const { situacion, eventos } = datos;
   // Solo vaquillona, en ordeñe o seca admiten servicios y tactos (la API lo vuelve a controlar).
-  const admiteEventos = estado === 'VAQUILLONA' || estado === 'EN_ORDENE' || estado === 'SECA';
+  const admiteEventos = !soloLectura && (estado === 'VAQUILLONA' || estado === 'EN_ORDENE' || estado === 'SECA');
   const prenada = situacion.estado === 'PRENADA';
   // La anulación la ofrece el Historial: solo en el último evento no anulado (RF-43: el veterinario, solo servicio o tacto).
   const partos = eventos.filter((e) => e.tipo === 'PARTO' && !e.anulacion);
@@ -216,7 +221,7 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionE
           </p>
         )}
 
-        {!admiteEventos && (
+        {!admiteEventos && !soloLectura && (
           <p className="subtitulo">Todavía no admite servicios ni tactos (solo vaquillonas, vacas en ordeñe y secas).</p>
         )}
 
@@ -266,7 +271,7 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionE
         animalId={animalId}
         contexto="animales"
         version={versionHistorial + versionExterna}
-        alAnular={alAnularEvento}
+        alAnular={soloLectura ? undefined : alAnularEvento}
         alRefrescar={refrescarTrasError}
       />
     </>
@@ -282,10 +287,16 @@ function FormServicio({ animalId, alCancelar, alRegistrar }: { animalId: string;
   const [enviando, setEnviando] = useState(false);
 
   // El select ofrece solo lo activo (RF-9).
+  // Sin conexión (o si el servidor no responde) salen los activos de la copia de la tablet (spec 011); el catálogo
+  // completo de "Semen y toros" sigue necesitando conexión.
   useEffect(() => {
     api<SemenToro[]>('/semen')
       .then((lista) => setSemen(lista.filter((s) => s.activo)))
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cargar el catálogo de semen'));
+      .catch(async (err) => {
+        const local = await leerSemenActivoLocal();
+        if (local) setSemen(local.map((s) => ({ ...s, activo: true })));
+        else setError(err instanceof ApiError ? err.message : 'No se pudo cargar el catálogo de semen');
+      });
   }, []);
 
   async function enviar(e: FormEvent<HTMLFormElement>) {
