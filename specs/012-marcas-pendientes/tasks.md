@@ -2,7 +2,7 @@
 
 Cada tarea es autónoma: releé `spec.md`, `plan.md`, `docs/constitution.md` y el código antes de empezar. Tests primero (Vitest en `web/tests/`, con reloj inyectable). Sin dependencias nuevas. No tocar la API, la base ni las reglas de la 010, ni el formato de IndexedDB. Hora siempre de Argentina (`horaArgentina.ts`).
 
-- [ ] **T1** — Lógica pura con tests: marcas, "Cargado sin conexión", marca del listado, condición de "Pendientes", reloj y ayudas
+- [x] **T1** — Lógica pura con tests: marcas, "Cargado sin conexión", marca del listado, condición de "Pendientes", reloj y ayudas
   - Crear `marcasHistorial.ts`, `marcasListado.ts`, `condicionPendientes.ts` y `relojTablet.ts` en `web/src/sinconexion/`; ampliar `resumenPendiente.ts` (`resumenCompleto`, `ayudaRechazo`).
   - En `web/src/compartido/api.ts` sumar los campos opcionales `marca` y `anulacionPendiente` a `EventoReproductivo` y `bajaPendiente` a `Animal`.
   - Adaptador (`adaptadorFicha.ts`): poner `marca` y `anulacionPendiente` en los eventos y **agregar al historial** los rechazados y "en espera del anterior" (por fuera de la vista: no cambian estado, situación ni `ultimoEventoNoAnuladoId`).

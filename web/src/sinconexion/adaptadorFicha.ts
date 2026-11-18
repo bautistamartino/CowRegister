@@ -20,6 +20,7 @@ import type {
   EntradaHistorial,
   EventoReproductivo,
   LocalesFicha,
+  LoteAnterior,
   RespuestaEventos,
   RespuestaHistorial,
   SemenCopia,
@@ -28,6 +29,7 @@ import type {
 } from '../compartido/api';
 import type { Enviado, Pendiente } from './almacen';
 import { estadoVisible } from './dependencias';
+import { marcaDePendiente, MARCA_ENVIADO } from './marcasHistorial';
 import { normalizarNumero } from './numeros';
 import { resumenPendiente } from './resumenPendiente';
 import { construirVista, entradasValidas, type Entrada, type EventoVista } from './vistaLocal';
@@ -116,9 +118,71 @@ export function armarFichaLocal(args: ArgsFichaLocal): FichaLocal {
     anulaciones.set(String(e.datos.eventoId), { motivo: String(e.datos.motivo ?? ''), en });
   }
 
+  // Ids de eventos con una anulación SIN ACEPTAR (esperando o enviando): llevan la marca "Anulación pendiente" (spec 012).
+  // Una anulación ya enviada no entra: el evento se ve como "Anulado".
+  const conAnulacionPendiente = new Set(delAnimal.filter((e) => e.tipo === 'ANULACION' && 'orden' in e).map((e) => String(e.datos.eventoId)));
+
   const anulacionDe = (id: string): EventoReproductivo['anulacion'] => {
     const a = anulaciones.get(id);
     return a ? { motivo: a.motivo, por: usuarioNombre, en: a.en } : null;
+  };
+
+  // Arma un evento de la API desde un pendiente o enviado (spec 012: se extrajo para poder armar también los
+  // rechazados y "en espera", que no pasan por la vista). Todo sale de `datos`; `antes` es el estado previo de la vaca
+  // y `fechaProbable` la del tacto ya calculada por la vista (null si no se tiene).
+  const eventoDesdeEntrada = (
+    entrada: Entrada, // nunca una ANULACION ni LITROS: quien llama las descarta antes
+    anulado: boolean,
+    antes: AnimalFicha['estado'],
+    fechaProbable: string | null,
+  ): EventoReproductivo => {
+    const datos = entrada.datos;
+    const fecha = String(datos.fecha ?? '');
+    // Un Pendiente tiene `orden`; un Enviado, `aceptadoEn` (se pregunta en línea para que TypeScript distinga el tipo).
+    const pendiente = 'orden' in entrada;
+    const registradoEn = 'orden' in entrada ? aIso(entrada.cargadoEnDispositivo, fecha) : new Date(entrada.aceptadoEn).toISOString();
+    const evento: EventoReproductivo = {
+      id: entrada.id,
+      tipo: entrada.tipo as EventoReproductivo['tipo'],
+      fecha,
+      registradoPor: usuarioNombre,
+      registradoEn,
+      cargadoEnDispositivo: 'orden' in entrada ? entrada.cargadoEnDispositivo : null,
+      anulacion: anulado ? anulacionDe(entrada.id) : null,
+      servicio: null,
+      tacto: null,
+      parto: null,
+      secado: null,
+      baja: null,
+      // Marca (spec 012): el servidor todavía no confirmó este evento.
+      marca: 'orden' in entrada ? marcaDePendiente(entrada, pendientes) : MARCA_ENVIADO,
+    };
+    if (pendiente) evento.pendiente = true;
+    if (conAnulacionPendiente.has(entrada.id)) evento.anulacionPendiente = true;
+    if (entrada.tipo === 'SERVICIO') {
+      const toro = typeof datos.semenId === 'string' ? semen.find((s) => s.id === datos.semenId) : undefined;
+      evento.servicio = { tipoServicio: String(datos.tipo ?? '') as TipoServicio, semen: toro ? { id: toro.id, nombre: toro.nombre } : null };
+    } else if (entrada.tipo === 'TACTO') {
+      evento.tacto = {
+        resultado: datos.resultado === 'PRENADA' ? 'PRENADA' : 'VACIA',
+        fechaProbableIndicada: typeof datos.fechaProbableParto === 'string' && datos.fechaProbableParto !== '' ? datos.fechaProbableParto : null,
+        fechaProbable,
+        anomalias: typeof datos.anomalias === 'string' && datos.anomalias.trim() !== '' ? datos.anomalias.trim() : null,
+      };
+    } else if (entrada.tipo === 'PARTO') {
+      evento.parto = { estadoAnterior: antes, loteAnterior: null, genetica: null, crias: criasDe(datos) };
+    } else if (entrada.tipo === 'SECADO') {
+      evento.secado = { estadoAnterior: antes, loteAnterior: null };
+    } else if (entrada.tipo === 'BAJA') {
+      const lote: LoteAnterior = copia.ficha.lote ? { id: copia.ficha.lote.id, nombre: copia.ficha.lote.nombre } : 'SIN_LOTE';
+      evento.baja = {
+        motivo: datos.motivo === 'muerte' ? 'muerte' : 'venta',
+        observaciones: typeof datos.observaciones === 'string' && datos.observaciones.trim() !== '' ? datos.observaciones.trim() : null,
+        estadoAnterior: antes,
+        loteAnterior: lote,
+      };
+    }
+    return evento;
   };
 
   const armarEvento = (e: EventoVista): EventoReproductivo | null => {
@@ -126,47 +190,12 @@ export function armarFichaLocal(args: ArgsFichaLocal): FichaLocal {
       const original = originales.get(e.id);
       if (!original) return null;
       // Un evento de la copia con una anulación que el servidor todavía no conoce se ve como anulado.
-      if (e.anulado && original.anulacion === null) return { ...original, anulacion: anulacionDe(e.id) };
-      return original;
+      const base = e.anulado && original.anulacion === null ? { ...original, anulacion: anulacionDe(e.id) } : original;
+      return conAnulacionPendiente.has(e.id) ? { ...base, anulacionPendiente: true } : base;
     }
     const entrada = entradaPorId.get(e.id);
-    if (!entrada) return null;
-    const datos = entrada.datos;
-    // Un Pendiente tiene `orden`; un Enviado, `aceptadoEn` (se pregunta en línea para que TypeScript distinga el tipo).
-    const pendiente = 'orden' in entrada;
-    const registradoEn = 'orden' in entrada ? aIso(entrada.cargadoEnDispositivo, e.fecha) : new Date(entrada.aceptadoEn).toISOString();
-    const antes = estadoAntes.get(e.id) ?? copia.ficha.estado;
-    const evento: EventoReproductivo = {
-      id: e.id,
-      tipo: e.tipo,
-      fecha: e.fecha,
-      registradoPor: usuarioNombre,
-      registradoEn,
-      cargadoEnDispositivo: 'orden' in entrada ? entrada.cargadoEnDispositivo : null,
-      anulacion: e.anulado ? anulacionDe(e.id) : null,
-      servicio: null,
-      tacto: null,
-      parto: null,
-      secado: null,
-      baja: null,
-    };
-    if (pendiente) evento.pendiente = true;
-    if (e.tipo === 'SERVICIO') {
-      const toro = typeof datos.semenId === 'string' ? semen.find((s) => s.id === datos.semenId) : undefined;
-      evento.servicio = { tipoServicio: String(datos.tipo ?? '') as TipoServicio, semen: toro ? { id: toro.id, nombre: toro.nombre } : null };
-    } else if (e.tipo === 'TACTO') {
-      evento.tacto = {
-        resultado: e.resultado === 'PRENADA' ? 'PRENADA' : 'VACIA',
-        fechaProbableIndicada: e.fechaProbableIndicada,
-        fechaProbable: vista.situacion.fechasTactos.get(e.id) ?? null,
-        anomalias: typeof datos.anomalias === 'string' && datos.anomalias.trim() !== '' ? datos.anomalias.trim() : null,
-      };
-    } else if (e.tipo === 'PARTO') {
-      evento.parto = { estadoAnterior: antes, loteAnterior: null, genetica: null, crias: criasDe(datos) };
-    } else if (e.tipo === 'SECADO') {
-      evento.secado = { estadoAnterior: antes, loteAnterior: null };
-    }
-    return evento;
+    if (!entrada || entrada.tipo === 'ANULACION' || entrada.tipo === 'LITROS') return null;
+    return eventoDesdeEntrada(entrada, e.anulado, estadoAntes.get(e.id) ?? copia.ficha.estado, vista.situacion.fechasTactos.get(e.id) ?? null);
   };
 
   // La vista ordena de más antiguo a más reciente; la API (y las pantallas) van del más reciente al más antiguo.
@@ -218,6 +247,20 @@ export function armarFichaLocal(args: ArgsFichaLocal): FichaLocal {
     entradasHistorial.splice(i === -1 ? entradasHistorial.length : i, 0, nueva);
     nuevos += 1;
   }
+  // Rechazados y "en espera del anterior" (spec 012, RF-1 y RF-3): no cuentan en la vista (no cambian estado, situación
+  // ni el último no anulado), pero el historial los muestra con su marca. Se agregan acá, por fuera de la vista, en
+  // orden de carga. Las anulaciones rechazadas no son un evento: quedan solo en "Pendientes" y en la nota de la ficha.
+  const fueraDeVista = eventosDe(animalId, pendientes)
+    .filter((p) => p.tipo !== 'ANULACION' && ['rechazado', 'enEspera'].includes(estadoVisible(p, pendientes)))
+    .sort((a, b) => a.orden - b.orden);
+  for (const p of fueraDeVista) {
+    const evento = eventoDesdeEntrada(p, false, copia.ficha.estado, null);
+    const nueva: EntradaHistorial = { clase: 'EVENTO', fecha: evento.fecha, registradoEn: evento.registradoEn, evento };
+    const i = entradasHistorial.findIndex((h) => h.fecha <= nueva.fecha);
+    entradasHistorial.splice(i === -1 ? entradasHistorial.length : i, 0, nueva);
+    nuevos += 1;
+  }
+
   const historial: RespuestaHistorial = {
     ...copia.historial,
     total: copia.historial.total + nuevos,

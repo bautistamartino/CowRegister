@@ -185,6 +185,8 @@ export type Animal = {
   sexo: Sexo;
   estado: EstadoAnimal;
   lote: { nombre: string } | null;
+  // Spec 012: no viene de la API; lo agrega la tablet cuando el animal tiene una baja pendiente o enviada sin reflejar.
+  bajaPendiente?: boolean;
 };
 
 // Respuesta de GET /api/animales: `truncado` es true si hay más de los que se muestran.
@@ -297,7 +299,14 @@ export type EventoReproductivo = {
   // Spec 011: solo lo arma el adaptador de la ficha (sinconexion/adaptadorFicha.ts), nunca la API. true = el
   // evento está cargado en la tablet y el servidor todavía no lo aceptó.
   pendiente?: boolean;
+  // Spec 012: tampoco vienen de la API. `marca` = el servidor todavía no confirmó el evento (pendiente, enviado,
+  // rechazado o en espera del anterior); `anulacionPendiente` = hay una anulación de este evento sin aceptar.
+  marca?: MarcaEvento;
+  anulacionPendiente?: boolean;
 };
+
+// Marca de un evento cargado en la tablet (spec 012, RF-1). `motivo` solo en los rechazados.
+export type MarcaEvento = { estado: 'pendiente' | 'enviado' | 'rechazado' | 'enEspera'; motivo?: string };
 
 // ─── Partos y secados (spec 004) ───
 
