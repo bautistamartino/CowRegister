@@ -18,7 +18,7 @@ Cada tarea es autónoma: releé `spec.md`, `plan.md`, `docs/constitution.md` y e
   - RF: RF-18 a RF-25, RF-28
   - Hecho cuando: `npm test` y `npm run typecheck` en verde; en el navegador a **768 px, modo claro**, sembrando en IndexedDB pendientes de cada tipo (un fragmento de consola que no se commitea), con la red cortada y con señal: la ficha muestra la fuente correcta, las marcas y la baja pendiente en solo lectura; la consulta sin conexión de la 009 (listado, buscador, ficha sin pendientes) sigue igual.
 
-- [ ] **T3** — Formularios de servicio, tacto, secado y baja con el punto único de registro
+- [x] **T3** — Formularios de servicio, tacto, secado y baja con el punto único de registro
   - Crear `useGuardarCarga.ts` (estado "Guardando…", un solo envío, confirmaciones, errores por campo vía `formularioRechazo`, animal fuera de la copia, "No se pudo guardar en la tablet…").
   - Reproduccion.tsx (`FormServicio`, `FormTacto`), `FormSecado.tsx` y `FormBaja.tsx` guardan con `useGuardarCarga`; los botones se ofrecen según la vista y el rol (veterinario: solo servicio y tacto), con y sin conexión; "Dar de baja" y las cargas ya no se deshabilitan sin señal (el resto sigue con "Esto necesita conexión"). `FormBaja`: aceptada en el momento navega a `/bajas/:id`; pendiente se queda en la ficha con "Guardado en la tablet: pendiente de sincronizar" y el resumen.
   - Fecha por defecto y máximo con la hora de Argentina única; el catálogo de semen activo sale de la copia sin conexión.

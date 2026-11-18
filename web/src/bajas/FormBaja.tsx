@@ -1,14 +1,20 @@
 import { useState, type FormEvent } from 'react';
-import { api, ApiError, type BajaRegistrada, type MotivoBaja } from '../compartido/api';
+import type { MotivoBaja } from '../compartido/api';
 import { formatearFecha } from '../animales/animalesDatos';
-import { FECHA_MINIMA, hoyIso, interpretar } from '../reproduccion/reproduccionDatos';
+import { FECHA_MINIMA, hoyIso } from '../reproduccion/reproduccionDatos';
 import { Campo } from '../compartido/Campo';
+import { useGuardarCarga } from '../sinconexion/useGuardarCarga';
+import type { ConfirmacionCarga } from '../sinconexion/guardadoCarga';
+
+// Lo que necesita la ficha de una baja aceptada en el momento para navegar y confirmar.
+export type BajaAceptada = { animalId: string; numero: string; motivo: MotivoBaja; fecha: string };
 
 type Props = {
-  animalId: string;
-  numero: string;
+  animal: { id: string; numero: string };
   alCancelar: () => void;
-  alRegistrar: (baja: BajaRegistrada) => void;
+  alRegistrar: (baja: BajaAceptada) => void;
+  // La baja quedó guardada en la tablet (sin señal o con pendientes delante): la ficha se queda y se confirma.
+  alPendiente: (c: ConfirmacionCarga) => void;
   // 404: otra persona ya dio de baja al animal o cambió (RF-21). La ficha muestra el mensaje y se recarga.
   alNoDisponible: () => void;
 };
@@ -16,7 +22,7 @@ type Props = {
 // Dar de baja (RF-19): primero se completan motivo, fecha y observaciones; después un paso de
 // confirmación con el texto exacto de la spec. Los valores viven en estado (no en el DOM) para que
 // "Volver" y un error 400 no borren lo que el usuario escribió.
-export function FormBaja({ animalId, numero, alCancelar, alRegistrar, alNoDisponible }: Props) {
+export function FormBaja({ animal, alCancelar, alPendiente, alRegistrar, alNoDisponible }: Props) {
   // Sin valor por defecto en el motivo (el usuario tiene que elegirlo); la fecha arranca en hoy.
   const [motivo, setMotivo] = useState<MotivoBaja | ''>('');
   const [fecha, setFecha] = useState(hoyIso());
@@ -24,7 +30,7 @@ export function FormBaja({ animalId, numero, alCancelar, alRegistrar, alNoDispon
   const [confirmando, setConfirmando] = useState(false);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
+  const { guardar, guardando: enviando } = useGuardarCarga();
 
   // Paso 1: no se manda nada todavía; solo se pasa a la confirmación (si el motivo está elegido).
   function continuar(e: FormEvent<HTMLFormElement>) {
@@ -38,28 +44,33 @@ export function FormBaja({ animalId, numero, alCancelar, alRegistrar, alNoDispon
     setConfirmando(true);
   }
 
-  // Paso 2: recién acá se guarda.
+  // Paso 2: recién acá se guarda, con el punto único de registro (con o sin conexión, spec 011).
   async function confirmar() {
     setError(null);
-    setEnviando(true);
-    try {
-      const baja = await api<BajaRegistrada>(`/animales/${encodeURIComponent(animalId)}/baja`, {
-        method: 'POST',
-        body: { motivo, fecha, observaciones },
-      });
-      alRegistrar(baja);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
-        alNoDisponible();
-        return;
-      }
-      // 400: se vuelve al formulario con lo cargado y el mensaje junto al campo (o arriba si es general).
-      const r = interpretar(err);
-      setErrores(r.campos);
-      setError(r.general);
-      setConfirmando(false);
-      setEnviando(false);
+    const salida = await guardar({
+      tipo: 'BAJA',
+      animal,
+      datos: { motivo, fecha, observaciones },
+      tituloAceptado: 'Baja registrada',
+      camposDibujados: ['motivo', 'fecha', 'observaciones'],
+    });
+    if (!salida) return;
+    if (salida.tipo === 'guardado') {
+      // Aceptada en el momento: se va a la ficha de baja como siempre. Si quedó pendiente, la ficha se queda en
+      // pantalla (pasa sola a solo lectura) y muestra la confirmación.
+      if (salida.pendiente) alPendiente(salida.confirmacion);
+      else alRegistrar({ animalId: animal.id, numero: animal.numero, motivo: motivo as MotivoBaja, fecha });
+      return;
     }
+    // 404 del servidor: otra persona ya dio de baja al animal (RF-21).
+    if (salida.rechazo?.origen === 'servidor' && salida.rechazo.codigo === 404) {
+      alNoDisponible();
+      return;
+    }
+    // Rechazo: se vuelve al formulario con lo cargado y el mensaje junto al campo (o arriba si es general).
+    setErrores(salida.errores.campos);
+    setError(salida.errores.general);
+    setConfirmando(false);
   }
 
   if (confirmando) {
@@ -72,7 +83,7 @@ export function FormBaja({ animalId, numero, alCancelar, alRegistrar, alNoDispon
           </div>
         )}
         <p className="aviso">
-          Vas a dar de baja a «{numero}». Sale de los lotes y de los listados activos, pero conserva su historial. ¿Confirmás?
+          Vas a dar de baja a «{animal.numero}». Sale de los lotes y de los listados activos, pero conserva su historial. ¿Confirmás?
         </p>
         <p className="texto-suave">
           {motivo === 'venta' ? 'Venta' : 'Muerte'} · {formatearFecha(fecha)}

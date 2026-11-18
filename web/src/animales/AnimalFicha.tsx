@@ -381,7 +381,8 @@ export function AnimalFicha() {
             <button type="button" className="boton necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setPanel(panel === 'mover' ? null : 'mover')}>
               Mover de lote
             </button>
-            <button type="button" className="boton-secundario boton-peligro necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setPanel(panel === 'baja' ? null : 'baja')}>
+            {/* Dar de baja ya no necesita conexión: se guarda con el punto único de registro (spec 011, RF-5). */}
+            <button type="button" className="boton-secundario boton-peligro" onClick={() => setPanel(panel === 'baja' ? null : 'baja')}>
               Dar de baja
             </button>
           </div>
@@ -389,9 +390,14 @@ export function AnimalFicha() {
           {panel === 'baja' && (
             <FormBaja
               key={ficha.id}
-              animalId={ficha.id}
-              numero={ficha.numero}
+              animal={{ id: ficha.id, numero: ficha.numero }}
               alCancelar={() => setPanel(null)}
+              alPendiente={(c) => {
+                // Guardada en la tablet: la ficha se relee sola (cambia la cola) y pasa a solo lectura.
+                setPanel(null);
+                setConfirmacion(c.detalle ? `${c.titulo} · ${c.detalle}` : c.titulo);
+                setVersionCambios((v) => v + 1);
+              }}
               alRegistrar={(b) =>
                 navigate(`/bajas/${b.animalId}`, {
                   state: { mensaje: `Baja registrada: ${b.numero}, ${b.motivo} del ${formatearFecha(b.fecha)}` },
@@ -411,7 +417,7 @@ export function AnimalFicha() {
 
       {/* Hembras: situación, formularios e historial (embebido). Machos: solo el historial. */}
       {ficha.sexo === 'HEMBRA' ? (
-        <Reproduccion animalId={ficha.id} sexo={ficha.sexo} estado={ficha.estado} alCambiarAnimal={recargarFicha} versionExterna={versionCambios} soloLectura={!!bajaPendiente} />
+        <Reproduccion animalId={ficha.id} numero={ficha.numero} sexo={ficha.sexo} estado={ficha.estado} alCambiarAnimal={recargarFicha} versionExterna={versionCambios} soloLectura={!!bajaPendiente} />
       ) : (
         <Historial animalId={ficha.id} contexto="animales" version={versionCambios} />
       )}

@@ -4,6 +4,8 @@ import { api, ApiError, type Aviso, type EstadoAnimal, type EventoReproductivo, 
 import { useAuth } from '../sesion/auth';
 import { useEnLinea } from '../sinconexion/useConexion';
 import { useVersionCola } from '../sinconexion/useVersionCola';
+import { useGuardarCarga } from '../sinconexion/useGuardarCarga';
+import type { ConfirmacionCarga } from '../sinconexion/guardadoCarga';
 import { leerSemenActivoLocal } from '../sinconexion/lecturaLocal';
 import { NotaNecesitaConexion, TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
 import { formatearFecha, NOMBRE_ESTADO, NOMBRE_SEXO } from '../animales/animalesDatos';
@@ -11,7 +13,6 @@ import {
   fechaArgentinaIso,
   FECHA_MINIMA,
   hoyIso,
-  interpretar,
   NOMBRE_ESTADO_REPRODUCTIVO,
   NOMBRE_TIPO_SERVICIO,
   resumenEvento,
@@ -28,17 +29,17 @@ import { Historial } from '../historial/Historial';
 // alCambiarAnimal: la ficha debe releerse porque el parto o el secado cambian estado, lote y crías.
 // versionExterna: sube cuando la ficha guarda algo (editar, mover) para que el historial se relea.
 // soloLectura: la vaca tiene una baja pendiente (spec 011, RF-23): se ve todo pero no se ofrece ninguna carga ni anulación.
-type Props = { animalId: string; sexo: Sexo; estado: EstadoAnimal; alCambiarAnimal: () => Promise<void>; versionExterna: number; soloLectura?: boolean };
+type Props = { animalId: string; numero: string; sexo: Sexo; estado: EstadoAnimal; alCambiarAnimal: () => Promise<void>; versionExterna: number; soloLectura?: boolean };
 type Formulario = 'servicio' | 'tacto' | 'parto' | 'secado' | null;
 
 // Resultado de un parto o secado recién registrado: avisos de la lista cerrada y accesos a las
 // crías vivas. Vive solo en pantalla (no persiste al recargar la ficha).
-type Resultado = { titulo: string; avisos: Aviso[]; crias: { id: string; numero: string }[] };
+type Resultado = { titulo: string; detalle?: string | null; avisos: Aviso[]; crias: { id: string; numero: string }[] };
 
 // Sección "Reproducción" de la ficha: situación y formularios; embebe el Historial único (RF-23 a RF-26, spec 007).
 // Los tres roles (dueño, encargado y veterinario) pueden registrar y anular servicios y tactos,
 // así que no se esconde nada por rol. Si una spec futura restringe algo, la API decide (403).
-export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionExterna, soloLectura = false }: Props) {
+export function Reproduccion({ animalId, numero, sexo, estado, alCambiarAnimal, versionExterna, soloLectura = false }: Props) {
   const [datos, setDatos] = useState<RespuestaEventos | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [formulario, setFormulario] = useState<Formulario>(null);
@@ -96,10 +97,18 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionE
   // La anulación la ofrece el Historial: solo en el último evento no anulado (RF-43: el veterinario, solo servicio o tacto).
   const partos = eventos.filter((e) => e.tipo === 'PARTO' && !e.anulacion);
 
-  async function alRegistrar() {
+  // Servicio o tacto guardados (en el servidor o como pendientes): se cierra el formulario, se confirma y se relee.
+  async function alRegistrar(c: ConfirmacionCarga) {
     setFormulario(null);
-    setResultado(null);
+    setResultado({ ...c, crias: [] });
     await recargar();
+  }
+
+  // Secado guardado: además de la situación cambian el estado y el lote de la vaca, así que se relee también la ficha.
+  async function alGuardarSecado(c: ConfirmacionCarga) {
+    setFormulario(null);
+    setResultado({ ...c, crias: [] });
+    await Promise.all([recargar(), alCambiarAnimal()]);
   }
 
   // Parto o secado: se recarga la ficha y se muestran los avisos de la respuesta una sola vez.
@@ -191,6 +200,7 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionE
         {resultado && (
           <div className="resultado-registro" role="status">
             <p className="resultado-titulo">{resultado.titulo}</p>
+            {resultado.detalle && <p>{resultado.detalle}</p>}
             {resultado.avisos.length > 0 && (
               <div className="avisos">
                 {resultado.avisos.map((a) => (
@@ -230,11 +240,11 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionE
             <div className="acciones">
               {/* Con una preñez vigente no se ofrece el servicio: primero hay que registrar un tacto vacía. */}
               {!prenada && (
-                <button type="button" className="boton necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setFormulario(formulario === 'servicio' ? null : 'servicio')}>
+                <button type="button" className="boton" onClick={() => setFormulario(formulario === 'servicio' ? null : 'servicio')}>
                   Registrar servicio
                 </button>
               )}
-              <button type="button" className="boton necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setFormulario(formulario === 'tacto' ? null : 'tacto')}>
+              <button type="button" className="boton" onClick={() => setFormulario(formulario === 'tacto' ? null : 'tacto')}>
                 Registrar tacto
               </button>
               {puedeRegistrarPartos && (
@@ -244,24 +254,25 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionE
               )}
               {/* El secado solo tiene sentido en una vaca en ordeñe (RF-44). */}
               {puedeRegistrarPartos && estado === 'EN_ORDENE' && (
-                <button type="button" className="boton necesita-conexion" disabled={!enLinea} title={enLinea ? undefined : TEXTO_NECESITA_CONEXION} onClick={() => setFormulario(formulario === 'secado' ? null : 'secado')}>
+                <button type="button" className="boton" onClick={() => setFormulario(formulario === 'secado' ? null : 'secado')}>
                   Registrar secado
                 </button>
               )}
             </div>
-            {!enLinea && <NotaNecesitaConexion />}
+            {/* El parto se carga con el mismo punto de registro en la tarea siguiente (T4): hasta entonces sigue necesitando conexión. */}
+            {!enLinea && puedeRegistrarPartos && <NotaNecesitaConexion />}
             {prenada && <p className="campo-ayuda">Para registrar un nuevo servicio, primero registrá un tacto &quot;vacía&quot;.</p>}
             {formulario === 'servicio' && (
-              <FormServicio animalId={animalId} alCancelar={() => setFormulario(null)} alRegistrar={alRegistrar} />
+              <FormServicio animal={{ id: animalId, numero }} alCancelar={() => setFormulario(null)} alRegistrar={alRegistrar} />
             )}
             {formulario === 'parto' && puedeRegistrarPartos && (
               <FormParto animalId={animalId} alCancelar={() => setFormulario(null)} alRegistrar={alRegistrarParto} />
             )}
             {formulario === 'secado' && puedeRegistrarPartos && (
-              <FormSecado animalId={animalId} alCancelar={() => setFormulario(null)} alRegistrar={alRegistrarParto} />
+              <FormSecado animal={{ id: animalId, numero }} alCancelar={() => setFormulario(null)} alGuardado={alGuardarSecado} />
             )}
             {formulario === 'tacto' && (
-              <FormTacto animalId={animalId} alCancelar={() => setFormulario(null)} alRegistrar={alRegistrar} />
+              <FormTacto animal={{ id: animalId, numero }} alCancelar={() => setFormulario(null)} alRegistrar={alRegistrar} />
             )}
           </>
         )}
@@ -280,11 +291,14 @@ export function Reproduccion({ animalId, sexo, estado, alCambiarAnimal, versionE
 
 // ─── Servicio ───
 
-function FormServicio({ animalId, alCancelar, alRegistrar }: { animalId: string; alCancelar: () => void; alRegistrar: () => Promise<void> }) {
+type PropsForm = { animal: { id: string; numero: string }; alCancelar: () => void; alRegistrar: (c: ConfirmacionCarga) => Promise<void> };
+
+function FormServicio({ animal, alCancelar, alRegistrar }: PropsForm) {
   const [semen, setSemen] = useState<SemenToro[]>([]);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
+  // Guardado con el punto único de registro: con y sin conexión (spec 011).
+  const { guardar, guardando: enviando } = useGuardarCarga();
 
   // El select ofrece solo lo activo (RF-9).
   // Sin conexión (o si el servidor no responde) salen los activos de la copia de la tablet (spec 011); el catálogo
@@ -304,20 +318,22 @@ function FormServicio({ animalId, alCancelar, alRegistrar }: { animalId: string;
     const d = new FormData(e.currentTarget);
     setErrores({});
     setError(null);
-    setEnviando(true);
-    try {
-      // "" en semenId = "No especificado": la API lo guarda como null.
-      await api(`/animales/${encodeURIComponent(animalId)}/servicios`, {
-        method: 'POST',
-        body: { fecha: String(d.get('fecha')), tipo: String(d.get('tipo')), semenId: String(d.get('semenId')) },
-      });
-      await alRegistrar();
-    } catch (err) {
-      const r = interpretar(err);
-      setErrores(r.campos);
-      setError(r.general);
-      setEnviando(false);
+    // "" en semenId = "No especificado": la API lo guarda como null.
+    const salida = await guardar({
+      tipo: 'SERVICIO',
+      animal,
+      datos: { fecha: String(d.get('fecha')), tipo: String(d.get('tipo')), semenId: String(d.get('semenId')) },
+      tituloAceptado: 'Servicio registrado',
+      camposDibujados: ['fecha', 'tipo', 'semenId'],
+    });
+    if (!salida) return;
+    if (salida.tipo === 'error') {
+      // Se conserva lo escrito: el formulario sigue abierto y los campos no se tocan.
+      setErrores(salida.errores.campos);
+      setError(salida.errores.general);
+      return;
     }
+    await alRegistrar(salida.confirmacion);
   }
 
   return (
@@ -364,38 +380,39 @@ function FormServicio({ animalId, alCancelar, alRegistrar }: { animalId: string;
 
 // ─── Tacto ───
 
-function FormTacto({ animalId, alCancelar, alRegistrar }: { animalId: string; alCancelar: () => void; alRegistrar: () => Promise<void> }) {
+function FormTacto({ animal, alCancelar, alRegistrar }: PropsForm) {
   const [resultado, setResultado] = useState<'PRENADA' | 'VACIA'>('PRENADA');
   // Fecha del tacto elegida: acota la fecha probable (RF-14: posterior al tacto, hasta 283 días después).
   const [fechaTacto, setFechaTacto] = useState(hoyIso());
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
+  const { guardar, guardando: enviando } = useGuardarCarga();
 
   async function enviar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const d = new FormData(e.currentTarget);
     setErrores({});
     setError(null);
-    setEnviando(true);
-    try {
-      await api(`/animales/${encodeURIComponent(animalId)}/tactos`, {
-        method: 'POST',
-        body: {
-          fecha: String(d.get('fecha')),
-          resultado,
-          // Vacía no lleva fecha probable; en preñada, vacío = que la API la calcule del servicio.
-          fechaProbableParto: resultado === 'PRENADA' ? String(d.get('fechaProbableParto') ?? '') : '',
-          anomalias: String(d.get('anomalias')),
-        },
-      });
-      await alRegistrar();
-    } catch (err) {
-      const r = interpretar(err);
-      setErrores(r.campos);
-      setError(r.general);
-      setEnviando(false);
+    const salida = await guardar({
+      tipo: 'TACTO',
+      animal,
+      datos: {
+        fecha: String(d.get('fecha')),
+        resultado,
+        // Vacía no lleva fecha probable; en preñada, vacío = que la API la calcule del servicio.
+        fechaProbableParto: resultado === 'PRENADA' ? String(d.get('fechaProbableParto') ?? '') : '',
+        anomalias: String(d.get('anomalias')),
+      },
+      tituloAceptado: 'Tacto registrado',
+      camposDibujados: ['fecha', 'resultado', 'fechaProbableParto', 'anomalias'],
+    });
+    if (!salida) return;
+    if (salida.tipo === 'error') {
+      setErrores(salida.errores.campos);
+      setError(salida.errores.general);
+      return;
     }
+    await alRegistrar(salida.confirmacion);
   }
 
   return (
