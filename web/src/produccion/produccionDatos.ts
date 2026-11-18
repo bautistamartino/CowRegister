@@ -1,4 +1,5 @@
 import type { TurnoOrdeno } from '../compartido/api';
+import { formatearFechaHoraArgentina } from '../sinconexion/horaArgentina';
 
 // Utilidades de la producción de leche (spec 008). La API es la que valida de verdad.
 
@@ -35,13 +36,5 @@ export function formatearLitros(litros: number): string {
 
 // "11/11/2026 18:30" en hora de Argentina.
 export function textoMomento(iso: string): string {
-  return new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(new Date(iso));
+  return formatearFechaHoraArgentina(new Date(iso));
 }

@@ -22,6 +22,18 @@ export function fechaYTurnoArgentina(ahora: Date): { fecha: string; turno: 'mana
   return { fecha, turno: r.getUTCHours() < HORA_CORTE_TARDE ? 'manana' : 'tarde' };
 }
 
+// AAAA-MM-DD de un instante en hora de Argentina (spec 011, RF-26). Es la ÚNICA implementación: los formularios,
+// los informes y el historial delegan acá, así ninguna fecha depende del huso del dispositivo.
+export function fechaIsoArgentina(d: Date): string {
+  return fechaYTurnoArgentina(d).fecha;
+}
+
+// "12/11/2026 12:05" en hora de Argentina (24 horas, con ceros a la izquierda).
+export function formatearFechaHoraArgentina(d: Date): string {
+  const r = relojArgentino(d);
+  return `${dos(r.getUTCDate())}/${dos(r.getUTCMonth() + 1)}/${r.getUTCFullYear()} ${dos(r.getUTCHours())}:${dos(r.getUTCMinutes())}`;
+}
+
 // Hora de la tablet como la espera la API en `cargadoEnDispositivo`: "2026-11-12T08:15:00-03:00".
 // Es solo informativa (RF-26): el servidor guarda aparte su propia hora.
 export function horaParaApi(ahora: Date): string {

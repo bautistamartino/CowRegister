@@ -26,7 +26,8 @@ import { construirVista, entradasValidas, numerosEnUso } from './vistaLocal';
 
 export type ResultadoRegistro =
   // El servidor lo aceptó en el momento. `registro` solo viene en los litros.
-  | { tipo: 'enviado'; avisos: Aviso[]; aceptadoEn: number; registro: RegistroProduccion | null }
+  // `evento` (spec 011): el cuerpo del evento que devolvió el servidor, si lo trae (los litros no).
+  | { tipo: 'enviado'; avisos: Aviso[]; aceptadoEn: number; registro: RegistroProduccion | null; evento?: Record<string, unknown> | null }
   // Quedó guardado en la tablet, pendiente de sincronizar.
   | { tipo: 'pendiente'; pendiente: Pendiente }
   // Rechazado (por el servidor o por las reglas locales): no se guardó nada. `campos` trae el mensaje de cada campo.
@@ -129,7 +130,7 @@ export async function registrar(args: ArgsRegistro): Promise<ResultadoRegistro> 
           avisos,
         )
         .catch(() => undefined);
-      return { tipo: 'enviado', avisos: c.avisos, aceptadoEn: c.aceptadoEn, registro: c.registro };
+      return { tipo: 'enviado', avisos: c.avisos, aceptadoEn: c.aceptadoEn, registro: c.registro, evento: c.evento ?? null };
     }
     if (c.tipo === 'rechazado') return { tipo: 'rechazado', origen: 'servidor', codigo: c.estado, mensaje: c.motivo, campos: c.campos };
     // 'esperar' (red, tiempo agotado, 5xx, HTML...) o 'sesion' (401): no se pierde lo cargado, sigue como pendiente.

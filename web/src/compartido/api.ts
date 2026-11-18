@@ -201,6 +201,18 @@ export type AnimalFicha = {
   criasDeBaja?: { id: string; numero: string; motivo: 'venta' | 'muerte' | 'parto_anulado' }[];
   // Parto del que nació (spec 004). null si el animal no nació de un parto cargado.
   parto: { eventoId: string; fecha: string; genetica: Genetica | null } | null;
+  // Spec 011: solo lo agrega el adaptador de la ficha cuando se muestra la vista local (nunca viene de la API).
+  locales?: LocalesFicha;
+};
+
+// Lo que la tablet sabe de la vaca y el servidor todavía no (spec 011, RF-21, RF-23 y RF-24).
+export type LocalesFicha = {
+  // Pendientes rechazados o "en espera del anterior": no cuentan en la ficha pero se avisan ("revisalos en Pendientes").
+  sinAceptar: number;
+  // Hay un parto cargado en la tablet: el lote de la madre se asigna al sincronizar.
+  avisoLotePendiente: boolean;
+  // Baja cargada en la tablet (esperando, enviando, en espera del anterior) o enviada que la copia todavía no refleja.
+  bajaPendiente?: { id: string; estado: 'esperando' | 'enviando' | 'enEspera' | 'enviada'; fecha: string; resumen: string };
 };
 
 // ─── Carga desde planilla (spec 002) ───
@@ -257,10 +269,14 @@ export type EventoReproductivo = {
   anulacion: { motivo: string | null; por: string | null; en: string } | null;
   servicio: { tipoServicio: TipoServicio; semen: { id: string; nombre: string } | null } | null;
   tacto: { resultado: ResultadoTacto; fechaProbableIndicada: string | null; fechaProbable: string | null; anomalias: string | null } | null;
-  parto: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior; genetica: Genetica | null; crias: CriaDeParto[] } | null;
-  secado: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior } | null;
+  // `loteAnterior` null solo en un evento pendiente de sincronizar (spec 011): el servidor lo calcula al aceptarlo.
+  parto: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior | null; genetica: Genetica | null; crias: CriaDeParto[] } | null;
+  secado: { estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior | null } | null;
   // Baja por venta o muerte (spec 006). Solo aparece en la ficha de baja o, anulada, tras revertirla.
   baja: { motivo: MotivoBaja; observaciones: string | null; estadoAnterior: EstadoAnimal; loteAnterior: LoteAnterior } | null;
+  // Spec 011: solo lo arma el adaptador de la ficha (sinconexion/adaptadorFicha.ts), nunca la API. true = el
+  // evento está cargado en la tablet y el servidor todavía no lo aceptó.
+  pendiente?: boolean;
 };
 
 // ─── Partos y secados (spec 004) ───
@@ -277,6 +293,8 @@ export type CriaDeParto = {
   sexo: Sexo;
   nacidaMuerta: boolean;
   observaciones: string | null;
+  // Spec 011: número de una cría de un parto pendiente (todavía no tiene ficha: `animal` es null y no hay enlace).
+  numeroPendiente?: string | null;
   // motivoBaja (spec 006): "venta" o "muerte" tienen ficha de baja; "parto_anulado" no.
   animal: { id: string; numero: string; activo: boolean; motivoBaja?: 'venta' | 'muerte' | 'parto_anulado' | null } | null;
 };

@@ -5,6 +5,7 @@ import { useAuth } from '../sesion/auth';
 import { formatearFecha, NOMBRE_ESTADO, NOMBRE_SEXO } from '../animales/animalesDatos';
 import { fechaArgentinaIso, interpretar, resumenEvento, textoGenetica, textoLoteAnterior } from '../reproduccion/reproduccionDatos';
 import { Campo } from '../compartido/Campo';
+import { formatearFechaHoraArgentina } from '../sinconexion/horaArgentina';
 import { useEnLinea } from '../sinconexion/useConexion';
 import { NotaNecesitaConexion, TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
 
@@ -24,15 +25,7 @@ function textoValor(campo: CampoCambio, valor: string | null): string {
 
 // "11/11/2026 18:30" en hora de Argentina.
 function textoMomento(iso: string): string {
-  return new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(new Date(iso));
+  return formatearFechaHoraArgentina(new Date(iso));
 }
 
 type Props = {

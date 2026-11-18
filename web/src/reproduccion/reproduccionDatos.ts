@@ -1,6 +1,7 @@
 import type { EstadoReproductivo, EventoReproductivo, Genetica, LoteAnterior, TipoServicio } from '../compartido/api';
 import { ApiError } from '../compartido/api';
 import { formatearFecha } from '../animales/animalesDatos';
+import { fechaIsoArgentina } from '../sinconexion/horaArgentina';
 
 // Textos y utilidades de la parte reproductiva (spec 003).
 
@@ -24,17 +25,15 @@ export function textoDias(dias: number): string {
   return dias > 0 ? `faltan ${d}` : `venció hace ${d}`;
 }
 
-const ZONA = 'America/Argentina/Buenos_Aires';
-
-// AAAA-MM-DD de un instante en hora de Argentina (el locale en-CA ya da ese formato).
+// AAAA-MM-DD de un instante en hora de Argentina. Delega en la implementación única (spec 011, RF-26).
 export function fechaArgentinaIso(d: Date): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: ZONA, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  return fechaIsoArgentina(d);
 }
 
 // Hoy en Argentina como AAAA-MM-DD (valor inicial y tope de los formularios).
 // La API es la que valida de verdad.
 export function hoyIso(): string {
-  return fechaArgentinaIso(new Date());
+  return fechaIsoArgentina(new Date());
 }
 
 // Cota mínima de las fechas de servicio y tacto (RF de validación de la spec).
@@ -68,7 +67,9 @@ export function resumenEvento(e: EventoReproductivo): string {
 }
 
 // Lote previo de un parto o secado (RF-38).
-export function textoLoteAnterior(l: LoteAnterior): string {
+export function textoLoteAnterior(l: LoteAnterior | null): string {
+  // null: evento pendiente de sincronizar (spec 011); el servidor lo calcula al aceptarlo.
+  if (l === null) return 'se completa al sincronizar';
   if (l === 'SIN_LOTE') return 'sin lote previo';
   if (l === 'ELIMINADO') return 'lote previo eliminado';
   return `lote previo: ${l.nombre}`;
