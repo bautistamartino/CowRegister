@@ -31,14 +31,15 @@ const esDuplicado = (p: Pendiente) => p.codigoRechazo === 409 && (p.motivo ?? ''
 
 export function Pendientes() {
   const { usuario } = useAuth();
-  const { pendientes, enviados, total, avisos, progreso, sincronizarAhora, reintentar, reintentarAhora, descartar, cerrarAvisos } = useCola();
+  const { cargada, pendientes, enviados, total, avisos, progreso, sincronizarAhora, reintentar, reintentarAhora, descartar, cerrarAvisos } = useCola();
   const [confirmando, setConfirmando] = useState<string | null>(null); // id del pendiente que se está por descartar
   const [descartando, setDescartando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
   // El veterinario no carga litros: sin pendientes ni avisos no tiene esta pantalla (spec 009 RF-25). Si le quedó algo
   // sin enviar (por ejemplo un servicio o un tacto), la ve igual.
-  if (!usuario) return null;
+  // Hasta leer el almacén no se sabe si hay algo: sin esta espera, recargar la página redirigía al veterinario.
+  if (!usuario || !cargada) return null;
   // Misma condición que el enlace del menú (spec 012, RF-12).
   if (!mostrarPendientes({ rol: usuario.rol, total, avisos: avisos.length })) return <Navigate to="/" replace />;
 

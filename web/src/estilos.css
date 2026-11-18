@@ -1056,5 +1056,6 @@ h1 .etiqueta-baja {
 .etiqueta-estado.etiqueta-en-celda {
   display: block;
   width: fit-content;
-  margin-top: 0.25rem;
+  /* Margen arriba y abajo: la celda no tiene relleno vertical y la marca quedaba pegada al borde de la fila. */
+  margin: 0.25rem 0;
 }

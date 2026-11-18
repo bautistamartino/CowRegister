@@ -1,6 +1,6 @@
 # 012 — Marcas de lo pendiente, "Pendientes" ampliada y aviso de reloj
 
-Estado: aprobada
+Estado: implementada
 Fecha: 2026-11-18
 
 ## Contexto
@@ -101,11 +101,11 @@ Es la segunda parte de la interfaz sin conexión (la 011 es la primera). Es solo
 - **A mano en el navegador, con la red cortada** (768 px y 375 px, modo claro y oscuro): historial con cada marca; listado y buscador con una baja pendiente; "Pendientes" con cada tipo, rechazo, avisos y "Descartar" de uno en espera; el veterinario con y sin pendientes o avisos; el aviso de reloj atrasado cambiando la hora del dispositivo; controles de 48 px y sin desborde.
 
 ## Criterios de aceptación
-- [ ] El historial muestra todas las marcas (pendiente, enviado, rechazado, en espera, anulación pendiente) y "Cargado sin conexión el …" solo pasados 5 minutos (RF-1 a RF-4).
-- [ ] El listado y el buscador marcan solo la baja pendiente, con y sin señal, y quitan la marca al resolverse (RF-5 a RF-7).
-- [ ] "Pendientes" muestra el resumen completo, la ayuda de rechazo y los avisos cerrables, y la ve el veterinario cuando corresponde, con el enlace del menú coherente con la pantalla (RF-8 a RF-13).
-- [ ] El aviso de reloj atrasado aparece con el umbral de 5 minutos y los formularios piden elegir la fecha (RF-14 a RF-16).
-- [ ] 768 px y 375 px, modo claro y oscuro, controles de 48 px y marcas legibles sin depender del color (RF-17, RF-18).
+- [x] El historial muestra todas las marcas (pendiente, enviado, rechazado, en espera, anulación pendiente) y "Cargado sin conexión el …" solo pasados 5 minutos (RF-1 a RF-4).
+- [x] El listado y el buscador marcan solo la baja pendiente, con y sin señal, y quitan la marca al resolverse (RF-5 a RF-7).
+- [x] "Pendientes" muestra el resumen completo, la ayuda de rechazo y los avisos cerrables, y la ve el veterinario cuando corresponde, con el enlace del menú coherente con la pantalla (RF-8 a RF-13).
+- [x] El aviso de reloj atrasado aparece con el umbral de 5 minutos y los formularios piden elegir la fecha (RF-14 a RF-16).
+- [x] 768 px y 375 px, modo claro y oscuro, controles de 48 px y marcas legibles sin depender del color (RF-17, RF-18).
 
 ## Preguntas abiertas
 Ninguna.
