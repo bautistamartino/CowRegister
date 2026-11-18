@@ -182,7 +182,8 @@ describe('estado y situación con pendientes (RF-19, RF-22)', () => {
     const r = armar(vaca(), [rechazado, enEspera]);
     expect(r.eventos.situacion?.estado).toBe('SIN_SERVICIO');
     expect(r.eventos.eventos).toEqual([]);
-    expect(eventosEntrada(r.historial.entradas)).toEqual([]);
+    // Spec 012: figuran en el historial (con su marca), pero fuera de la vista.
+    expect(eventosEntrada(r.historial.entradas).map((e) => e.id)).toEqual([enEspera.id, rechazado.id]);
     expect(r.ficha.locales?.sinAceptar).toBe(2);
   });
 
@@ -342,5 +343,126 @@ describe('baja pendiente (RF-23)', () => {
     const r = armar(vaca(), [baja({ animalId: 'a2' })]);
     expect(r.ficha.estado).toBe('EN_ORDENE');
     expect(r.ficha.locales?.bajaPendiente).toBeUndefined();
+  });
+});
+
+// ─── Spec 012: marcas del historial (RF-1 a RF-3) ───
+
+describe('marcas del historial (spec 012, RF-1 a RF-3)', () => {
+  const idsDeHistorial = (r: ReturnType<typeof armar>) => eventosEntrada(r.historial.entradas).map((e) => e.id);
+  const deHistorial = (r: ReturnType<typeof armar>, id: string) => eventosEntrada(r.historial.entradas).find((e) => e.id === id);
+
+  it('un pendiente esperando o enviando lleva la marca "pendiente"', () => {
+    const a = servicio('2026-11-01');
+    const b = tacto('2026-11-02', 'PRENADA', {}, { estado: 'enviando' });
+    const r = armar(vaca(), [a, b]);
+    expect(deHistorial(r, a.id)?.marca).toEqual({ estado: 'pendiente' });
+    expect(deHistorial(r, b.id)?.marca).toEqual({ estado: 'pendiente' });
+  });
+
+  it('un enviado que la copia no trae lleva la marca "enviado"', () => {
+    const s = servicio('2026-11-01');
+    const r = armar(vaca(), [], [env(s)]);
+    expect(deHistorial(r, s.id)?.marca).toEqual({ estado: 'enviado' });
+  });
+
+  it('un evento de la copia no lleva marca', () => {
+    const s1 = evento('s1', 'SERVICIO', '2026-08-01');
+    const copia = vaca([s1]);
+    copia.historial = { ...copia.historial, total: 1, entradas: [{ clase: 'EVENTO', fecha: s1.fecha, registradoEn: s1.registradoEn, evento: s1 }] };
+    expect(deHistorial(armar(copia), 's1')?.marca).toBeUndefined();
+  });
+
+  it('un rechazado aparece en el historial con su motivo, aunque no cuente en la vista', () => {
+    const rech = tacto('2026-11-02', 'PRENADA', {}, { estado: 'rechazado', motivo: 'La fecha no puede ser futura', codigoRechazo: 400 });
+    const r = armar(vaca(), [rech]);
+    expect(idsDeHistorial(r)).toEqual([rech.id]);
+    expect(deHistorial(r, rech.id)).toMatchObject({ tipo: 'TACTO', fecha: '2026-11-02', pendiente: true, marca: { estado: 'rechazado', motivo: 'La fecha no puede ser futura' } });
+    expect(r.historial.total).toBe(1);
+  });
+
+  it('un "en espera del anterior" aparece con su marca', () => {
+    const rech = servicio('2026-11-01', {}, { estado: 'rechazado', motivo: 'x' });
+    const espera = tacto('2026-11-02', 'PRENADA');
+    const r = armar(vaca(), [rech, espera]);
+    expect(deHistorial(r, rech.id)?.marca).toEqual({ estado: 'rechazado', motivo: 'x' });
+    expect(deHistorial(r, espera.id)?.marca).toEqual({ estado: 'enEspera' });
+  });
+
+  it('un rechazado y uno en espera NO cambian estado, situación ni el último no anulado (RF-3)', () => {
+    const rech = secado('2026-11-01', { estado: 'rechazado', motivo: 'x' });
+    const espera = parto('2026-11-05', [{ sexo: 'HEMBRA' }]);
+    const base = armar(vaca([], 'EN_ORDENE'));
+    const r = armar(vaca([], 'EN_ORDENE'), [rech, espera]);
+    expect(r.ficha.estado).toBe('EN_ORDENE');
+    expect(r.eventos).toEqual(base.eventos);
+    expect(r.historial.ultimoEventoNoAnuladoId).toBe(base.historial.ultimoEventoNoAnuladoId);
+    expect(r.ficha.locales?.avisoLotePendiente).toBe(false);
+    expect(idsDeHistorial(r)).toHaveLength(2);
+  });
+
+  it('un rechazado se ubica por fecha entre los eventos de la copia', () => {
+    const viejo = evento('s1', 'SERVICIO', '2026-08-01');
+    const copia = vaca([viejo]);
+    copia.historial = { ...copia.historial, total: 1, entradas: [{ clase: 'EVENTO', fecha: viejo.fecha, registradoEn: viejo.registradoEn, evento: viejo }] };
+    const rech = tacto('2026-10-01', 'PRENADA', {}, { estado: 'rechazado', motivo: 'x' });
+    expect(idsDeHistorial(armar(copia, [rech]))).toEqual([rech.id, 's1']);
+  });
+
+  it('una baja rechazada también figura en el historial', () => {
+    const b = baja({ estado: 'rechazado', motivo: 'x', codigoRechazo: 404 });
+    const r = armar(vaca(), [b]);
+    expect(deHistorial(r, b.id)).toMatchObject({ tipo: 'BAJA', marca: { estado: 'rechazado' }, baja: { motivo: 'venta' } });
+  });
+
+  it('una anulación rechazada o en espera no es un evento: no se agrega', () => {
+    const rech = pend('ANULACION', { eventoId: 'x', tipoEvento: 'SERVICIO', motivo: 'm' }, { estado: 'rechazado', motivo: 'x' });
+    expect(idsDeHistorial(armar(vaca(), [rech]))).toEqual([]);
+  });
+
+  it('un parto ENVIADO tiene marca (así sus crías no se muestran como nacidas muertas)', () => {
+    const p = parto('2026-11-05', [{ sexo: 'HEMBRA', numero: '99' }]);
+    const e = deHistorial(armar(vaca([], 'SECA'), [], [env(p)]), p.id);
+    expect(e?.pendiente).toBeUndefined();
+    expect(e?.marca).toEqual({ estado: 'enviado' });
+    expect(e?.parto?.crias[0]).toMatchObject({ animal: null, nacidaMuerta: false });
+  });
+
+  it('un pendiente de otra vaca no aparece', () => {
+    const r = armar(vaca(), [tacto('2026-11-02', 'PRENADA', {}, { estado: 'rechazado', motivo: 'x', animalId: 'a2' })]);
+    expect(idsDeHistorial(r)).toEqual([]);
+  });
+});
+
+describe('anulación pendiente (spec 012, RF-2)', () => {
+  const copiaCon = (s1: EventoReproductivo) => {
+    const copia = vaca([s1]);
+    copia.historial = { ...copia.historial, total: 1, ultimoEventoNoAnuladoId: s1.id, entradas: [{ clase: 'EVENTO', fecha: s1.fecha, registradoEn: s1.registradoEn, evento: s1 }] };
+    return copia;
+  };
+  const anulacion = (cambios: Partial<Pendiente> = {}) => pend('ANULACION', { eventoId: 's1', tipoEvento: 'SERVICIO', motivo: 'error' }, cambios);
+
+  it.each(['esperando', 'enviando'] as const)('una anulación %s marca el evento de la copia con anulacionPendiente', (estado) => {
+    const r = armar(copiaCon(evento('s1', 'SERVICIO', '2026-08-01')), [anulacion({ estado })]);
+    expect(eventosEntrada(r.historial.entradas)[0]).toMatchObject({ id: 's1', anulacionPendiente: true });
+  });
+
+  it('una anulación ENVIADA no marca (el evento ya se ve como "Anulado")', () => {
+    const r = armar(copiaCon(evento('s1', 'SERVICIO', '2026-08-01')), [], [env(anulacion())]);
+    const e = eventosEntrada(r.historial.entradas)[0]!;
+    expect(e.anulacionPendiente).toBeUndefined();
+    expect(e.anulacion).not.toBeNull();
+  });
+
+  it('también marca un evento pendiente (todavía no enviado) que se anuló', () => {
+    const s = servicio('2026-11-01');
+    const a = pend('ANULACION', { eventoId: s.id, tipoEvento: 'SERVICIO', motivo: 'error' });
+    const r = armar(vaca(), [s, a]);
+    expect(eventosEntrada(r.historial.entradas)[0]).toMatchObject({ id: s.id, anulacionPendiente: true, marca: { estado: 'pendiente' } });
+  });
+
+  it('sin anulación no hay marca', () => {
+    const r = armar(copiaCon(evento('s1', 'SERVICIO', '2026-08-01')));
+    expect(eventosEntrada(r.historial.entradas)[0]!.anulacionPendiente).toBeUndefined();
   });
 });

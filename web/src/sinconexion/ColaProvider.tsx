@@ -25,6 +25,7 @@ import { useEnLinea } from './useConexion';
 //   - cuando se cumple la espera de un pendiente que falló (un temporizador).
 
 type Estado = {
+  cargada: boolean; // ya se leyó el almacén (spec 012: la pantalla Pendientes espera esto antes de decidir si redirige)
   avisos: AvisoGuardado[]; // avisos del servidor que el usuario todavía no cerró (spec 010, RF-28)
   pendientes: Pendiente[]; // del usuario y tambo de la sesión, en orden de carga
   enviados: Enviado[]; // aceptados que la copia local todavía no trae
@@ -62,6 +63,8 @@ export function ColaProvider({ children }: { children: ReactNode }) {
   const [enviados, setEnviados] = useState<Enviado[]>([]);
   const [avisos, setAvisos] = useState<AvisoGuardado[]>([]);
   const [progreso, setProgreso] = useState<{ actual: number; total: number } | null>(null);
+  // false hasta la primera lectura del almacén: antes de eso no se sabe si hay pendientes o avisos.
+  const [cargada, setCargada] = useState(false);
 
   const rolRef = useRef(usuario?.rol ?? null);
   rolRef.current = usuario?.rol ?? null;
@@ -80,7 +83,10 @@ export function ColaProvider({ children }: { children: ReactNode }) {
     if (!p) return;
     const almacen = obtenerAlmacen();
     const [pend, env, avi] = await Promise.all([pendientesDe(almacen, p), enviadosDe(almacen, p), avisosDe(almacen, p)]).catch(() => [null, null, null] as const);
-    if (personaRef.current !== p || !pend || !env || !avi) return;
+    if (personaRef.current !== p) return;
+    // Aunque la lectura falle, la cola ya "se intentó cargar": la pantalla Pendientes no debe quedar en blanco.
+    setCargada(true);
+    if (!pend || !env || !avi) return;
     setPendientes(pend);
     setEnviados(env);
     setAvisos(avi);
@@ -221,6 +227,7 @@ export function ColaProvider({ children }: { children: ReactNode }) {
   const valor = useMemo<Estado>(() => {
     const { total, rechazados } = contarPendientes(pendientes);
     return {
+      cargada,
       pendientes,
       enviados,
       avisos,
@@ -242,7 +249,7 @@ export function ColaProvider({ children }: { children: ReactNode }) {
       registrar,
       anularLocal,
     };
-  }, [pendientes, enviados, avisos, progreso, cargar, correr, sincronizador, registrar, anularLocal]);
+  }, [cargada, pendientes, enviados, avisos, progreso, cargar, correr, sincronizador, registrar, anularLocal]);
 
   return <ColaContext.Provider value={valor}>{children}</ColaContext.Provider>;
 }

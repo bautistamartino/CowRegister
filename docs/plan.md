@@ -41,7 +41,7 @@ Litros por vaca en cada ordeño; informes de producción.
 App instalable (PWA), datos locales en la tablet y sincronización al volver la conexión. Se hace en dos partes (**Etapa 6 parcial**):
 
 - [x] 6.1 App instalable, consulta sin conexión (listado, buscador y fichas) y carga de **litros** sin conexión con envío automático al volver la señal (spec [009-sin-conexion](../specs/009-sin-conexion/spec.md))
-- [~] 6.2 Los demás eventos sin conexión (servicios, tactos, partos, secados, bajas y anulaciones) y el orden por fecha y hora con relojes distintos. **Parcial:** la spec [010-eventos-sin-conexion](../specs/010-eventos-sin-conexion/spec.md) (API idempotente y motor local) y la spec [011-interfaz-sin-conexion](../specs/011-interfaz-sin-conexion/spec.md) (formularios de carga y anulación, y adaptador de la ficha) están hechas; la spec [012-marcas-pendientes](../specs/012-marcas-pendientes/spec.md) (marcas completas, baja pendiente en el listado, pantalla Pendientes ampliada, veterinario y reloj atrasado) está por hacer
+- [x] 6.2 Los demás eventos sin conexión (servicios, tactos, partos, secados, bajas y anulaciones) y el orden por fecha y hora con relojes distintos. **Completa (2026-11-18):** las specs [010-eventos-sin-conexion](../specs/010-eventos-sin-conexion/spec.md) (API idempotente y motor local) y la spec [011-interfaz-sin-conexion](../specs/011-interfaz-sin-conexion/spec.md) (formularios de carga y anulación, y adaptador de la ficha) y [012-marcas-pendientes](../specs/012-marcas-pendientes/spec.md) (marcas completas, baja pendiente en el listado, pantalla Pendientes ampliada, veterinario y reloj atrasado) están hechas.
 
 ## Etapa 7 — Publicación
 Subir la app a un hosting con HTTPS y backups de la base de datos.

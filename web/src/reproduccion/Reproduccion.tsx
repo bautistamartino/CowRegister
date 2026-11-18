@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { AvisoReloj } from '../sinconexion/AvisoReloj';
+import { useRelojTablet } from '../sinconexion/useRelojTablet';
+import { useFechaConReloj } from '../sinconexion/useFechaConReloj';
 import { Link } from 'react-router';
 import { api, ApiError, type Aviso, type EstadoAnimal, type EventoReproductivo, type RespuestaEventos, type SemenToro, type Sexo } from '../compartido/api';
 import { useAuth } from '../sesion/auth';
@@ -12,7 +15,6 @@ import { formatearFecha, NOMBRE_ESTADO, NOMBRE_SEXO } from '../animales/animales
 import {
   fechaArgentinaIso,
   FECHA_MINIMA,
-  hoyIso,
   NOMBRE_ESTADO_REPRODUCTIVO,
   NOMBRE_TIPO_SERVICIO,
   resumenEvento,
@@ -298,6 +300,7 @@ export function Reproduccion({ animalId, numero, sexo, estado, alCambiarAnimal, 
 type PropsForm = { animal: { id: string; numero: string }; alCancelar: () => void; alRegistrar: (c: ConfirmacionCarga) => Promise<void> };
 
 function FormServicio({ animal, alCancelar, alRegistrar }: PropsForm) {
+  const reloj = useRelojTablet();
   const [semen, setSemen] = useState<SemenToro[]>([]);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -343,12 +346,13 @@ function FormServicio({ animal, alCancelar, alRegistrar }: PropsForm) {
   return (
     <form className="formulario-lote formulario-evento" onSubmit={enviar}>
       <h3>Nuevo servicio</h3>
+      <AvisoReloj atrasado={reloj.atrasado} />
       {error && (
         <div className="alerta" role="alert">
           {error}
         </div>
       )}
-      <Campo etiqueta="Fecha" name="fecha" id="servicio-fecha" type="date" required defaultValue={hoyIso()} min={FECHA_MINIMA} max={hoyIso()} error={errores.fecha} />
+      <Campo key={`f-${reloj.atrasado}`} etiqueta="Fecha" name="fecha" id="servicio-fecha" type="date" required defaultValue={reloj.valorInicial} min={FECHA_MINIMA} max={reloj.max} ayuda={reloj.ayuda ?? undefined} error={errores.fecha} />
       <div className="campo">
         <label htmlFor="servicio-tipo">Tipo</label>
         <select id="servicio-tipo" name="tipo" defaultValue="INSEMINACION" aria-invalid={!!errores.tipo}>
@@ -387,7 +391,8 @@ function FormServicio({ animal, alCancelar, alRegistrar }: PropsForm) {
 function FormTacto({ animal, alCancelar, alRegistrar }: PropsForm) {
   const [resultado, setResultado] = useState<'PRENADA' | 'VACIA'>('PRENADA');
   // Fecha del tacto elegida: acota la fecha probable (RF-14: posterior al tacto, hasta 283 días después).
-  const [fechaTacto, setFechaTacto] = useState(hoyIso());
+  const reloj = useRelojTablet();
+  const [fechaTacto, setFechaTacto] = useFechaConReloj(reloj.valorInicial);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const { guardar, guardando: enviando } = useGuardarCarga();
@@ -422,6 +427,7 @@ function FormTacto({ animal, alCancelar, alRegistrar }: PropsForm) {
   return (
     <form className="formulario-lote formulario-evento" onSubmit={enviar}>
       <h3>Nuevo tacto</h3>
+      <AvisoReloj atrasado={reloj.atrasado} />
       {error && (
         <div className="alerta" role="alert">
           {error}
@@ -433,9 +439,10 @@ function FormTacto({ animal, alCancelar, alRegistrar }: PropsForm) {
         id="tacto-fecha"
         type="date"
         required
-        defaultValue={hoyIso()}
+        value={fechaTacto}
         min={FECHA_MINIMA}
-        max={hoyIso()}
+        max={reloj.max}
+        ayuda={reloj.ayuda ?? undefined}
         onChange={(e) => setFechaTacto(e.target.value)}
         error={errores.fecha}
       />

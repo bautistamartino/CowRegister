@@ -14,6 +14,7 @@ import { textoDescarte } from '../sinconexion/textoDescarte';
 import { aErroresFormulario } from '../sinconexion/formularioRechazo';
 import { resumenPendiente } from '../sinconexion/resumenPendiente';
 import type { Pendiente } from '../sinconexion/almacen';
+import { textoCargadoSinConexion, textoMarca, TEXTO_ANULACION_PENDIENTE } from '../sinconexion/marcasHistorial';
 
 const NOMBRE_CAMPO: Record<CampoCambio, string> = {
   NUMERO: 'Número',
@@ -124,6 +125,8 @@ export function Historial({ animalId, numero, contexto, version, alAnular, alRef
               // Un evento PENDIENTE no se anula: se descarta (lo decide la fila). Lo mismo una anulación pendiente.
               const puedeSobre = e.tipo === 'SERVICIO' || e.tipo === 'TACTO' || puedeAnularTodo;
               const habilitado = contexto === 'animales' && !!alAnular && !!numero && puedeSobre;
+              // Rechazado o "en espera del anterior" (spec 012): se reintenta o descarta en "Pendientes", no desde la fila.
+              const fueraDeVista = e.marca?.estado === 'rechazado' || e.marca?.estado === 'enEspera';
               const anulable = habilitado && !e.pendiente && e.id === datos.ultimoEventoNoAnuladoId;
               return (
                 <FilaEvento
@@ -131,7 +134,7 @@ export function Historial({ animalId, numero, contexto, version, alAnular, alRef
                   evento={e}
                   animal={numero ? { id: animalId, numero } : null}
                   anulable={anulable}
-                  descartable={habilitado && (e.pendiente ? e.id === datos.ultimoEventoNoAnuladoId : true)}
+                  descartable={habilitado && !fueraDeVista && (e.pendiente ? e.id === datos.ultimoEventoNoAnuladoId : true)}
                   alAnular={(avisos, pendiente) => (alAnular ? alAnular(e.tipo, avisos, pendiente) : Promise.resolve())}
                   alDescartado={setAvisoDescarte}
                   alRefrescar={alRefrescar ?? (() => Promise.resolve())}
@@ -157,6 +160,14 @@ function textoDePendiente(p: Pendiente): string {
   const fecha = typeof p.datos.fecha === 'string' ? p.datos.fecha : null;
   return `${resumenPendiente(p.tipo, p.datos)}${fecha ? ` del ${formatearFecha(fecha)}` : ''}`;
 }
+
+// Clase de la etiqueta de cada marca (el texto es lo que la distingue; el color ayuda).
+const CLASE_MARCA: Record<NonNullable<EventoReproductivo['marca']>['estado'], string> = {
+  pendiente: 'etiqueta-pendiente',
+  enviado: 'etiqueta-enviado',
+  rechazado: 'etiqueta-rechazado',
+  enEspera: 'etiqueta-pendiente',
+};
 
 function FilaEvento({
   evento,
@@ -186,6 +197,9 @@ function FilaEvento({
   const [posteriores, setPosteriores] = useState<Pendiente[]>([]);
   const cola = useCola();
   const anulado = evento.anulacion !== null;
+  const fueraDeVista = evento.marca?.estado === 'rechazado' || evento.marca?.estado === 'enEspera';
+  // Solo los eventos que trae el servidor tienen las dos horas (RF-4): se compara la de la tablet con la del registro.
+  const cargadoSinConexion = textoCargadoSinConexion(evento.registradoEn, evento.cargadoEnDispositivo);
 
   // Lo que se descartaría: el propio evento si es pendiente, o la anulación pendiente de un evento ya anulado.
   const aDescartar: Pendiente | undefined = !descartable
@@ -267,10 +281,20 @@ function FilaEvento({
     <li id={`evento-${evento.id}`} className={anulado ? 'evento evento-anulado' : 'evento'}>
       <p className="evento-titulo">
         <strong>{formatearFecha(evento.fecha)}</strong> · {resumenEvento(evento)}
-        {evento.pendiente && <span className="etiqueta-estado etiqueta-pendiente">Pendiente de sincronizar</span>}
-        {anulado && <span className="etiqueta-anulado">{evento.tipo === 'BAJA' ? 'Revertida' : 'Anulado'}</span>}
+        {evento.marca && <span className={`etiqueta-estado ${CLASE_MARCA[evento.marca.estado]}`}>{textoMarca(evento.marca)}</span>}
+        {/* Con una anulación sin aceptar el evento todavía no está anulado en el servidor: se ve "Anulación pendiente". */}
+        {evento.anulacionPendiente && <span className="etiqueta-estado etiqueta-pendiente">{TEXTO_ANULACION_PENDIENTE}</span>}
+        {anulado && !evento.anulacionPendiente && <span className="etiqueta-anulado">{evento.tipo === 'BAJA' ? 'Revertida' : 'Anulado'}</span>}
       </p>
+      {cargadoSinConexion && <p className="texto-suave">{cargadoSinConexion}</p>}
       <CuerpoEvento evento={evento} />
+      {fueraDeVista && (
+        <div className="acciones">
+          <Link to="/pendientes" className="boton-secundario enlace-boton">
+            Ver en Pendientes
+          </Link>
+        </div>
+      )}
       {error && !(anulable && anulando) && (
         <div className="alerta" role="alert">
           {error}
@@ -352,7 +376,7 @@ function CuerpoEvento({ evento }: { evento: EventoReproductivo }) {
   return (
     <>
       {evento.tacto?.anomalias && <p className="texto-suave">Anomalías: {evento.tacto.anomalias}</p>}
-      {evento.parto && <DetalleParto parto={evento.parto} pendiente={!!evento.pendiente} />}
+      {evento.parto && <DetalleParto parto={evento.parto} pendiente={!!evento.marca} />}
       {evento.secado && (
         <p className="texto-suave">
           Estaba {NOMBRE_ESTADO[evento.secado.estadoAnterior].toLowerCase()} · {textoLoteAnterior(evento.secado.loteAnterior)}
@@ -371,7 +395,8 @@ function CuerpoEvento({ evento }: { evento: EventoReproductivo }) {
       <p className="texto-suave">Registrado por {evento.registradoPor}</p>
       {evento.anulacion && (
         <p className="texto-suave">
-          {evento.tipo === 'BAJA' ? 'Revertida' : 'Anulado'} por {evento.anulacion.por ?? 'sin dato'} el{' '}
+          {evento.anulacionPendiente ? 'Anulación pendiente de sincronizar, cargada' : evento.tipo === 'BAJA' ? 'Revertida' : 'Anulado'} por{' '}
+          {evento.anulacion.por ?? 'sin dato'} el{' '}
           {formatearFecha(fechaArgentinaIso(new Date(evento.anulacion.en)))}. Motivo: {evento.anulacion.motivo}
         </p>
       )}

@@ -1051,3 +1051,11 @@ h1 .etiqueta-baja {
 .evento-titulo .etiqueta-estado {
   margin-left: 0.5rem;
 }
+
+/* Marca "Baja pendiente de sincronizar" bajo el número, en la celda del listado (spec 012): sin columna nueva. */
+.etiqueta-estado.etiqueta-en-celda {
+  display: block;
+  width: fit-content;
+  /* Margen arriba y abajo: la celda no tiene relleno vertical y la marca quedaba pegada al borde de la fila. */
+  margin: 0.25rem 0;
+}

@@ -1,7 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import type { MotivoBaja } from '../compartido/api';
 import { formatearFecha } from '../animales/animalesDatos';
-import { FECHA_MINIMA, hoyIso } from '../reproduccion/reproduccionDatos';
+import { FECHA_MINIMA } from '../reproduccion/reproduccionDatos';
+import { AvisoReloj } from '../sinconexion/AvisoReloj';
+import { useRelojTablet } from '../sinconexion/useRelojTablet';
+import { useFechaConReloj } from '../sinconexion/useFechaConReloj';
 import { Campo } from '../compartido/Campo';
 import { useGuardarCarga } from '../sinconexion/useGuardarCarga';
 import type { ConfirmacionCarga } from '../sinconexion/guardadoCarga';
@@ -25,7 +28,8 @@ type Props = {
 export function FormBaja({ animal, alCancelar, alPendiente, alRegistrar, alNoDisponible }: Props) {
   // Sin valor por defecto en el motivo (el usuario tiene que elegirlo); la fecha arranca en hoy.
   const [motivo, setMotivo] = useState<MotivoBaja | ''>('');
-  const [fecha, setFecha] = useState(hoyIso());
+  const reloj = useRelojTablet();
+  const [fecha, setFecha] = useFechaConReloj(reloj.valorInicial);
   const [observaciones, setObservaciones] = useState('');
   const [confirmando, setConfirmando] = useState(false);
   const [errores, setErrores] = useState<Record<string, string>>({});
@@ -104,6 +108,7 @@ export function FormBaja({ animal, alCancelar, alPendiente, alRegistrar, alNoDis
   return (
     <form className="formulario-lote formulario-evento" onSubmit={continuar} noValidate>
       <h3>Dar de baja</h3>
+      <AvisoReloj atrasado={reloj.atrasado} />
       {error && (
         <div className="alerta" role="alert">
           {error}
@@ -131,7 +136,9 @@ export function FormBaja({ animal, alCancelar, alPendiente, alRegistrar, alNoDis
         value={fecha}
         onChange={(e) => setFecha(e.target.value)}
         min={FECHA_MINIMA}
-        max={hoyIso()}
+        max={reloj.max}
+        required
+        ayuda={reloj.ayuda ?? undefined}
         error={errores.fecha}
       />
       <Campo
