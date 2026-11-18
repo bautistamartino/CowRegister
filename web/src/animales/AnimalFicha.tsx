@@ -265,8 +265,8 @@ export function AnimalFicha() {
         </p>
       )}
 
-      {/* Resultado de la última acción (editar, mover, revertir): arriba, para que se vea también en celular. */}
-      {confirmacion && (
+      {/* Resultado de la última acción (editar, mover, revertir, guardar): arriba, para que se vea también en celular. Con la baja ya enviada se oculta: "pendiente de sincronizar" ya no es cierto. */}
+      {confirmacion && bajaPendiente?.estado !== 'enviada' && (
         <div className="resultado-registro" role="status">
           <p className="resultado-titulo">{confirmacion}</p>
           <button type="button" className="boton-secundario" onClick={() => setConfirmacion(null)}>

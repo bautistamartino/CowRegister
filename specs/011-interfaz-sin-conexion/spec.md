@@ -1,6 +1,6 @@
 # 011 — Formularios de carga sin conexión y adaptador de la ficha
 
-Estado: aprobada
+Estado: implementada
 Fecha: 2026-11-18
 
 ## Contexto
@@ -128,12 +128,12 @@ Lo usan dueño, encargado y veterinario (según el permiso de cada evento) en la
 - **A mano en el navegador, con la red cortada** (768 px y 375 px, modo claro y oscuro): cargar cada evento (servicio, tacto, parto con dos crías, secado, baja), ver "Guardado en la tablet: pendiente de sincronizar", la ficha con el estado nuevo y el evento "Pendiente de sincronizar", anular y descartar con posteriores, baja pendiente en solo lectura con "Descartar baja", vuelta de la señal y ficha actualizada, controles de 48 px sin desborde. Una pasada con el veterinario (solo servicio y tacto).
 
 ## Criterios de aceptación
-- [ ] Sin conexión se cargan servicio, tacto, parto (una o dos crías, un solo pendiente), secado y baja, y se anula o descarta, con la confirmación "Guardado en la tablet: pendiente de sincronizar" (RF-1 a RF-8).
-- [ ] El guardado muestra "Guardando…", no se duplica, y los errores (reglas, espacio, animal fuera de la copia) se muestran sin perder lo escrito (RF-9 a RF-12).
-- [ ] Lo ofrecido depende de la vista y del rol, igual con y sin señal (RF-13, RF-14, RF-17).
-- [ ] La ficha, la reproducción y el historial usan la fuente correcta y reflejan parto, secado y baja pendientes; los rechazados no cuentan y se avisa (RF-18 a RF-25).
-- [ ] La fecha de "hoy" es la de Argentina aunque el dispositivo tenga otro huso (RF-26).
-- [ ] 768 px y 375 px, modo claro y oscuro, controles de 48 px, y la lógica de la 010 sin cambios (RF-27, RF-28).
+- [x] Sin conexión se cargan servicio, tacto, parto (una o dos crías, un solo pendiente), secado y baja, y se anula o descarta, con la confirmación "Guardado en la tablet: pendiente de sincronizar" (RF-1 a RF-8).
+- [x] El guardado muestra "Guardando…", no se duplica, y los errores (reglas, espacio, animal fuera de la copia) se muestran sin perder lo escrito (RF-9 a RF-12).
+- [x] Lo ofrecido depende de la vista y del rol, igual con y sin señal (RF-13, RF-14, RF-17).
+- [x] La ficha, la reproducción y el historial usan la fuente correcta y reflejan parto, secado y baja pendientes; los rechazados no cuentan y se avisa (RF-18 a RF-25).
+- [x] La fecha de "hoy" es la de Argentina aunque el dispositivo tenga otro huso (RF-26).
+- [x] 768 px y 375 px, modo claro y oscuro, controles de 48 px, y la lógica de la 010 sin cambios (RF-27, RF-28).
 
 ## Preguntas abiertas
 Ninguna.

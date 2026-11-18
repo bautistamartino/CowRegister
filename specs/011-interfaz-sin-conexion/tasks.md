@@ -31,7 +31,7 @@ Cada tarea es autónoma: releé `spec.md`, `plan.md`, `docs/constitution.md` y e
   - RF: RF-3, RF-6, RF-7, RF-8 a RF-11, RF-14, RF-21, RF-27
   - Hecho cuando: `npm test` y `npm run typecheck` en verde; en el navegador a **768 px, modo claro**, con la red cortada: parto con dos crías (una nacida muerta) queda como un solo pendiente y se ve dentro del parto; una tercera cría no se ofrece; anular un evento ya sincronizado deja una anulación pendiente; "Descartar" un pendiente con otros cargados después los lista; con señal el parto se acepta en el momento.
 
-- [ ] **T5** — Cierre: verificación final, criterios, MEMORY.md y docs/plan.md
+- [x] **T5** — Cierre: verificación final, criterios, MEMORY.md y docs/plan.md
   - Repasar el código nuevo para que no use otra hora que la de Argentina ni envíe `establecimientoId` (RF-26, RF-28).
   - Pasada visual final con la red cortada a **768 px y 375 px, modo claro y oscuro**: controles de al menos 48 px y sin desborde horizontal en los formularios, la confirmación, la nota de Pendientes y la ficha de baja pendiente; una pasada con el veterinario; volver la señal y ver la ficha actualizada.
   - `npm test` y `npm run typecheck` en verde; repasar uno por uno los criterios de aceptación de `spec.md`.
