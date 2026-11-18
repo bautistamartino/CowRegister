@@ -10,7 +10,7 @@ Cada tarea es autónoma: releé `spec.md`, `plan.md`, `docs/constitution.md` y e
   - RF: RF-1 a RF-8, RF-10, RF-11, RF-12, RF-14, RF-15, RF-16 (lógica)
   - Hecho cuando: los tests nuevos pasan; `npm test` y `npm run typecheck` en verde; los tests de la 009, 010 y 011 siguen en verde; ninguna pantalla cambió todavía (no hace falta navegador).
 
-- [ ] **T2** — Historial, listado y buscador con las marcas
+- [x] **T2** — Historial, listado y buscador con las marcas
   - `Historial.tsx`: dibujar la marca de cada evento (texto exacto), "Anulación pendiente", "Cargado sin conexión el …" y, en rechazados y en espera, el enlace "Ver en Pendientes" (sin "Anular" ni "Descartar" en la fila). `DetalleParto` y la genética deciden "Se completa al sincronizar" y crías sin enlace por `!!evento.marca`, no por `pendiente` (un parto enviado no debe mostrar "nacida muerta").
   - `Animales.tsx`: `useCola()` + `useVersionCola()`; marca "Baja pendiente de sincronizar" en la celda del número; con señal, suma desde la copia el animal con baja enviada que la copia todavía trae (`completarConBajasEnviadas`); la marca y la fila se van solas al resolverse.
   - `Buscador.tsx`: ante un 404 del servidor, buscar el número entre las bajas enviadas locales y, si está, ir a su ficha (que ya muestra "Baja pendiente/enviada").

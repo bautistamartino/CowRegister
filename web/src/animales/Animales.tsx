@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { useAuth } from '../sesion/auth';
 import { api, ApiError, type ListadoAnimales, type Lote } from '../compartido/api';
@@ -6,6 +6,10 @@ import { ESTADOS_INICIALES, NOMBRE_ESTADO, NOMBRE_SEXO, puedeCargar, textoAnimal
 import { useEnLinea } from '../sinconexion/useConexion';
 import { AvisoDatosLocales } from '../sinconexion/AvisoConexion';
 import { NotaNecesitaConexion, TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
+import { useCola } from '../sinconexion/ColaProvider';
+import { useVersionCola } from '../sinconexion/useVersionCola';
+import { obtenerAlmacen } from '../sinconexion/almacenIndexedDb';
+import { animalesConBajaPendiente, completarConBajasEnviadas, marcarListado } from '../sinconexion/marcasListado';
 
 // Listado de animales activos con filtros por estado y lote (RF-23 a RF-27).
 export function Animales() {
@@ -19,6 +23,13 @@ export function Animales() {
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [listado, setListado] = useState<ListadoAnimales | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Pendientes y enviados de la sesión: de ahí sale la marca "Baja pendiente de sincronizar" (spec 012, RF-5).
+  const { pendientes, enviados } = useCola();
+  // Cambia cuando cambia la cola o la copia: el listado se relee solo y la marca se va sola al resolverse (RF-7).
+  const versionCola = useVersionCola();
+  // Refs: el efecto lee lo último de la cola sin depender de los arreglos (que cambian de identidad en cada render).
+  const colaRef = useRef({ pendientes, enviados });
+  colaRef.current = { pendientes, enviados };
 
   // Los lotes se piden una vez, para el select de filtro.
   useEffect(() => {
@@ -36,9 +47,19 @@ export function Animales() {
     if (loteId) params.set('loteId', loteId);
     const consulta = params.toString();
     api<ListadoAnimales>(`/animales${consulta ? `?${consulta}` : ''}`)
-      .then((r) => {
+      .then(async (r) => {
+        const { pendientes: pend, enviados: env } = colaRef.current;
+        let animales = r.animales;
+        let total = r.total;
+        // Con señal el servidor ya no trae al animal cuya baja aceptó, pero la copia sí hasta que se actualice:
+        // se lo vuelve a sumar (con su marca) para que la baja enviada se vea "con y sin conexión" (RF-5).
+        if (env.some((e) => e.tipo === 'BAJA')) {
+          const copia = await obtenerAlmacen().leerAnimales().catch(() => []);
+          animales = completarConBajasEnviadas(animales, env, copia, { estado, loteId });
+          total += animales.length - r.animales.length;
+        }
         if (!vigente) return;
-        setListado(r);
+        setListado({ ...r, animales: marcarListado(animales, animalesConBajaPendiente(pend, env)), total, mostrados: r.mostrados + (animales.length - r.animales.length) });
         setError(null);
       })
       .catch((err) => {
@@ -48,7 +69,7 @@ export function Animales() {
     return () => {
       vigente = false;
     };
-  }, [estado, loteId, enLinea]);
+  }, [estado, loteId, enLinea, versionCola]);
 
   if (!usuario) return null;
   const puedeAgregar = puedeCargar(usuario.rol);
@@ -170,6 +191,8 @@ export function Animales() {
                         <Link to={`/animales/${a.id}`} className="enlace-fila">
                           {a.numero}
                         </Link>
+                        {/* Solo la baja se marca acá (spec 012): se distingue por su texto, no solo por el color. */}
+                        {a.bajaPendiente && <span className="etiqueta-estado etiqueta-pendiente etiqueta-en-celda">Baja pendiente de sincronizar</span>}
                       </td>
                       <td>{NOMBRE_SEXO[a.sexo]}</td>
                       <td>{NOMBRE_ESTADO[a.estado]}</td>

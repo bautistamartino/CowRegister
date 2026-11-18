@@ -6,6 +6,8 @@ import { normalizarNumero, puedeCargar } from './animalesDatos';
 import { obtenerConexion } from '../sinconexion/conexion';
 import { formatearFechaHora } from '../sinconexion/fechaHora';
 import { useSinConexion } from '../sinconexion/SinConexionProvider';
+import { useCola } from '../sinconexion/ColaProvider';
+import { animalConBajaEnviada } from '../sinconexion/marcasListado';
 
 // Buscador por número (RF-31 a RF-36). Vive en la barra del Layout, así está en todas
 // las pantallas con sesión. El bastón lector "tipea" el número y manda Enter, que es
@@ -13,6 +15,7 @@ import { useSinConexion } from '../sinconexion/SinConexionProvider';
 export function Buscador() {
   const { usuario } = useAuth();
   const { generadaEn } = useSinConexion();
+  const { enviados } = useCola();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const campo = useRef<HTMLInputElement>(null);
@@ -58,7 +61,13 @@ export function Buscador() {
       setTexto('');
       navigate(`/animales/${r.id}`);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
+      // Spec 012 (RF-5): con señal el servidor ya no trae al animal cuya baja se aceptó, pero la tablet sabe de él
+      // mientras la copia lo refleje: se va igual a su ficha, que dice "Baja enviada: se confirma al actualizar".
+      const idBajaEnviada = err instanceof ApiError && err.status === 404 ? animalConBajaEnviada(numero, enviados) : null;
+      if (idBajaEnviada) {
+        setTexto('');
+        navigate(`/animales/${idBajaEnviada}`);
+      } else if (err instanceof ApiError && err.status === 404) {
         // Si la búsqueda cayó a la copia local, la conexión ya figura como cortada (api.ts).
         setNoEncontrado({ texto: numero, valido: true, local: !obtenerConexion().enLinea() });
         campo.current?.select(); // listo para leer la próxima vaca con el bastón
