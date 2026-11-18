@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router';
 import { useAuth } from '../sesion/auth';
-import { formatearFecha, puedeCargar } from '../animales/animalesDatos';
-import { formatearLitros, NOMBRE_TURNO, textoMomento } from '../produccion/produccionDatos';
-import { datosLitros, type Pendiente } from './almacen';
+import { formatearFecha } from '../animales/animalesDatos';
+import { textoMomento } from '../produccion/produccionDatos';
+import type { Pendiente } from './almacen';
+import { mostrarPendientes } from './condicionPendientes';
+import { ayudaRechazo, resumenAviso, resumenCompleto } from './resumenPendiente';
 import { Confirmar } from './Confirmar';
 import { useCola } from './ColaProvider';
 import { INICIO_MENSAJE_DUPLICADO } from './cola';
@@ -12,29 +14,16 @@ import { estadoVisible, posterioresDe } from './dependencias';
 // "Pendientes de sincronizar" (spec 009, RF-36 a RF-40; spec 010, RF-31): lo cargado en la tablet (litros y, desde
 // la spec 010, servicios, tactos, partos, secados, bajas y anulaciones) que el servidor todavía no aceptó, con su estado. Rechazados: se pueden reintentar o descartar. Funciona también sin conexión.
 
-// Textos mínimos por tipo; los resúmenes completos ("Parto con 2 crías") son de la spec 011.
-const TEXTO_TIPO: Record<Pendiente['tipo'], string> = {
-  LITROS: 'Litros',
-  SERVICIO: 'Servicio',
-  TACTO: 'Tacto',
-  PARTO: 'Parto',
-  SECADO: 'Secado',
-  BAJA: 'Baja',
-  ANULACION: 'Anulación',
-};
-
-const TEXTO_EVENTO_ANULADO: Record<string, string> = { SERVICIO: 'servicio', TACTO: 'tacto', PARTO: 'parto', SECADO: 'secado' };
-
-function textoTipo(p: Pendiente): string {
-  if (p.tipo !== 'ANULACION') return TEXTO_TIPO[p.tipo];
-  const anulado = TEXTO_EVENTO_ANULADO[String(p.datos.tipoEvento)];
-  return anulado ? `Anulación de ${anulado}` : 'Anulación';
+// Fecha del evento (la que eligió el usuario al cargarlo), si el pendiente la tiene: la anulación no la lleva.
+function fechaEvento(p: Pendiente): string | null {
+  const f = p.datos.fecha;
+  return typeof f === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f) ? formatearFecha(f) : null;
 }
 
-function resumen(p: Pendiente): string {
-  if (p.tipo !== 'LITROS') return `Vaca ${p.numero} · ${textoTipo(p)}`;
-  const d = datosLitros(p);
-  return `Vaca ${p.numero} · ${formatearFecha(d.fecha)} · ${NOMBRE_TURNO[d.turno]} · ${formatearLitros(Number(d.litros))} L`;
+// Para la confirmación de descarte: "Vaca 214 · Tacto preñada del 10/11/2026". En los litros el resumen ya trae la fecha.
+function textoDescarte(p: Pendiente): string {
+  const f = fechaEvento(p);
+  return p.tipo === 'LITROS' || !f ? resumenCompleto(p) : `${resumenCompleto(p)} del ${f}`;
 }
 
 // El rechazo por duplicado (409 "Ya hay una carga…", texto de la API): gana el que llegó primero al servidor (spec 009).
@@ -42,7 +31,7 @@ const esDuplicado = (p: Pendiente) => p.codigoRechazo === 409 && (p.motivo ?? ''
 
 export function Pendientes() {
   const { usuario } = useAuth();
-  const { pendientes, avisos, progreso, sincronizarAhora, reintentar, reintentarAhora, descartar, cerrarAvisos } = useCola();
+  const { pendientes, enviados, total, avisos, progreso, sincronizarAhora, reintentar, reintentarAhora, descartar, cerrarAvisos } = useCola();
   const [confirmando, setConfirmando] = useState<string | null>(null); // id del pendiente que se está por descartar
   const [descartando, setDescartando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -50,7 +39,8 @@ export function Pendientes() {
   // El veterinario no carga litros: sin pendientes ni avisos no tiene esta pantalla (spec 009 RF-25). Si le quedó algo
   // sin enviar (por ejemplo un servicio o un tacto), la ve igual.
   if (!usuario) return null;
-  if (!puedeCargar(usuario.rol) && pendientes.length === 0 && avisos.length === 0) return <Navigate to="/" replace />;
+  // Misma condición que el enlace del menú (spec 012, RF-12).
+  if (!mostrarPendientes({ rol: usuario.rol, total, avisos: avisos.length })) return <Navigate to="/" replace />;
 
   const hayEsperando = pendientes.some((p) => p.estado === 'esperando');
 
@@ -100,9 +90,7 @@ export function Pendientes() {
             {avisos.map((a) => (
               <li key={a.id} className="evento">
                 <p className="evento-titulo">
-                  <strong>
-                    Vaca {a.numero} · {TEXTO_TIPO[a.tipo]}
-                  </strong>
+                  <strong>{resumenAviso(a, enviados)}</strong>
                 </p>
                 {a.avisos.map((x, i) => (
                   <p key={i} className="texto-suave">
@@ -132,8 +120,10 @@ export function Pendientes() {
             return (
             <li key={p.id} className={`evento pendiente pendiente-${p.estado}`}>
               <p className="evento-titulo">
-                <strong>{resumen(p)}</strong>
+                <strong>{resumenCompleto(p)}</strong>
               </p>
+              {/* En los litros el resumen ya trae la fecha. */}
+              {p.tipo !== 'LITROS' && fechaEvento(p) && <p className="texto-suave">Fecha del evento: {fechaEvento(p)}</p>}
               <p className="texto-suave">Cargado el {textoMomento(p.cargadoEnDispositivo)}</p>
 
               {visible === 'enEspera' && (
@@ -159,6 +149,7 @@ export function Pendientes() {
                   <p className="pendiente-rechazo" role="alert">
                     <span className="etiqueta-estado etiqueta-rechazado">Rechazado:</span> {p.motivo}
                   </p>
+                  {ayudaRechazo(p) && <p className="texto-suave">{ayudaRechazo(p)}</p>}
                   {esDuplicado(p) && (
                     <p className="texto-suave">
                       Gana el que llegó primero al servidor. Podés descartar este litro, o anular el otro registro con conexión y después tocar "Reintentar".
@@ -170,7 +161,7 @@ export function Pendientes() {
               {confirmando === p.id ? (
                 <Confirmar titulo="¿Descartar este pendiente?" confirmarTexto="Sí, descartar" alConfirmar={() => void confirmarDescarte(p.id)} alCancelar={() => setConfirmando(null)} ocupado={descartando}>
                   <p>
-                    {resumen(p)}. Se borra de la tablet y no se envía al servidor. No se puede deshacer.
+                    {textoDescarte(p)}. Se borra de la tablet y no se envía al servidor. No se puede deshacer.
                     {p.estado === 'enviando' && ' Se está enviando: se espera el resultado antes de decidir.'}
                   </p>
                   {visible === 'enEspera' && <p>Este registro está en espera de uno anterior que se rechazó.</p>}

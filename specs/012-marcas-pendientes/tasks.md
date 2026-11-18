@@ -18,7 +18,7 @@ Cada tarea es autónoma: releé `spec.md`, `plan.md`, `docs/constitution.md` y e
   - RF: RF-1 a RF-7, RF-17, RF-18
   - Hecho cuando: `npm test` y `npm run typecheck` en verde; en el navegador a **768 px, modo claro**, con la red cortada y sembrando en IndexedDB un fragmento de consola que no se commitea: un historial con cada marca (pendiente, enviado, rechazado, en espera, anulación pendiente, "Cargado sin conexión" con más de 5 minutos y sin él); el listado y el buscador con una baja pendiente; la marca desaparece al descartar la baja; con señal la baja enviada sigue marcada hasta que la copia no la trae.
 
-- [ ] **T3** — Pantalla "Pendientes" ampliada, acceso del veterinario y menú
+- [x] **T3** — Pantalla "Pendientes" ampliada, acceso del veterinario y menú
   - `Pendientes.tsx`: resumen completo con `resumenCompleto` (sin los textos mínimos), fecha del evento y "Cargado el …"; confirmación de descarte con vaca, tipo y fecha (y el aviso de "en espera" y de posteriores); ayuda de rechazo 404; avisos del servidor con el resumen (buscando el enviado por `id`, si no el texto del tipo) y cierre de a uno.
   - `Layout.tsx` y `Pendientes.tsx` usan `mostrarPendientes({ rol, total, avisos })`: el enlace del menú y la pantalla comparten condición (el veterinario ve ambos solo con pendientes o avisos; sin nada, no hay enlace y la pantalla redirige). El conteo con rechazados destacados y las confirmaciones de cierre de sesión y cambio de usuario no cambian.
   - RF: RF-8 a RF-13, RF-17, RF-18

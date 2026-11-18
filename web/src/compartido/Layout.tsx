@@ -9,7 +9,7 @@ import { AvisoConexion } from '../sinconexion/AvisoConexion';
 import { TEXTO_NECESITA_CONEXION } from '../sinconexion/NecesitaConexion';
 import { useEnLinea } from '../sinconexion/useConexion';
 import { useCola } from '../sinconexion/ColaProvider';
-import { puedeCargar } from '../animales/animalesDatos';
+import { mostrarPendientes } from '../sinconexion/condicionPendientes';
 
 const nombresRol: Record<Rol, string> = {
   DUENO: 'Dueño',
@@ -34,7 +34,7 @@ const SECCIONES: { a: string; texto: string; end?: boolean; sinConexion: boolean
 export function Layout() {
   const { usuario, logout } = useAuth();
   const enLinea = useEnLinea();
-  const { total: pendientes, rechazados } = useCola(); // pendientes de sincronizar de todos los tipos (spec 009 RF-42, spec 010 RF-30)
+  const { total: pendientes, rechazados, avisos } = useCola(); // pendientes de sincronizar de todos los tipos (spec 009 RF-42, spec 010 RF-30)
   const { pathname } = useLocation();
   const [error, setError] = useState<string | null>(null);
   // Se muestra al tocar una opción deshabilitada del menú (en una tablet no hay "tooltip").
@@ -109,9 +109,9 @@ export function Layout() {
                 </button>
               ),
             )}
-            {/* Pendientes de sincronizar (spec 009): los litros los cargan dueño y encargado; el veterinario la ve si le quedó algo. Se puede abrir sin
+            {/* Pendientes de sincronizar (spec 009): los litros los cargan dueño y encargado; el veterinario la ve si le quedó algo o tiene avisos (misma condición que la pantalla, spec 012). Se puede abrir sin
                 conexión. El número se ve también con conexión; con rechazados se destaca (color y "!"). */}
-            {(puedeCargar(usuario.rol) || pendientes > 0) && (
+            {mostrarPendientes({ rol: usuario.rol, total: pendientes, avisos: avisos.length }) && (
               <NavLink
                 to="/pendientes"
                 className="menu-enlace"
