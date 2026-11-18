@@ -24,7 +24,7 @@ Cada tarea es autónoma: releé `spec.md`, `plan.md`, `docs/constitution.md` y e
   - RF: RF-8 a RF-13, RF-17, RF-18
   - Hecho cuando: `npm test` y `npm run typecheck` en verde; en el navegador a **768 px, modo claro**, con la red cortada: "Pendientes" con un pendiente de cada tipo, uno rechazado (404 con la ayuda), uno "en espera del anterior" y su "Descartar" con la confirmación completa, avisos cerrables; el veterinario (sesión de veterinario) sin pendientes ni avisos no ve el enlace ni la pantalla, y con un aviso o un servicio pendiente sí.
 
-- [ ] **T4** — Aviso de reloj atrasado en los formularios de carga
+- [x] **T4** — Aviso de reloj atrasado en los formularios de carga
   - Crear `useRelojTablet.ts` y `AvisoReloj.tsx`; usarlos arriba de `FormServicio` y `FormTacto` (`Reproduccion.tsx`), `FormParto.tsx`, `FormSecado.tsx` y `FormBaja.tsx`: con el reloj atrasado el campo fecha queda vacío, obligatorio y sin máximo (el mínimo se mantiene) con la ayuda "Elegí la fecha del evento"; con una copia nueva y el reloj bien, el aviso se va y vuelve la fecha por defecto.
   - RF: RF-14, RF-15, RF-16, RF-17
   - Hecho cuando: `npm test` y `npm run typecheck` en verde; en el navegador a **768 px, modo claro**, cambiando la hora del dispositivo (o sembrando `generadaEn` en el futuro): aparece el aviso con el texto exacto en los cinco formularios y la fecha viene vacía y sin máximo; con el reloj bien no hay aviso y la fecha propone hoy; una fecha futura con el reloj adelantado queda rechazada y visible en "Pendientes".

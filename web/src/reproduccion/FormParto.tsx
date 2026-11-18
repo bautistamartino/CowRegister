@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import type { Sexo } from '../compartido/api';
 import { NOMBRE_SEXO } from '../animales/animalesDatos';
-import { FECHA_MINIMA, hoyIso } from './reproduccionDatos';
+import { FECHA_MINIMA } from './reproduccionDatos';
+import { AvisoReloj } from '../sinconexion/AvisoReloj';
+import { useRelojTablet } from '../sinconexion/useRelojTablet';
 import { Campo } from '../compartido/Campo';
 import { useGuardarCarga } from '../sinconexion/useGuardarCarga';
 import type { ConfirmacionCarga } from '../sinconexion/guardadoCarga';
@@ -21,6 +23,7 @@ const criaVacia = (): CriaForm => ({ sexo: 'HEMBRA', nacidaMuerta: false, numero
 // Formulario de parto: fecha y una o dos crías (RF-45). "Nacida muerta" oculta el número
 // porque esa cría no se da de alta. Todo se guarda junto como UN solo pendiente o no se guarda nada (RF-4, spec 011).
 export function FormParto({ animal, alCancelar, alGuardado }: Props) {
+  const reloj = useRelojTablet();
   const [crias, setCrias] = useState<CriaForm[]>([criaVacia()]);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -63,12 +66,13 @@ export function FormParto({ animal, alCancelar, alGuardado }: Props) {
   return (
     <form className="formulario-lote formulario-evento" onSubmit={enviar} noValidate>
       <h3>Nuevo parto</h3>
+      <AvisoReloj atrasado={reloj.atrasado} />
       {error && (
         <div className="alerta" role="alert">
           {error}
         </div>
       )}
-      <Campo etiqueta="Fecha del parto" name="fecha" id="parto-fecha" type="date" required defaultValue={hoyIso()} min={FECHA_MINIMA} max={hoyIso()} error={errores.fecha} />
+      <Campo key={`f-${reloj.atrasado}`} etiqueta="Fecha del parto" name="fecha" id="parto-fecha" type="date" required defaultValue={reloj.valorInicial} min={FECHA_MINIMA} max={reloj.max} ayuda={reloj.ayuda ?? undefined} error={errores.fecha} />
 
       {crias.map((c, i) => (
         <fieldset key={i} className="cria-form">
