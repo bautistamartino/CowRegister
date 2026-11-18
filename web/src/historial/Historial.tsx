@@ -10,6 +10,7 @@ import { useEnLinea } from '../sinconexion/useConexion';
 import { useVersionCola } from '../sinconexion/useVersionCola';
 import { useCola } from '../sinconexion/ColaProvider';
 import { Confirmar } from '../sinconexion/Confirmar';
+import { textoDescarte } from '../sinconexion/textoDescarte';
 import { aErroresFormulario } from '../sinconexion/formularioRechazo';
 import { resumenPendiente } from '../sinconexion/resumenPendiente';
 import type { Pendiente } from '../sinconexion/almacen';
@@ -245,10 +246,15 @@ function FilaEvento({
 
   async function descartar() {
     if (!aDescartar) return;
+    setError(null);
     setEnviando(true);
     try {
-      // Descartar no lleva motivo: no se crea ninguna anulación, se quita el pendiente.
-      await resolver(await cola.anularLocal({ animal: { id: aDescartar.animalId, numero: aDescartar.numero }, motivo: '', eventoId: aDescartar.id }), aDescartar);
+      // Descartar no lleva motivo ni crea ninguna anulación: se quita el pendiente con `cola.descartar`, que espera si
+      // se estaba enviando y responde 'ya-guardado' si el servidor ya lo aceptó (igual que en la ficha de baja).
+      // La confirmación ya se pidió en pantalla (con los posteriores listados).
+      const t = textoDescarte(await cola.descartar(aDescartar.id, { confirmado: true }), `Se descartó: ${textoDePendiente(aDescartar)}`);
+      if (t.tipo === 'aviso') alDescartado(t.texto);
+      else setError(t.texto);
     } catch {
       setError('No se pudo descartar. Probá de nuevo');
     } finally {
@@ -414,7 +420,8 @@ function DetalleParto({ parto, pendiente }: { parto: NonNullable<EventoReproduct
           </li>
         ))}
       </ul>
-      <p className="texto-suave">Genética: {pendiente ? 'se completa al sincronizar' : textoGenetica(parto.genetica)}</p>      <p className="texto-suave">
+      <p className="texto-suave">Genética: {pendiente ? 'Se completa al sincronizar' : textoGenetica(parto.genetica)}</p>
+      <p className="texto-suave">
         Estaba {NOMBRE_ESTADO[parto.estadoAnterior].toLowerCase()} · {textoLoteAnterior(parto.loteAnterior)}
       </p>
     </>

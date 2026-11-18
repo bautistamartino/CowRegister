@@ -48,7 +48,7 @@ export function FormParto({ animal, alCancelar, alGuardado }: Props) {
       },
       tituloAceptado: 'Parto registrado',
       // Los errores de campos que el formulario no dibuja (por ejemplo "crias") van en la alerta de arriba.
-      camposDibujados: ['fecha', ...crias.flatMap((_, i) => [`crias.${i}.sexo`, `crias.${i}.numero`, `crias.${i}.observaciones`])],
+      camposDibujados: ['fecha', ...crias.flatMap((c, i) => [`crias.${i}.sexo`, ...(c.nacidaMuerta ? [] : [`crias.${i}.numero`]), `crias.${i}.observaciones`])],
     });
     if (!salida) return;
     if (salida.tipo === 'error') {
