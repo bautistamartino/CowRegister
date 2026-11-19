@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/db.js';
@@ -12,7 +13,7 @@ export async function limpiarBase() {
     throw new Error('limpiarBase() solo puede usarse con la base de tests');
   }
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "cambios_animal", "crias_parto", "partos", "secados", "bajas", "producciones", "servicios", "tactos", "eventos", "semen_toros", "sesiones", "sesiones_admin", "auditoria_admin", "administradores", "animales", "reglas_lote", "lotes", "usuarios", "establecimientos" CASCADE',
+    'TRUNCATE TABLE "cambios_animal", "crias_parto", "partos", "secados", "bajas", "producciones", "servicios", "tactos", "eventos", "semen_toros", "sesiones", "sesiones_admin", "auditoria_admin", "registro_estado_tambo", "administradores", "animales", "reglas_lote", "lotes", "usuarios", "establecimientos" CASCADE',
   );
 }
 
@@ -592,4 +593,43 @@ export async function iniciarSesionAdmin(opciones: { nombre?: string; email?: st
     .send({ email: admin.email, password: opciones.password ?? PASSWORD })
     .expect(200);
   return { agente, admin };
+}
+
+// ─── Acciones del administrador (spec 015) ──────────────────────────
+
+/**
+ * Da de baja un tambo directo en la base (sin pasar por la API): pone el estado en BAJA y agrega el
+ * registro. No borra sesiones salvo que se pida (`cerrarSesiones: true`): así los tests pueden
+ * probar una sesión que quedó abierta antes de la baja. Si no se pasa `administradorId`, usa (o
+ * crea) al administrador de prueba.
+ */
+export async function darDeBajaTamboDirecto(
+  establecimientoId: string,
+  opciones: { motivo?: string; administradorId?: string; cerrarSesiones?: boolean } = {},
+) {
+  const administradorId = opciones.administradorId ?? (await prisma.administrador.findFirst())?.id ?? (await crearAdministradorDirecto()).id;
+  await prisma.$transaction(async (tx) => {
+    await tx.establecimiento.update({ where: { id: establecimientoId }, data: { estado: 'BAJA' } });
+    await tx.registroEstadoTambo.create({
+      data: { establecimientoId, administradorId, tipo: 'BAJA', motivo: opciones.motivo ?? 'Baja de prueba' },
+    });
+    if (opciones.cerrarSesiones) await tx.sesion.deleteMany({ where: { usuario: { establecimientoId } } });
+  });
+}
+
+/**
+ * Crea una sesión de un usuario directo en la base (sin ingresar por la API) y devuelve el token y
+ * el valor de la cookie lista para usar con `.set('Cookie', ...)`. Sirve para probar una sesión
+ * "creada después de la baja", que la API nunca crearía.
+ */
+export async function crearSesionDirecta(usuarioId: string) {
+  const token = randomBytes(32).toString('base64url');
+  await prisma.sesion.create({
+    data: {
+      usuarioId,
+      tokenHash: createHash('sha256').update(token).digest('hex'),
+      expiraEn: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    },
+  });
+  return { token, cookie: `sesion=${token}` };
 }

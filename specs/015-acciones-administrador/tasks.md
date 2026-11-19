@@ -2,7 +2,7 @@
 
 Cada tarea empieza escribiendo los tests y termina con los tests de la tarea (o `npm test -w api` por archivos, por la lentitud de la computadora), `npm run typecheck` y commit en la rama `spec/015-acciones-administrador`. Las tareas son 5 y van en orden: cada una depende de la anterior.
 
-- [ ] **T1** — Base de datos: estado del tambo, registro de bajas y reactivaciones, auditoría ampliada y último ingreso
+- [x] **T1** — Base de datos: estado del tambo, registro de bajas y reactivaciones, auditoría ampliada y último ingreso
   - Tests primero: `api/tests/base-tambo-estado.test.ts` (migrados y nuevos nacen `ACTIVO` sin registro; el registro rechaza `UPDATE` y `DELETE`; CHECK del motivo de 1 a 200 caracteres sin espacios en los bordes y de reactivación sin motivo; la auditoría rechaza `UPDATE`/`DELETE` y su CHECK ampliado acepta las acciones nuevas con `usuarioId` y `usuarioEmail` y rechaza combinaciones incoherentes).
   - Después: `api/prisma/schema.prisma` (enums `EstadoTambo` y `TipoCambioEstadoTambo`, `Establecimiento.estado`, modelo `RegistroEstadoTambo`, `Usuario.ultimoIngresoEn`, columnas `usuarioId`/`usuarioEmail` y cuatro acciones en `AuditoriaAdmin`); migración `admin_acciones_enum` (solo los `ADD VALUE`) y migración `tambo_estado_y_registro` con el SQL a mano comentado (CHECK del registro, disparador de solo agregar, CHECK de auditoría recreado); `HttpError.codigo` y su salida en `manejarErrores` (`api/src/errores.ts`); `api/tests/ayudas.ts` (`limpiarBase` con la tabla nueva, ayudas `darDeBajaTamboDirecto` y `crearSesionDirecta`); `npm run db:generate -w api`.
   - RF: RF-1, RF-2 (base), RF-5 (CHECK), RF-16, RF-32 (base)
