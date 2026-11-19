@@ -4,6 +4,7 @@ import { prisma } from '../db.js';
 import { HttpError } from '../errores.js';
 import { emailSchema, nombreSchema, passwordSchema } from '../validacion.js';
 import { hashearPassword } from '../auth/password.js';
+import { emailEnUso, traducirChoque, MENSAJE_EMAIL_REPETIDO } from '../admin/choques.js';
 import { requiereRol, requiereSesion, usuarioActual } from '../auth/middleware.js';
 
 // Gestión de los usuarios del tambo. Solo el dueño puede usar estas rutas.
@@ -39,8 +40,8 @@ rutasUsuarios.post('/', async (req, res) => {
   const { establecimientoId } = usuarioActual(req);
   const datos = crearSchema.parse(req.body);
 
-  const existe = await prisma.usuario.findUnique({ where: { email: datos.email } });
-  if (existe) throw new HttpError(409, 'Ya existe una cuenta con ese email');
+  // El email no puede ser ni de otro usuario ni del administrador (spec 014, RF-7).
+  if (await emailEnUso(datos.email)) throw new HttpError(409, MENSAJE_EMAIL_REPETIDO);
 
   const usuario = await prisma.usuario.create({
     data: {
@@ -51,7 +52,7 @@ rutasUsuarios.post('/', async (req, res) => {
       rol: datos.rol,
     },
     select: camposPublicos,
-  });
+  }).catch((err: unknown) => traducirChoque(err, { email: datos.email }));
   res.status(201).json(usuario);
 });
 

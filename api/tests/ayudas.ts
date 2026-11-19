@@ -12,7 +12,7 @@ export async function limpiarBase() {
     throw new Error('limpiarBase() solo puede usarse con la base de tests');
   }
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "cambios_animal", "crias_parto", "partos", "secados", "bajas", "producciones", "servicios", "tactos", "eventos", "semen_toros", "sesiones", "animales", "reglas_lote", "lotes", "usuarios", "establecimientos" CASCADE',
+    'TRUNCATE TABLE "cambios_animal", "crias_parto", "partos", "secados", "bajas", "producciones", "servicios", "tactos", "eventos", "semen_toros", "sesiones", "sesiones_admin", "auditoria_admin", "administradores", "animales", "reglas_lote", "lotes", "usuarios", "establecimientos" CASCADE',
   );
 }
 
@@ -559,4 +559,37 @@ export function crearProduccionDirecta(datos: {
       }),
     },
   });
+}
+
+// ─── Administrador de la plataforma (spec 014) ──────────────────────
+
+/**
+ * Crea al administrador directo en la base (sin pasar por el alta única). Solo puede haber uno
+ * (índice administradores_uno_solo). El email se guarda normalizado (minúsculas).
+ */
+export async function crearAdministradorDirecto(
+  opciones: { nombre?: string; email?: string; password?: string } = {},
+) {
+  const { hashearPassword } = await import('../src/auth/password.js');
+  return prisma.administrador.create({
+    data: {
+      nombre: opciones.nombre ?? 'Administrador de prueba',
+      email: (opciones.email ?? 'admin@prueba.test').trim().toLowerCase(),
+      passwordHash: await hashearPassword(opciones.password ?? PASSWORD),
+    },
+  });
+}
+
+/**
+ * Crea al administrador y devuelve un agente de supertest con su sesión (cookie `sesion_admin`),
+ * entrando por el mismo POST /api/auth/login que usa todo el mundo.
+ */
+export async function iniciarSesionAdmin(opciones: { nombre?: string; email?: string; password?: string } = {}) {
+  const admin = await crearAdministradorDirecto(opciones);
+  const agente = request.agent(app);
+  await agente
+    .post('/api/auth/login')
+    .send({ email: admin.email, password: opciones.password ?? PASSWORD })
+    .expect(200);
+  return { agente, admin };
 }

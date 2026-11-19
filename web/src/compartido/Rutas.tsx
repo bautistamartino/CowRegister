@@ -9,21 +9,34 @@ function Cargando() {
   return <div className="centrado">Cargando…</div>;
 }
 
-// Solo deja pasar si hay sesión; si no, manda al login.
+// Solo deja pasar si hay sesión de tambo; si no, manda al login. Un administrador va a su sección (/admin).
 export function RutaPrivada({ children }: { children: ReactNode }) {
-  const { usuario, cargando } = useAuth();
+  const { usuario, admin, cargando } = useAuth();
   const location = useLocation();
   if (cargando) return <Cargando />;
+  if (admin && !usuario) return <Navigate to="/admin" replace />;
   if (!usuario) return <Navigate to="/login" replace state={{ desde: location.pathname }} />;
   return children;
 }
 
-// Para login y registro: si ya hay sesión, manda al inicio.
+// Para login y registro: si ya hay sesión, manda al inicio (o a /admin si es el administrador).
 export function RutaPublica({ children }: { children: ReactNode }) {
-  const { usuario, cargando } = useAuth();
+  const { usuario, admin, cargando } = useAuth();
   if (cargando) return <Cargando />;
+  if (admin && !usuario) return <Navigate to="/admin" replace />;
   if (usuario) return <Navigate to="/" replace />;
   return children;
+}
+
+// Solo deja pasar al administrador de la plataforma (spec 014). Un usuario de tambo que entra a /admin vuelve a su
+// inicio; sin ninguna sesión va al login.
+export function RutaAdmin({ children }: { children: ReactNode }) {
+  const { usuario, admin, cargando } = useAuth();
+  const location = useLocation();
+  if (cargando) return <Cargando />;
+  if (admin) return children;
+  if (usuario) return <Navigate to="/" replace />;
+  return <Navigate to="/login" replace state={{ desde: location.pathname }} />;
 }
 
 // Envuelve las pantallas que NO están disponibles sin conexión (spec 009, RF-13): bajas, informes,

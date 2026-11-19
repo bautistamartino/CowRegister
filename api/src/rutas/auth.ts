@@ -8,6 +8,8 @@ import { hashearPassword, verificarPassword, verificarPasswordFalso } from '../a
 import { COOKIE_SESION, cerrarSesion, iniciarSesion } from '../auth/sesiones.js';
 import { requiereSesion, usuarioActual } from '../auth/middleware.js';
 import { crearTamboConDueno } from '../auth/registro.js';
+import { emailEnUso, traducirChoque, MENSAJE_EMAIL_REPETIDO } from '../admin/choques.js';
+import { iniciarSesionAdmin } from '../admin/sesionAdmin.js';
 
 export const rutasAuth = Router();
 
@@ -37,36 +39,55 @@ const loginSchema = z.object({
 rutasAuth.post('/registro', limiteIntentos, async (req, res) => {
   const datos = registroSchema.parse(req.body);
 
-  const existe = await prisma.usuario.findUnique({ where: { email: datos.email } });
-  if (existe) throw new HttpError(409, 'Ya existe una cuenta con ese email');
+  // El email no puede ser ni de un usuario ni del administrador (spec 014, RF-7).
+  if (await emailEnUso(datos.email)) throw new HttpError(409, MENSAJE_EMAIL_REPETIDO);
 
   const passwordHash = await hashearPassword(datos.password);
 
   // Tambo, lotes iniciales con sus destinos y dueño: todo o nada (RF-18).
+  // Si la base rechaza el alta por un nombre o email repetido (también cuando dos pedidos llegan a
+  // la vez), se traduce a un 409 con el mensaje que corresponde.
   const usuario = await crearTamboConDueno({
     nombreEstablecimiento: datos.nombreEstablecimiento,
     nombre: datos.nombre,
     email: datos.email,
     passwordHash,
-  });
+  }).catch((err: unknown) =>
+    traducirChoque(err, { email: datos.email, nombreTambo: datos.nombreEstablecimiento }),
+  );
 
   await iniciarSesion(res, usuario.id);
   res.status(201).json(await perfil(usuario.id));
 });
 
-// POST /api/auth/login
+// POST /api/auth/login — ingreso de TODAS las cuentas (usuarios de un tambo y administrador).
+// Un solo endpoint y un solo contador de intentos por IP. Se busca el email en las dos tablas y se
+// hace UNA sola verificación de contraseña (contra el hash encontrado o contra uno falso), así
+// tarda parecido y no revela qué emails existen ni si uno es del administrador.
 rutasAuth.post('/login', limiteIntentos, async (req, res) => {
   const { email, password } = loginSchema.parse(req.body);
 
-  const usuario = await prisma.usuario.findUnique({ where: { email } });
-  const ok = usuario
-    ? await verificarPassword(usuario.passwordHash, password)
-    : await verificarPasswordFalso(password);
+  const admin = await prisma.administrador.findUnique({ where: { email } });
+  const usuario = admin ? null : await prisma.usuario.findUnique({ where: { email } });
+  const hashGuardado = admin?.passwordHash ?? usuario?.passwordHash;
+  const ok = hashGuardado ? await verificarPassword(hashGuardado, password) : await verificarPasswordFalso(password);
 
-  // Mismo mensaje si falla el email o la contraseña: no revela qué emails existen.
-  if (!usuario || !ok || !usuario.activo) {
-    throw new HttpError(401, 'Email o contraseña incorrectos');
+  // Mismo mensaje en todos los fallos: no revela qué emails existen.
+  const fallo = () => new HttpError(401, 'Email o contraseña incorrectos');
+
+  if (admin) {
+    if (!ok) {
+      // Se audita el intento fallido; nunca la contraseña.
+      await prisma.auditoriaAdmin.create({ data: { accion: 'INGRESO_FALLIDO', administradorId: admin.id } });
+      throw fallo();
+    }
+    await prisma.auditoriaAdmin.create({ data: { accion: 'INGRESO', administradorId: admin.id } });
+    await iniciarSesionAdmin(res, admin.id);
+    res.json({ rol: 'ADMIN', id: admin.id, nombre: admin.nombre, email: admin.email });
+    return;
   }
+
+  if (!usuario || !ok || !usuario.activo) throw fallo();
 
   await iniciarSesion(res, usuario.id);
   res.json(await perfil(usuario.id));

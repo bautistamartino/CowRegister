@@ -37,7 +37,8 @@ export function avisarSesionVencida(): void {
 
 // En estas rutas un 401 es una respuesta normal, no una sesión vencida:
 // /auth/yo responde 401 al abrir la app sin sesión y /auth/login con datos incorrectos.
-const rutasSin401Global = ['/auth/yo', '/auth/login'];
+// /admin/yo es lo mismo para el administrador: al abrir la app sin sesión de administrador responde 401.
+const rutasSin401Global = ['/auth/yo', '/auth/login', '/admin/yo'];
 
 // ─── Modo sin conexión (spec 009) ───
 
@@ -48,6 +49,12 @@ const TEXTO_SIN_RED = 'No se pudo conectar con el servidor. Revisá tu conexión
 // app crea que no hay conexión: son las que la detectan y la recuperan (login, "Reintentar", etc.).
 function esDeSesionOCopia(ruta: string): boolean {
   return ruta.startsWith('/auth/') || ruta.startsWith('/copia-local');
+}
+
+// Las rutas del administrador (spec 014): siempre van a la red. Nunca se responden desde la copia local ni
+// desde la vista local (son datos de todos los tambos, no de la tablet), y sin conexión no se intentan.
+function esDeAdmin(ruta: string): boolean {
+  return ruta === '/admin' || ruta.startsWith('/admin/');
 }
 
 // Intenta responder desde la copia local (solo lecturas de la lista cerrada, ver copiaLocal.ts).
@@ -79,6 +86,10 @@ export async function api<T>(ruta: string, opciones: { method?: string; body?: u
   const metodo = (opciones.method ?? 'GET').toUpperCase();
   const conexion = obtenerConexion();
   const intentaSiempre = esDeSesionOCopia(ruta);
+  const deAdmin = esDeAdmin(ruta);
+
+  // Administrador sin conexión: no se hace el pedido y NO se lee la copia local (RF-21).
+  if (deAdmin && !conexion.enLinea()) throw new ApiError(0, TEXTO_NECESITA_CONEXION);
 
   // Sin conexión: las lecturas de la lista cerrada salen de la copia; lo demás no se intenta
   // (RF-12, RF-13): no se hace el pedido ni se guarda para después.
@@ -89,7 +100,7 @@ export async function api<T>(ruta: string, opciones: { method?: string; body?: u
   }
 
   // Con conexión pero con eventos de esa vaca sin aceptar: la ficha sale de la vista local (spec 011, RF-18).
-  if (!intentaSiempre) {
+  if (!intentaSiempre && !deAdmin) {
     const vista = await fichaDesdeVistaLocal<T>(metodo, ruta, true);
     if (vista.usado) return vista.valor;
   }
@@ -98,7 +109,7 @@ export async function api<T>(ruta: string, opciones: { method?: string; body?: u
   // lectura de la lista cerrada, se responde igual desde la copia.
   async function sinRed(): Promise<T> {
     conexion.hayFalloDeRed();
-    if (!intentaSiempre) {
+    if (!intentaSiempre && !deAdmin) {
       const local = await responderDesdeCopia<T>(metodo, ruta);
       if (local.usado) return local.valor;
     }

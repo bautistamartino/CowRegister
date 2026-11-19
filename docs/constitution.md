@@ -8,6 +8,16 @@ Principios que **ninguna spec, plan o implementación puede romper**. Si una pet
 - Pedir un recurso de otro tambo responde **404** (no 403), para no revelar que existe.
 - Toda ruta nueva que toque datos de un tambo tiene un test de aislamiento entre dos tambos.
 
+> **Excepción acotada: administrador de la plataforma.**
+> 1. Existe un rol que no pertenece a ningún tambo. Sus cuentas y sus sesiones están separadas de las de los usuarios de tambo.
+> 2. Lo único que ve del tambo es esta **lista blanca de la cuenta**: id, nombre, fecha de alta, dueño (nombre y email), cantidad de usuarios activos, cantidad de animales activos y la lista de usuarios (nombre, email, rol, si está activo); y lo que sumen las specs posteriores que la amplíen explícitamente (la 015 agrega estado, último ingreso y motivo de baja).
+> 3. **El conteo de animales activos es la única consulta permitida sobre datos del tambo.** Nunca ve ni modifica animales (ni sus números), eventos, litros, lotes, historial, informes ni la copia local.
+> 4. Las rutas `/api/admin` son la **única excepción** a "nunca se acepta un identificador de tambo del cliente": ahí el id del tambo viaja en la ruta y es legítimo, porque quien lo envía es el administrador. Todas las demás rutas siguen tomando el tambo de la sesión.
+> 5. Todo `/api/admin` está detrás de **un único control de acceso** aplicado al conjunto de rutas, y un test recorre todas las rutas del administrador para comprobarlo. Hay además un test de aislamiento propio: ningún rol de tambo accede, y el administrador no accede a ninguna ruta de datos del tambo.
+> 6. Las tablas nuevas llevan UUID y `creadoEn`/`actualizadoEn` (las editables); el registro de auditoría y los registros de baja que sume la 015 solo se agregan.
+>
+> El resto del principio 1 no cambia: para todos los demás roles, el tambo sale siempre de la sesión y un recurso ajeno responde 404. (Aprobada por el responsable el 2026-11-19, spec [014-administrador](../specs/014-administrador/spec.md).)
+
 ## 2. Seguridad
 - Contraseñas solo con hash argon2id. Tokens de sesión solo hasheados en la base.
 - Las respuestas nunca incluyen `passwordHash` ni `tokenHash`.

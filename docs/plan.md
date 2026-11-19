@@ -43,5 +43,11 @@ App instalable (PWA), datos locales en la tablet y sincronización al volver la 
 - [x] 6.1 App instalable, consulta sin conexión (listado, buscador y fichas) y carga de **litros** sin conexión con envío automático al volver la señal (spec [009-sin-conexion](../specs/009-sin-conexion/spec.md))
 - [x] 6.2 Los demás eventos sin conexión (servicios, tactos, partos, secados, bajas y anulaciones) y el orden por fecha y hora con relojes distintos. **Completa (2026-11-18):** las specs [010-eventos-sin-conexion](../specs/010-eventos-sin-conexion/spec.md) (API idempotente y motor local) y la spec [011-interfaz-sin-conexion](../specs/011-interfaz-sin-conexion/spec.md) (formularios de carga y anulación, y adaptador de la ficha) y [012-marcas-pendientes](../specs/012-marcas-pendientes/spec.md) (marcas completas, baja pendiente en el listado, pantalla Pendientes ampliada, veterinario y reloj atrasado) están hechas.
 
+## Administrador de la plataforma
+Un rol que no pertenece a ningún tambo: ve los tambos solo como cuentas, los crea con su dueño y (spec 015) los da de baja. Va antes de publicar, porque con el registro público cerrado en producción los tambos nuevos nacen desde acá.
+
+- [x] A.1 Ver y crear tambos (spec [014-administrador](../specs/014-administrador/spec.md), T1 a T5, 2026-11-19): tablas, sesión y cookie propias, ingreso unificado, alta única del primer administrador (`npm run admin:crear -w api`), listado, detalle y alta de tambos con su dueño, nombre de tambo único y enmienda a la constitución
+- [ ] A.2 Dar de baja y reactivar tambos, restablecer contraseñas, último ingreso (spec [015-acciones-administrador](../specs/015-acciones-administrador/spec.md), en borrador; depende de la 014)
+
 ## Etapa 7 — Publicación
-Subir la app a un hosting con HTTPS y backups de la base de datos.
+Subir la app a un hosting con HTTPS y backups de la base de datos. **Se hace al final**, después del administrador (la spec 013 de publicación deberá ajustarse: el "script de primer tambo" pasa a ser el alta única del administrador y el registro público se cierra en producción).
