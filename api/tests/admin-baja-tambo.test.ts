@@ -1,7 +1,8 @@
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../src/db.js';
-import { PASSWORD, app, crearUsuario, iniciarSesionAdmin, limpiarBase, registrarTambo } from './ayudas.js';
+import { fijarReloj } from '../src/reloj.js';
+import { PASSWORD, app, crearAnimalDirecto, crearUsuario, iniciarSesionAdmin, limpiarBase, registrarTambo } from './ayudas.js';
 
 // Baja y reactivación de un tambo por el administrador (spec 015, RF-4, 5, 7, 12, 13, 14, 15, 32).
 
@@ -151,5 +152,62 @@ describe('POST /api/admin/tambos/:id/reactivar', () => {
     await admin.post(`/api/admin/tambos/${idA}/reactivar`).expect(200);
     const res = await admin.post(`/api/admin/tambos/${idA}/baja`).send({ motivo: 'Segunda' }).expect(200);
     expect(res.body.ultimoCambioEstado).toMatchObject({ tipo: 'BAJA', motivo: 'Segunda' });
+  });
+});
+
+// Aislamiento entre tambos (spec 015, RF-9, 15): la baja de uno no toca a los demás, ni en el ingreso
+// ni en lo que envían (los envíos de pendientes usan los mismos pedidos con `id` generado en el cliente).
+describe('Aislamiento entre tambos', () => {
+  it('tras la baja de A, un usuario de B ingresa y su envío de pendientes se acepta; A queda rechazado', async () => {
+    fijarReloj(new Date('2026-11-11T15:00:00Z'));
+    try {
+      const { admin, b, idA, idB } = await prepararEscenario();
+      const vaca = await crearAnimalDirecto(idB, '101');
+      await admin.post(`/api/admin/tambos/${idA}/baja`).send({ motivo: 'Baja de A' }).expect(200);
+
+      // Ingreso de B con sus credenciales: sigue funcionando. Ingreso de A: 403.
+      const nuevo = request.agent(app);
+      await nuevo.post('/api/auth/login').send({ email: 'dueno-b@prueba.test', password: PASSWORD }).expect(200);
+      const rechazo = await request(app).post('/api/auth/login').send({ email: 'dueno-a@prueba.test', password: PASSWORD }).expect(403);
+      expect(rechazo.body.codigo).toBe('TAMBO_DE_BAJA');
+
+      // Envío de pendientes de B (litros con id de cliente, repetido: idempotente) con las dos sesiones de B.
+      const id = crypto.randomUUID();
+      const carga = { id, fecha: '2026-11-11', turno: 'manana', litros: '12.5' };
+      for (const agente of [b.agente, nuevo]) {
+        const res = await agente.post(`/api/animales/${vaca.id}/produccion`).send(carga).expect(201);
+        expect(res.body.id).toBe(id);
+      }
+      expect(await prisma.produccion.count({ where: { establecimientoId: idB } })).toBe(1);
+      // Y un evento (servicio) de B también entra.
+      await b.agente
+        .post(`/api/animales/${vaca.id}/servicios`)
+        .send({ id: crypto.randomUUID(), fecha: '2026-11-10', tipo: 'MONTA_NATURAL' })
+        .expect(201);
+    } finally {
+      fijarReloj(null);
+    }
+  });
+
+  it('con tres tambos, la baja del de la ruta cambia solo ese: los otros siguen activos, con sesiones y reactivables aparte', async () => {
+    const { admin, a, idA, idB } = await prepararEscenario();
+    const c = await registrarTambo('Tambo C', 'dueno-c@prueba.test');
+    const idC = c.perfil.establecimiento.id;
+
+    await admin.post(`/api/admin/tambos/${idB}/baja`).send({ motivo: 'Solo B' }).expect(200);
+
+    const estados = await prisma.establecimiento.findMany({ select: { id: true, estado: true } });
+    expect(Object.fromEntries(estados.map((e) => [e.id, e.estado]))).toEqual({ [idA]: 'ACTIVO', [idB]: 'BAJA', [idC]: 'ACTIVO' });
+    expect(await prisma.sesion.count({ where: { usuario: { establecimientoId: idB } } })).toBe(0);
+    expect(await prisma.sesion.count({ where: { usuario: { establecimientoId: idA } } })).toBe(2);
+    expect(await prisma.sesion.count({ where: { usuario: { establecimientoId: idC } } })).toBe(1);
+    await a.agente.get('/api/auth/yo').expect(200);
+    await c.agente.get('/api/auth/yo').expect(200);
+    await request(app).post('/api/auth/login').send({ email: 'dueno-c@prueba.test', password: PASSWORD }).expect(200);
+    // Un solo registro de baja y de auditoría, y es el de B.
+    expect((await prisma.registroEstadoTambo.findMany()).map((r) => r.establecimientoId)).toEqual([idB]);
+    // Reactivar C (activo) no se confunde con B: 409, y B sigue de baja.
+    await admin.post(`/api/admin/tambos/${idC}/reactivar`).expect(409);
+    expect((await prisma.establecimiento.findUniqueOrThrow({ where: { id: idB } })).estado).toBe('BAJA');
   });
 });

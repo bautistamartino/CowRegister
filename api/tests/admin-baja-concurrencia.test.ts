@@ -163,37 +163,112 @@ describe('Concurrencia de la baja con acciones sobre usuarios', () => {
     expect(await prisma.usuario.count({ where: { email: 'nuevo@prueba.test' } })).toBe(alta.status === 201 ? 1 : 0);
     expect(await prisma.sesion.count({ where: { usuario: { establecimientoId: id } } })).toBe(0);
   });
+});
 
-  it('el restablecer retiene el bloqueo del tambo: la baja espera y después cierra todo', async () => {
-    const { admin, id, uVet } = await preparar();
-    // Una transacción de prueba hace de "restablecer en curso": toma FOR SHARE y no termina.
-    let liberar!: () => void;
-    const retenida = new Promise<void>((r) => (liberar = r));
+// Bloqueo REAL de cada pedido (spec 015, RF-12, RF-20). Una transacción de prueba toma FOR UPDATE sobre
+// la fila del tambo (como si una baja estuviera en curso), se dispara el pedido real y se comprueba que
+// queda PENDIENTE: eso solo pasa si el pedido pide el bloqueo con `bloquearTambo` (FOR SHARE choca con
+// FOR UPDATE). Si alguien lo quita, el pedido termina enseguida y el test falla. Después la transacción
+// de prueba da la baja y libera; el pedido pendiente debe terminar con el rechazo correcto.
+describe('El bloqueo del tambo en los pedidos reales', () => {
+  // Retiene el bloqueo hasta que se llame a `liberar`. Con `conBaja` la baja se aplica antes de confirmar.
+  async function retenerTambo(id: string) {
+    let soltar!: (conBaja: boolean) => void;
+    const senal = new Promise<boolean>((r) => (soltar = r));
     let tomado!: () => void;
     const yaTomado = new Promise<void>((r) => (tomado = r));
-    const accion = prisma.$transaction(
+    const transaccion = prisma.$transaction(
       async (tx) => {
-        await tx.$queryRaw`SELECT estado FROM establecimientos WHERE id = ${id}::uuid FOR SHARE`;
+        await tx.$queryRaw`SELECT estado FROM establecimientos WHERE id = ${id}::uuid FOR UPDATE`;
         tomado();
-        await retenida;
+        if (await senal) {
+          await tx.establecimiento.update({ where: { id }, data: { estado: 'BAJA' } });
+          await tx.sesion.deleteMany({ where: { usuario: { establecimientoId: id } } });
+        }
       },
       { timeout: 60000 },
     );
     await yaTomado;
+    return {
+      liberar: async (conBaja = true) => {
+        soltar(conBaja);
+        await transaccion;
+      },
+    };
+  }
 
-    let terminoBaja = false;
-    const baja = admin
-      .post(`/api/admin/tambos/${id}/baja`)
-      .send({ motivo: 'x' })
-      .then((r) => {
-        terminoBaja = true;
-        return r;
-      });
+  // Dispara el pedido, comprueba que sigue pendiente tras una espera corta y devuelve su promesa.
+  async function pedidoPendiente<T>(pedido: () => PromiseLike<T>) {
+    let termino = false;
+    const promesa = Promise.resolve(pedido()).then((r) => {
+      termino = true;
+      return r;
+    });
     await new Promise((r) => setTimeout(r, 1500));
-    expect(terminoBaja).toBe(false);
-    liberar();
-    await accion;
-    expect((await baja).status).toBe(200);
-    expect(uVet.id).toBeTruthy();
+    expect(termino, 'el pedido debería esperar el bloqueo del tambo').toBe(false);
+    return { resultado: promesa }; // envuelto: devolver la promesa sola la esperaría acá
+  }
+
+  async function preparar() {
+    const { agente: admin } = await iniciarSesionAdmin();
+    const t = await registrarTambo('Tambo A', 'dueno@prueba.test');
+    const id = t.perfil.establecimiento.id;
+    await crearUsuario(t.agente, 'VETERINARIO', 'vet@prueba.test');
+    const uVet = await prisma.usuario.findFirstOrThrow({ where: { email: 'vet@prueba.test' } });
+    return { admin, t, id, uVet };
+  }
+
+  it('el ingreso espera el bloqueo y, si la baja llegó, da 403 TAMBO_DE_BAJA sin crear sesión', async () => {
+    const { id } = await preparar();
+    await prisma.sesion.deleteMany(); // así el ingreso es lo único que podría crear una sesión
+    const bloqueo = await retenerTambo(id);
+    const pendiente = await pedidoPendiente(() =>
+      request(app).post('/api/auth/login').send({ email: 'dueno@prueba.test', password: PASSWORD }),
+    );
+    await bloqueo.liberar();
+    const res = await pendiente.resultado;
+    expect(res.status).toBe(403);
+    expect(res.body.codigo).toBe('TAMBO_DE_BAJA');
+    expect(res.headers['set-cookie']).toBeUndefined();
+    expect(await prisma.sesion.count()).toBe(0);
+  });
+
+  it('restablecer contraseña espera el bloqueo y, tras la baja, da 409 sin cambiar la contraseña ni auditar', async () => {
+    const { admin, id, uVet } = await preparar();
+    const bloqueo = await retenerTambo(id);
+    const pendiente = await pedidoPendiente(() =>
+      admin.post(`/api/admin/tambos/${id}/usuarios/${uVet.id}/contrasena`).send({ password: 'contraseña-nueva-1' }),
+    );
+    await bloqueo.liberar();
+    const res = await pendiente.resultado;
+    expect(res.status).toBe(409);
+    expect((await prisma.usuario.findUniqueOrThrow({ where: { id: uVet.id } })).passwordHash).toBe(uVet.passwordHash);
+    expect(await prisma.auditoriaAdmin.count({ where: { accion: 'CONTRASENA_RESTABLECIDA' } })).toBe(0);
+    expect(await prisma.sesion.count({ where: { usuario: { establecimientoId: id } } })).toBe(0);
+  });
+
+  it('reactivar usuario espera el bloqueo y, tras la baja, da 409 y el usuario sigue desactivado', async () => {
+    const { admin, t, id, uVet } = await preparar();
+    await t.agente.patch(`/api/usuarios/${uVet.id}`).send({ activo: false }).expect(200);
+    const bloqueo = await retenerTambo(id);
+    const pendiente = await pedidoPendiente(() => admin.post(`/api/admin/tambos/${id}/usuarios/${uVet.id}/reactivar`));
+    await bloqueo.liberar();
+    const res = await pendiente.resultado;
+    expect(res.status).toBe(409);
+    expect((await prisma.usuario.findUniqueOrThrow({ where: { id: uVet.id } })).activo).toBe(false);
+    expect(await prisma.auditoriaAdmin.count({ where: { accion: 'USUARIO_REACTIVADO' } })).toBe(0);
+  });
+
+  it('el alta de usuario del dueño espera el bloqueo y, tras la baja, da 401 sin crear el usuario', async () => {
+    const { t, id } = await preparar();
+    const bloqueo = await retenerTambo(id);
+    const pendiente = await pedidoPendiente(() =>
+      t.agente.post('/api/usuarios').send({ nombre: 'Nuevo', email: 'nuevo@prueba.test', password: PASSWORD, rol: 'ENCARGADO' }),
+    );
+    await bloqueo.liberar();
+    const res = await pendiente.resultado;
+    expect(res.status).toBe(401);
+    expect(await prisma.usuario.count({ where: { email: 'nuevo@prueba.test' } })).toBe(0);
+    expect(await prisma.sesion.count({ where: { usuario: { establecimientoId: id } } })).toBe(0);
   });
 });
