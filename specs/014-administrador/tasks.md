@@ -2,7 +2,7 @@
 
 Cada tarea empieza escribiendo los tests y termina con `npm test -w api` (o los archivos de la tarea), `npm run typecheck` y commit en la rama `spec/014-administrador`.
 
-- [ ] **T1** — Base de datos: tablas del administrador y garantías
+- [x] **T1** — Base de datos: tablas del administrador y garantías
   - Tests primero: `api/tests/base-admin.test.ts`. Después, modelos `Administrador`, `SesionAdmin`, `AuditoriaAdmin` y enum `AccionAdmin` en `api/prisma/schema.prisma`; migración `administrador_base` con el SQL a mano comentado (dedupe de nombres con marcadores, índice único de nombre, `administradores_uno_solo`, CHECK de email, disparador de email único entre tablas con bloqueo asesor, disparador y CHECK de la auditoría); `limpiarBase` y ayudas en `api/tests/ayudas.ts`; `npm run db:generate -w api`.
   - RF: RF-1, RF-7, RF-8, RF-27 (base), RF-34
   - Hecho cuando: los tests de la base pasan (incluido el bloque de dedupe ejecutado sobre duplicados sembrados y las dos altas simultáneas), la migración se aplica en `cowregister_test` y en desarrollo sin tocar "Libertad", y `migrate diff` da solo las tres claves foráneas de lote previo.

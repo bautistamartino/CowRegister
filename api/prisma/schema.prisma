@@ -42,6 +42,14 @@ enum MotivoBaja {
   MUERTE // idem
 }
 
+// Acciones que quedan en la auditoría del administrador (spec 014). La spec 015 suma valores
+// con ALTER TYPE ... ADD VALUE.
+enum AccionAdmin {
+  INGRESO // ingreso correcto
+  INGRESO_FALLIDO // contraseña incorrecta con el email de un administrador
+  TAMBO_CREADO // el administrador creó un tambo con su dueño
+}
+
 // ─── Modelos ────────────────────────────────────────────────────────
 // Todos usan UUID como id (se pueden generar sin conexión, Etapa 6)
 // y guardan cuándo se crearon y modificaron.
@@ -102,6 +110,59 @@ model Sesion {
 
   @@index([usuarioId])
   @@map("sesiones")
+}
+
+// ─── Administrador de la plataforma (spec 014) ──────────────────────
+// Cuenta que NO pertenece a ningún tambo. Vive en tablas aparte de usuarios/sesiones: así ninguna
+// ruta del tambo puede recibir nunca una sesión sin tambo.
+// A mano en la migración administrador_base (Prisma no lo modela): índice único
+// administradores_uno_solo (un solo administrador), CHECK administradores_email_normalizado y el
+// disparador de email único entre administradores y usuarios.
+model Administrador {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  nombre        String
+  email         String   @unique // siempre en minúsculas y sin espacios en los extremos
+  passwordHash  String // solo el hash (argon2)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  sesiones   SesionAdmin[]
+  auditorias AuditoriaAdmin[]
+
+  @@map("administradores")
+}
+
+// Igual que Sesion, pero del administrador: tabla distinta para que la cookie de uno nunca se
+// pueda resolver contra la tabla del otro.
+model SesionAdmin {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  administradorId String   @db.Uuid
+  tokenHash       String   @unique
+  expiraEn        DateTime
+  creadoEn        DateTime @default(now())
+
+  administrador Administrador @relation(fields: [administradorId], references: [id], onDelete: Cascade)
+
+  @@index([administradorId])
+  @@map("sesiones_admin")
+}
+
+// Registro de lo que hace el administrador. Solo se agrega (disparador auditoria_admin_solo_agregar,
+// a mano en la migración). Sin clave foránea al tambo: guarda el id y el nombre copiados, para
+// que el registro no dependa de lo que pase con el tambo. Nunca guarda contraseñas ni IP.
+// CHECK auditoria_admin_coherente: TAMBO_CREADO lleva tambo e id; las demás acciones, ninguno.
+model AuditoriaAdmin {
+  id                String      @id @default(uuid(7)) @db.Uuid
+  accion            AccionAdmin
+  administradorId   String      @db.Uuid
+  establecimientoId String?     @db.Uuid // sin clave foránea
+  tamboNombre       String?
+  creadoEn          DateTime    @default(now())
+
+  administrador Administrador @relation(fields: [administradorId], references: [id], onDelete: Restrict)
+
+  @@index([administradorId, creadoEn])
+  @@map("auditoria_admin")
 }
 
 model Lote {
