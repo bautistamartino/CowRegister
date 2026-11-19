@@ -579,3 +579,17 @@ export async function crearAdministradorDirecto(
     },
   });
 }
+
+/**
+ * Crea al administrador y devuelve un agente de supertest con su sesión (cookie `sesion_admin`),
+ * entrando por el mismo POST /api/auth/login que usa todo el mundo.
+ */
+export async function iniciarSesionAdmin(opciones: { nombre?: string; email?: string; password?: string } = {}) {
+  const admin = await crearAdministradorDirecto(opciones);
+  const agente = request.agent(app);
+  await agente
+    .post('/api/auth/login')
+    .send({ email: admin.email, password: opciones.password ?? PASSWORD })
+    .expect(200);
+  return { agente, admin };
+}

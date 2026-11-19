@@ -7,7 +7,7 @@ Cada tarea empieza escribiendo los tests y termina con `npm test -w api` (o los 
   - RF: RF-1, RF-7, RF-8, RF-27 (base), RF-34
   - Hecho cuando: los tests de la base pasan (incluido el bloque de dedupe ejecutado sobre duplicados sembrados y las dos altas simultáneas), la migración se aplica en `cowregister_test` y en desarrollo sin tocar "Libertad", y `migrate diff` da solo las tres claves foráneas de lote previo.
 
-- [ ] **T2** — Sesión del administrador, ingreso unificado y alta única
+- [x] **T2** — Sesión del administrador, ingreso unificado y alta única
   - Tests primero: `admin-login.test.ts`, `admin-alta-unica.test.ts`, `email-unico.test.ts` (registro, `POST /api/usuarios` y alta única; el de crear tambo se suma en T3). Después `api/src/admin/{sesionAdmin,middleware,choques,altaUnica}.ts`, login unificado y traducción de choques en `api/src/rutas/auth.ts`, `usuarios.ts` y `auth/registro.ts` (409 de nombre y de email), `api/scripts/crear-administrador.ts`, script `admin:crear` en `api/package.json`, `.env.example`.
   - RF: RF-2, RF-3, RF-4, RF-5, RF-7, RF-9, RF-10, RF-11, RF-15, RF-27 (registro)
   - Hecho cuando: los tres archivos de tests pasan; un ingreso de administrador deja la cookie `sesion_admin` (`path=/api/admin`, token nuevo, 8 horas fijas) y la auditoría; las respuestas de ingreso fallido son idénticas para email inexistente, administrador y usuario; la salida del alta única no contiene la contraseña; los tests existentes de `auth` y `usuarios` siguen en verde.
