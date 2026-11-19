@@ -35,9 +35,11 @@ const RUTAS_ADMIN_ESPERADAS = [
   'GET /yo',
   'POST /logout',
   'POST /tambos',
-  // Spec 015: cambios de estado del tambo (los de usuarios se suman en la tarea 3).
+  // Spec 015: cambios de estado del tambo y acciones sobre USUARIOS DE TAMBO (nunca administradores).
   'POST /tambos/:id/baja',
   'POST /tambos/:id/reactivar',
+  'POST /tambos/:id/usuarios/:uid/contrasena',
+  'POST /tambos/:id/usuarios/:uid/reactivar',
 ];
 
 // Ninguna de estas rutas crea ni modifica administradores (RF-12). Si aparece una nueva en /api/auth,
@@ -76,7 +78,7 @@ describe('Lista fija de rutas (RF-12, RF-29)', () => {
 describe('Control de acceso de TODAS las rutas del administrador (RF-29)', () => {
   const rutas = RUTAS_ADMIN_ESPERADAS.map((r) => {
     const [metodo, camino] = r.split(' ');
-    return { metodo: metodo.toLowerCase() as 'get' | 'post', url: `/api/admin${camino.replace(':id', UUID_CUALQUIERA)}`, r };
+    return { metodo: metodo.toLowerCase() as 'get' | 'post', url: `/api/admin${camino.replace(':id', UUID_CUALQUIERA).replace(':uid', UUID_CUALQUIERA)}`, r };
   });
 
   it.each(rutas)('$r: sin sesión da 401, con rol de tambo 403 y el administrador pasa', async ({ metodo, url }) => {

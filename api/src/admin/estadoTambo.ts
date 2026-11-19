@@ -78,3 +78,84 @@ export function darDeBajaTambo(id: string, motivo: string, administradorId: stri
 export function reactivarTambo(id: string, administradorId: string) {
   return cambiarEstado(id, administradorId, { desde: 'BAJA', hasta: 'ACTIVO', motivo: null });
 }
+
+export type ResultadoAccionUsuario = 'ok' | 'tambo_no_existe' | 'usuario_no_existe' | 'tambo_de_baja' | 'estado_incorrecto';
+
+/**
+ * Busca al usuario DENTRO del tambo de la ruta, con el tambo bloqueado (`FOR SHARE`). Un usuario que
+ * no existe, es de otro tambo, o tiene un id de administrador (otra tabla) da 'usuario_no_existe':
+ * las tres cosas se responden igual (404) para no revelar nada. Devuelve el resultado de rechazo o
+ * el usuario.
+ */
+async function usuarioDelTambo(tx: Tx, tamboId: string, usuarioId: string) {
+  const estado = await bloquearTambo(tx, tamboId);
+  if (!estado) return 'tambo_no_existe' as const;
+  const usuario = await tx.usuario.findFirst({
+    where: { id: usuarioId, establecimientoId: tamboId }, // nunca un id de tambo distinto del de la ruta
+    select: { id: true, email: true, activo: true },
+  });
+  if (!usuario) return 'usuario_no_existe' as const;
+  // Con el tambo de baja no se toca a ningún usuario: primero se reactiva el tambo.
+  if (estado === 'BAJA') return 'tambo_de_baja' as const;
+  return usuario;
+}
+
+/**
+ * Restablece la contraseña de un usuario (RF-24 a 28). `passwordHash` llega ya calculado (argon2 es
+ * lento y no debe sostener el bloqueo del tambo). No toca `activo`. Cierra solo las sesiones de ese
+ * usuario y audita con su id y email; la contraseña nunca se guarda en claro.
+ */
+export async function restablecerContrasena(
+  tamboId: string,
+  usuarioId: string,
+  passwordHash: string,
+  administradorId: string,
+): Promise<ResultadoAccionUsuario> {
+  return prisma.$transaction(async (tx) => {
+    const usuario = await usuarioDelTambo(tx, tamboId, usuarioId);
+    if (typeof usuario === 'string') return usuario;
+    await tx.usuario.update({ where: { id: usuario.id }, data: { passwordHash } });
+    await tx.sesion.deleteMany({ where: { usuarioId: usuario.id } });
+    const tambo = await tx.establecimiento.findUniqueOrThrow({ where: { id: tamboId }, select: { nombre: true } });
+    await tx.auditoriaAdmin.create({
+      data: {
+        accion: 'CONTRASENA_RESTABLECIDA',
+        administradorId,
+        establecimientoId: tamboId,
+        tamboNombre: tambo.nombre,
+        usuarioId: usuario.id,
+        usuarioEmail: usuario.email,
+      },
+    });
+    return 'ok';
+  });
+}
+
+/**
+ * Reactiva a un usuario desactivado (RF-29 a 31). No crea sesión ni toca la contraseña. Un usuario
+ * ya activo es 'estado_incorrecto' (409).
+ */
+export async function reactivarUsuario(
+  tamboId: string,
+  usuarioId: string,
+  administradorId: string,
+): Promise<ResultadoAccionUsuario> {
+  return prisma.$transaction(async (tx) => {
+    const usuario = await usuarioDelTambo(tx, tamboId, usuarioId);
+    if (typeof usuario === 'string') return usuario;
+    if (usuario.activo) return 'estado_incorrecto';
+    await tx.usuario.update({ where: { id: usuario.id }, data: { activo: true } });
+    const tambo = await tx.establecimiento.findUniqueOrThrow({ where: { id: tamboId }, select: { nombre: true } });
+    await tx.auditoriaAdmin.create({
+      data: {
+        accion: 'USUARIO_REACTIVADO',
+        administradorId,
+        establecimientoId: tamboId,
+        tamboNombre: tambo.nombre,
+        usuarioId: usuario.id,
+        usuarioEmail: usuario.email,
+      },
+    });
+    return 'ok';
+  });
+}

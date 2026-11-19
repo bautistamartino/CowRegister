@@ -10,7 +10,15 @@ import { MENSAJE_EMAIL_REPETIDO, emailEnUso, traducirChoque } from '../admin/cho
 import { SELECT_PERFIL_ADMIN } from '../admin/listaBlanca.js';
 import { COOKIE_ADMIN, cerrarSesionAdmin } from '../admin/sesionAdmin.js';
 import { detalleTambo, itemTambo, listarTambos } from '../admin/tambos.js';
-import { darDeBajaTambo, reactivarTambo, type ResultadoCambioTambo } from '../admin/estadoTambo.js';
+import {
+  darDeBajaTambo,
+  reactivarTambo,
+  reactivarUsuario,
+  restablecerContrasena,
+  type ResultadoAccionUsuario,
+  type ResultadoCambioTambo,
+} from '../admin/estadoTambo.js';
+import { limiteAccionesSensibles } from '../admin/limites.js';
 
 // Rutas del administrador de la plataforma. NO aplican el control de acceso acá: lo aplica una sola vez
 // `requiereAdmin`, montado en app.ts sobre todo /api/admin (antes de los parsers de JSON).
@@ -120,7 +128,7 @@ rutasAdmin.post('/tambos', limiteAdmin, async (req, res) => {
 
 // POST /api/admin/tambos/:id/baja — da de baja un tambo activo (spec 015, RF-4, 5, 7, 12, 13).
 // Orden de rechazos: 400 (motivo) → 404 (tambo) → 409 (ya dado de baja).
-rutasAdmin.post('/tambos/:id/baja', async (req, res) => {
+rutasAdmin.post('/tambos/:id/baja', limiteAccionesSensibles, async (req, res) => {
   const { motivo } = bajaSchema.parse(req.body);
   const id = idDeRuta(req.params.id);
   if (!id) throw new HttpError(404, 'Tambo no encontrado');
@@ -129,9 +137,49 @@ rutasAdmin.post('/tambos/:id/baja', async (req, res) => {
 });
 
 // POST /api/admin/tambos/:id/reactivar — reactiva un tambo dado de baja, sin motivo (RF-14).
-rutasAdmin.post('/tambos/:id/reactivar', async (req, res) => {
+rutasAdmin.post('/tambos/:id/reactivar', limiteAccionesSensibles, async (req, res) => {
   const id = idDeRuta(req.params.id);
   if (!id) throw new HttpError(404, 'Tambo no encontrado');
   const resultado = await reactivarTambo(id, req.administrador!.id);
   await responderCambioDeEstado(res, id, resultado, 'El tambo no está dado de baja');
+});
+
+// Traduce el resultado de una acción sobre un usuario. Tambo inexistente, usuario inexistente, de otro
+// tambo o administrador: todos 404, sin distinguir (RF-26, 30).
+async function responderAccionUsuario(res: Response, tamboId: string, resultado: ResultadoAccionUsuario) {
+  if (resultado === 'tambo_no_existe') throw new HttpError(404, 'Tambo no encontrado');
+  if (resultado === 'usuario_no_existe') throw new HttpError(404, 'Usuario no encontrado');
+  if (resultado === 'tambo_de_baja') {
+    throw new HttpError(409, 'El tambo está dado de baja: primero reactivá el tambo');
+  }
+  if (resultado === 'estado_incorrecto') throw new HttpError(409, 'El usuario ya está activo');
+  res.json(await detalleTambo(tamboId));
+}
+
+const restablecerSchema = z.object({ password: passwordSchema });
+
+// POST /api/admin/tambos/:id/usuarios/:uid/contrasena — restablece la contraseña de un usuario del
+// tambo (spec 015, RF-24 a 28). Responde 204 sin cuerpo: la contraseña no vuelve a salir.
+// Orden de rechazos: 429 → 400 (contraseña) → 404 → 409 (tambo de baja).
+rutasAdmin.post('/tambos/:id/usuarios/:uid/contrasena', limiteAccionesSensibles, async (req, res) => {
+  const { password } = restablecerSchema.parse(req.body);
+  const tamboId = idDeRuta(req.params.id);
+  const usuarioId = idDeRuta(req.params.uid);
+  if (!tamboId) throw new HttpError(404, 'Tambo no encontrado');
+  if (!usuarioId) throw new HttpError(404, 'Usuario no encontrado');
+  // El hash se calcula ANTES de la transacción: argon2 es lento y no debe sostener el bloqueo del tambo.
+  const passwordHash = await hashearPassword(password);
+  const resultado = await restablecerContrasena(tamboId, usuarioId, passwordHash, req.administrador!.id);
+  if (resultado !== 'ok') return responderAccionUsuario(res, tamboId, resultado);
+  res.status(204).end();
+});
+
+// POST /api/admin/tambos/:id/usuarios/:uid/reactivar — reactiva a un usuario desactivado (RF-29 a 31).
+rutasAdmin.post('/tambos/:id/usuarios/:uid/reactivar', limiteAccionesSensibles, async (req, res) => {
+  const tamboId = idDeRuta(req.params.id);
+  const usuarioId = idDeRuta(req.params.uid);
+  if (!tamboId) throw new HttpError(404, 'Tambo no encontrado');
+  if (!usuarioId) throw new HttpError(404, 'Usuario no encontrado');
+  const resultado = await reactivarUsuario(tamboId, usuarioId, req.administrador!.id);
+  await responderAccionUsuario(res, tamboId, resultado);
 });
