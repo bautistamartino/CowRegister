@@ -48,6 +48,22 @@ enum AccionAdmin {
   INGRESO // ingreso correcto
   INGRESO_FALLIDO // contraseña incorrecta con el email de un administrador
   TAMBO_CREADO // el administrador creó un tambo con su dueño
+  // Spec 015 (migración admin_acciones_enum):
+  TAMBO_BAJA // el administrador dio de baja un tambo
+  TAMBO_REACTIVADO // el administrador reactivó un tambo dado de baja
+  CONTRASENA_RESTABLECIDA // el administrador le puso una contraseña nueva a un usuario
+  USUARIO_REACTIVADO // el administrador reactivó a un usuario desactivado
+}
+
+// Estado de un tambo (spec 015). La verdad de quién, cuándo y por qué es RegistroEstadoTambo.
+enum EstadoTambo {
+  ACTIVO
+  BAJA // dado de baja: nadie del tambo puede ingresar ni operar, pero no se borra nada
+}
+
+enum TipoCambioEstadoTambo {
+  BAJA
+  REACTIVACION
 }
 
 // ─── Modelos ────────────────────────────────────────────────────────
@@ -57,10 +73,13 @@ enum AccionAdmin {
 model Establecimiento {
   id            String   @id @default(uuid(7)) @db.Uuid
   nombre        String
+  // Spec 015: activo o dado de baja. Los tambos que ya existían nacen ACTIVO.
+  estado        EstadoTambo @default(ACTIVO)
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
   usuarios     Usuario[]
+  registrosEstado RegistroEstadoTambo[]
   lotes        Lote[]
   reglasLote   ReglaLote[]
   animales     Animal[]
@@ -79,6 +98,8 @@ model Usuario {
   passwordHash      String // nunca se guarda la contraseña, solo su hash (argon2)
   rol               Rol
   activo            Boolean  @default(true)
+  // Spec 015: última vez que inició sesión con email y contraseña (nulo = nunca ingresó).
+  ultimoIngresoEn   DateTime?
   creadoEn          DateTime @default(now())
   actualizadoEn     DateTime @updatedAt
 
@@ -128,6 +149,7 @@ model Administrador {
 
   sesiones   SesionAdmin[]
   auditorias AuditoriaAdmin[]
+  registrosEstado RegistroEstadoTambo[]
 
   @@map("administradores")
 }
@@ -150,19 +172,45 @@ model SesionAdmin {
 // Registro de lo que hace el administrador. Solo se agrega (disparador auditoria_admin_solo_agregar,
 // a mano en la migración). Sin clave foránea al tambo: guarda el id y el nombre copiados, para
 // que el registro no dependa de lo que pase con el tambo. Nunca guarda contraseñas ni IP.
-// CHECK auditoria_admin_coherente: TAMBO_CREADO lleva tambo e id; las demás acciones, ninguno.
+// CHECK auditoria_admin_coherente (recreado en la migración tambo_estado_y_registro, spec 015):
+// TAMBO_CREADO, TAMBO_BAJA y TAMBO_REACTIVADO llevan tambo e id; CONTRASENA_RESTABLECIDA y
+// USUARIO_REACTIVADO llevan además usuarioId y usuarioEmail; INGRESO e INGRESO_FALLIDO, nada.
 model AuditoriaAdmin {
   id                String      @id @default(uuid(7)) @db.Uuid
   accion            AccionAdmin
   administradorId   String      @db.Uuid
   establecimientoId String?     @db.Uuid // sin clave foránea
   tamboNombre       String?
+  // Spec 015: usuario sobre el que se actuó. Sin clave foránea (igual que el tambo): se copian el
+  // id y el email para que el registro no dependa de lo que pase con el usuario.
+  usuarioId         String?     @db.Uuid
+  usuarioEmail      String?
   creadoEn          DateTime    @default(now())
 
   administrador Administrador @relation(fields: [administradorId], references: [id], onDelete: Restrict)
 
   @@index([administradorId, creadoEn])
   @@map("auditoria_admin")
+}
+
+// Bajas y reactivaciones de un tambo (spec 015). Solo se agrega: el disparador
+// registro_estado_tambo_solo_agregar (a mano en la migración tambo_estado_y_registro) rechaza
+// UPDATE y DELETE. La baja o reactivación vigente es la fila más reciente del tambo.
+// CHECK registro_estado_tambo_coherente (a mano): BAJA exige motivo de 1 a 200 caracteres sin
+// espacios en los bordes; REACTIVACION exige motivo nulo.
+model RegistroEstadoTambo {
+  id                String                @id @default(uuid(7)) @db.Uuid
+  establecimientoId String                @db.Uuid
+  tipo              TipoCambioEstadoTambo
+  motivo            String? // nulo en las reactivaciones
+  administradorId   String                @db.Uuid
+  creadoEn          DateTime              @default(now())
+
+  establecimiento Establecimiento @relation(fields: [establecimientoId], references: [id], onDelete: Restrict)
+  administrador   Administrador   @relation(fields: [administradorId], references: [id], onDelete: Restrict)
+
+  @@index([establecimientoId, creadoEn])
+  @@map("registro_estado_tambo")
 }
 
 model Lote {

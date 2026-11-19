@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import { prisma } from '../db.js';
@@ -10,6 +10,15 @@ import { MENSAJE_EMAIL_REPETIDO, emailEnUso, traducirChoque } from '../admin/cho
 import { SELECT_PERFIL_ADMIN } from '../admin/listaBlanca.js';
 import { COOKIE_ADMIN, cerrarSesionAdmin } from '../admin/sesionAdmin.js';
 import { detalleTambo, itemTambo, listarTambos } from '../admin/tambos.js';
+import {
+  darDeBajaTambo,
+  reactivarTambo,
+  reactivarUsuario,
+  restablecerContrasena,
+  type ResultadoAccionUsuario,
+  type ResultadoCambioTambo,
+} from '../admin/estadoTambo.js';
+import { limiteAccionesSensibles } from '../admin/limites.js';
 
 // Rutas del administrador de la plataforma. NO aplican el control de acceso acá: lo aplica una sola vez
 // `requiereAdmin`, montado en app.ts sobre todo /api/admin (antes de los parsers de JSON).
@@ -49,10 +58,43 @@ rutasAdmin.post('/logout', async (req, res) => {
   res.status(204).end();
 });
 
-// GET /api/admin/tambos — todos los tambos como cuentas, ordenados por nombre.
-rutasAdmin.get('/tambos', async (_req, res) => {
-  res.json(await listarTambos());
+// GET /api/admin/tambos?estado=todos|activos|baja — los tambos como cuentas, ordenados por nombre.
+// Sin parámetro, todos. Un valor inválido da 400 (spec 015, RF-3).
+rutasAdmin.get('/tambos', async (req, res) => {
+  const estado = z
+    .enum(['todos', 'activos', 'baja'], { error: 'Estado inválido: usá todos, activos o baja' })
+    .default('todos')
+    .parse(req.query.estado);
+  res.json(await listarTambos(estado));
 });
+
+// Motivo de la baja (spec 015, RF-5): se recorta y tiene de 1 a 200 CARACTERES (no bytes: Array.from
+// cuenta cada emoji como uno).
+const MENSAJE_MOTIVO = 'Indicá el motivo de la baja (hasta 200 caracteres)';
+const bajaSchema = z.object({
+  motivo: z
+    .string({ error: MENSAJE_MOTIVO })
+    .trim()
+    .refine((m) => Array.from(m).length >= 1 && Array.from(m).length <= 200, { error: MENSAJE_MOTIVO }),
+});
+
+// Traduce el resultado de un cambio de estado a HTTP: el id del tambo sale SOLO de la ruta.
+async function responderCambioDeEstado(
+  res: Response,
+  id: string,
+  resultado: ResultadoCambioTambo,
+  mensajeConflicto: string,
+) {
+  if (resultado === 'no_existe') throw new HttpError(404, 'Tambo no encontrado');
+  if (resultado === 'estado_incorrecto') throw new HttpError(409, mensajeConflicto);
+  res.json(await detalleTambo(id));
+}
+
+// Un id de ruta mal formado se trata igual que uno inexistente (404).
+function idDeRuta(valor: unknown): string | null {
+  const id = z.uuid().safeParse(valor);
+  return id.success ? id.data : null;
+}
 
 // GET /api/admin/tambos/:id — un tambo con todos sus usuarios. Id mal formado o inexistente: 404.
 // Acá el id del tambo viaja en la ruta (excepción acotada de la constitución: lo envía el administrador).
@@ -82,4 +124,62 @@ rutasAdmin.post('/tambos', limiteAdmin, async (req, res) => {
   ).catch((err: unknown) => traducirChoque(err, { email: datos.email, nombreTambo: datos.nombreEstablecimiento }));
 
   res.status(201).json(await itemTambo(dueno.establecimientoId));
+});
+
+// POST /api/admin/tambos/:id/baja — da de baja un tambo activo (spec 015, RF-4, 5, 7, 12, 13).
+// Orden de rechazos: 400 (motivo) → 404 (tambo) → 409 (ya dado de baja).
+rutasAdmin.post('/tambos/:id/baja', limiteAccionesSensibles, async (req, res) => {
+  const { motivo } = bajaSchema.parse(req.body);
+  const id = idDeRuta(req.params.id);
+  if (!id) throw new HttpError(404, 'Tambo no encontrado');
+  const resultado = await darDeBajaTambo(id, motivo, req.administrador!.id);
+  await responderCambioDeEstado(res, id, resultado, 'El tambo ya está dado de baja');
+});
+
+// POST /api/admin/tambos/:id/reactivar — reactiva un tambo dado de baja, sin motivo (RF-14).
+rutasAdmin.post('/tambos/:id/reactivar', limiteAccionesSensibles, async (req, res) => {
+  const id = idDeRuta(req.params.id);
+  if (!id) throw new HttpError(404, 'Tambo no encontrado');
+  const resultado = await reactivarTambo(id, req.administrador!.id);
+  await responderCambioDeEstado(res, id, resultado, 'El tambo no está dado de baja');
+});
+
+// Traduce el resultado de una acción sobre un usuario. Tambo inexistente, usuario inexistente, de otro
+// tambo o administrador: todos 404, sin distinguir (RF-26, 30).
+async function responderAccionUsuario(res: Response, tamboId: string, resultado: ResultadoAccionUsuario) {
+  if (resultado === 'tambo_no_existe') throw new HttpError(404, 'Tambo no encontrado');
+  if (resultado === 'usuario_no_existe') throw new HttpError(404, 'Usuario no encontrado');
+  if (resultado === 'tambo_de_baja') {
+    throw new HttpError(409, 'El tambo está dado de baja: primero reactivá el tambo');
+  }
+  if (resultado === 'estado_incorrecto') throw new HttpError(409, 'El usuario ya está activo');
+  res.json(await detalleTambo(tamboId));
+}
+
+const restablecerSchema = z.object({ password: passwordSchema });
+
+// POST /api/admin/tambos/:id/usuarios/:uid/contrasena — restablece la contraseña de un usuario del
+// tambo (spec 015, RF-24 a 28). Responde 204 sin cuerpo: la contraseña no vuelve a salir.
+// Orden de rechazos: 429 → 400 (contraseña) → 404 → 409 (tambo de baja).
+rutasAdmin.post('/tambos/:id/usuarios/:uid/contrasena', limiteAccionesSensibles, async (req, res) => {
+  const { password } = restablecerSchema.parse(req.body);
+  const tamboId = idDeRuta(req.params.id);
+  const usuarioId = idDeRuta(req.params.uid);
+  if (!tamboId) throw new HttpError(404, 'Tambo no encontrado');
+  if (!usuarioId) throw new HttpError(404, 'Usuario no encontrado');
+  // El hash se calcula ANTES de la transacción: argon2 es lento y no debe sostener el bloqueo del tambo.
+  const passwordHash = await hashearPassword(password);
+  const resultado = await restablecerContrasena(tamboId, usuarioId, passwordHash, req.administrador!.id);
+  if (resultado !== 'ok') return responderAccionUsuario(res, tamboId, resultado);
+  res.status(204).end();
+});
+
+// POST /api/admin/tambos/:id/usuarios/:uid/reactivar — reactiva a un usuario desactivado (RF-29 a 31).
+rutasAdmin.post('/tambos/:id/usuarios/:uid/reactivar', limiteAccionesSensibles, async (req, res) => {
+  const tamboId = idDeRuta(req.params.id);
+  const usuarioId = idDeRuta(req.params.uid);
+  if (!tamboId) throw new HttpError(404, 'Tambo no encontrado');
+  if (!usuarioId) throw new HttpError(404, 'Usuario no encontrado');
+  const resultado = await reactivarUsuario(tamboId, usuarioId, req.administrador!.id);
+  await responderAccionUsuario(res, tamboId, resultado);
 });

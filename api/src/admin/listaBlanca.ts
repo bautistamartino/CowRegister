@@ -14,10 +14,16 @@ export const CLAVES_ITEM_LISTADO = [
   'duenosAdicionales',
   'usuariosActivos',
   'animalesActivos',
+  // Spec 015: estado del tambo, la baja o reactivación vigente ({ tipo, por, en, motivo } o null) y
+  // el último ingreso de cualquiera de sus usuarios.
+  'estado',
+  'ultimoCambioEstado',
+  'ultimoIngreso',
 ] as const;
 
-// Un usuario dentro del detalle (todos, activos o no).
-export const CLAVES_USUARIO_DETALLE = ['nombre', 'email', 'rol', 'activo'] as const;
+// Un usuario dentro del detalle (todos, activos o no). El `id` identifica al usuario en las rutas de
+// la spec 015 (restablecer contraseña, reactivar).
+export const CLAVES_USUARIO_DETALLE = ['id', 'nombre', 'email', 'rol', 'activo', 'ultimoIngreso'] as const;
 
 // El detalle es el ítem del listado más la lista de usuarios.
 export const CLAVES_DETALLE = [...CLAVES_ITEM_LISTADO, 'usuarios'] as const;
@@ -26,4 +32,12 @@ export const CLAVES_DETALLE = [...CLAVES_ITEM_LISTADO, 'usuarios'] as const;
 // (por ejemplo passwordHash) jamás llega a una respuesta del administrador por descuido.
 export const SELECT_PERFIL_ADMIN = { id: true, nombre: true, email: true } as const;
 // creadoEn se pide solo para ordenar los usuarios y elegir al dueño más antiguo; no se devuelve.
-export const SELECT_USUARIO_DETALLE = { nombre: true, email: true, rol: true, activo: true, creadoEn: true } as const;
+export const SELECT_USUARIO_DETALLE = {
+  id: true,
+  nombre: true,
+  email: true,
+  rol: true,
+  activo: true,
+  ultimoIngresoEn: true,
+  creadoEn: true,
+} as const;

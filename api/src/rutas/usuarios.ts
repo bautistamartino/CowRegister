@@ -4,6 +4,7 @@ import { prisma } from '../db.js';
 import { HttpError } from '../errores.js';
 import { emailSchema, nombreSchema, passwordSchema } from '../validacion.js';
 import { hashearPassword } from '../auth/password.js';
+import { bloquearTambo } from '../admin/estadoTambo.js';
 import { emailEnUso, traducirChoque, MENSAJE_EMAIL_REPETIDO } from '../admin/choques.js';
 import { requiereRol, requiereSesion, usuarioActual } from '../auth/middleware.js';
 
@@ -43,16 +44,27 @@ rutasUsuarios.post('/', async (req, res) => {
   // El email no puede ser ni de otro usuario ni del administrador (spec 014, RF-7).
   if (await emailEnUso(datos.email)) throw new HttpError(409, MENSAJE_EMAIL_REPETIDO);
 
-  const usuario = await prisma.usuario.create({
-    data: {
-      establecimientoId, // siempre el tambo de la sesión, nunca uno enviado por el cliente
-      nombre: datos.nombre,
-      email: datos.email,
-      passwordHash: await hashearPassword(datos.password),
-      rol: datos.rol,
-    },
-    select: camposPublicos,
-  }).catch((err: unknown) => traducirChoque(err, { email: datos.email }));
+  // El hash va antes de la transacción (argon2 es lento). Dentro, el tambo se lee con FOR SHARE: si una
+  // baja se cruza, el alta o queda antes de ella o se rechaza; no queda un usuario nuevo en un tambo
+  // de baja (spec 015, RF-12).
+  const passwordHash = await hashearPassword(datos.password);
+  const usuario = await prisma
+    .$transaction(async (tx) => {
+      if ((await bloquearTambo(tx, establecimientoId)) !== 'ACTIVO') {
+        throw new HttpError(401, 'Tenés que iniciar sesión');
+      }
+      return tx.usuario.create({
+        data: {
+          establecimientoId, // siempre el tambo de la sesión, nunca uno enviado por el cliente
+          nombre: datos.nombre,
+          email: datos.email,
+          passwordHash,
+          rol: datos.rol,
+        },
+        select: camposPublicos,
+      });
+    })
+    .catch((err: unknown) => traducirChoque(err, { email: datos.email }));
   res.status(201).json(usuario);
 });
 

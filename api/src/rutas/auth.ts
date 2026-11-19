@@ -5,7 +5,7 @@ import { prisma } from '../db.js';
 import { HttpError } from '../errores.js';
 import { emailSchema, nombreSchema, passwordSchema } from '../validacion.js';
 import { hashearPassword, verificarPassword, verificarPasswordFalso } from '../auth/password.js';
-import { COOKIE_SESION, cerrarSesion, iniciarSesion } from '../auth/sesiones.js';
+import { COOKIE_SESION, cerrarSesion, iniciarSesion, iniciarSesionDeIngreso } from '../auth/sesiones.js';
 import { requiereSesion, usuarioActual } from '../auth/middleware.js';
 import { crearTamboConDueno } from '../auth/registro.js';
 import { emailEnUso, traducirChoque, MENSAJE_EMAIL_REPETIDO } from '../admin/choques.js';
@@ -89,7 +89,8 @@ rutasAuth.post('/login', limiteIntentos, async (req, res) => {
 
   if (!usuario || !ok || !usuario.activo) throw fallo();
 
-  await iniciarSesion(res, usuario.id);
+  // Con el tambo dado de baja responde 403 TAMBO_DE_BAJA sin crear sesión (spec 015, RF-10).
+  await iniciarSesionDeIngreso(res, usuario);
   res.json(await perfil(usuario.id));
 });
 
