@@ -2,11 +2,12 @@ import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../src/db.js';
 import { ejecutarAltaUnica } from '../src/admin/altaUnica.js';
-import { PASSWORD, app, crearAdministradorDirecto, limpiarBase, registrarTambo } from './ayudas.js';
+import { PASSWORD, app, crearAdministradorDirecto, iniciarSesionAdmin, limpiarBase, registrarTambo } from './ayudas.js';
+
+process.env.LIMITE_ACCIONES_ADMIN = '1000';
 
 // Un email no puede estar en dos cuentas, sea de administrador o de usuario de un tambo (RF-7).
 // Acá se prueba cada punto de alta por la API; la garantía en la base está en base-admin.test.ts.
-// (El caso de crear tambo desde el administrador se suma en la tarea 3.)
 
 beforeEach(limpiarBase);
 afterAll(() => prisma.$disconnect());
@@ -63,6 +64,18 @@ describe('Email único entre administrador y usuarios (RF-7)', () => {
       .post('/api/usuarios')
       .send({ nombre: 'Nuevo', email: 'nuevo@prueba.test', password: PASSWORD, rol: 'ADMIN' })
       .expect(400);
+  });
+
+  it('crear tambo desde el administrador rechaza el email de un usuario de un tambo con 409', async () => {
+    await registrarTambo('Tambo A', 'dueno@prueba.test');
+    const { agente } = await iniciarSesionAdmin();
+    const res = await agente
+      .post('/api/admin/tambos')
+      .send({ nombreEstablecimiento: 'Tambo B', nombre: 'Otro', email: 'Dueno@prueba.test', password: PASSWORD })
+      .expect(409);
+    expect(res.body.error).toBe('Ya existe una cuenta con ese email');
+    expect(await prisma.establecimiento.count()).toBe(1);
+    expect(await prisma.usuario.count()).toBe(1);
   });
 
   it('el alta única rechaza el email de un usuario de un tambo', async () => {

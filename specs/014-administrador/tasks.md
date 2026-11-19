@@ -12,7 +12,7 @@ Cada tarea empieza escribiendo los tests y termina con `npm test -w api` (o los 
   - RF: RF-2, RF-3, RF-4, RF-5, RF-7, RF-9, RF-10, RF-11, RF-15, RF-27 (registro)
   - Hecho cuando: los tres archivos de tests pasan; un ingreso de administrador deja la cookie `sesion_admin` (`path=/api/admin`, token nuevo, 8 horas fijas) y la auditoría; las respuestas de ingreso fallido son idénticas para email inexistente, administrador y usuario; la salida del alta única no contiene la contraseña; los tests existentes de `auth` y `usuarios` siguen en verde.
 
-- [ ] **T3** — API `/api/admin`: listado, detalle y crear tambo
+- [x] **T3** — API `/api/admin`: listado, detalle y crear tambo
   - Tests primero (incluye un tambo con 2 dueños: el listado trae el más antiguo y `duenosAdicionales: 1`): `admin-tambos-lectura.test.ts`, `admin-tambos-crear.test.ts`, `admin-aislamiento.test.ts` (más el caso de crear tambo en `email-unico.test.ts`). Después `api/src/rutas/admin.ts`, `api/src/admin/{listaBlanca,tambos}.ts`, `crearTamboConDueno` con auditoría en la misma transacción, el montaje de un único `requiereAdmin` en `app.ts` antes de los parsers y el límite de creaciones.
   - RF: RF-12, RF-16, RF-17, RF-18, RF-19, RF-20, RF-22, RF-23, RF-24, RF-25, RF-26, RF-27, RF-28, RF-29, RF-30, RF-31
   - Hecho cuando: los tests pasan, incluido el que recorre todas las rutas del administrador (sin sesión 401, rol de tambo 403, cookie del administrador rechazada en las rutas del tambo), el de claves exactas de la lista blanca y el de "falla el alta del dueño: no queda tambo, lotes ni auditoría"; ningún módulo de `api/src/admin/` consulta datos del tambo salvo el conteo de animales activos.

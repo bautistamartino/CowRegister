@@ -3,6 +3,8 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { HttpError, manejarErrores } from './errores.js';
 import { rutasAuth } from './rutas/auth.js';
+import { rutasAdmin } from './rutas/admin.js';
+import { requiereAdmin } from './admin/middleware.js';
 import { rutasUsuarios } from './rutas/usuarios.js';
 import { rutasLotes } from './rutas/lotes.js';
 import { rutasReglasLote } from './rutas/reglas-lote.js';
@@ -72,6 +74,9 @@ export function createApp() {
   app.use('/api/informes', requiereSesion);
   // Copia local para el modo sin conexión (spec 009, RF-52): lectura para los tres roles; sin sesión es 401.
   app.use('/api/copia-local', requiereSesion);
+  // Administrador de la plataforma (spec 014, RF-29): UN SOLO control de acceso para todo /api/admin,
+  // antes de los parsers (sin sesión 401 y con rol de tambo 403 aunque el JSON venga roto).
+  app.use('/api/admin', requiereAdmin);
   // La carga desde planilla recibe un texto de hasta 100.000 caracteres: con las tabulaciones y los
   // saltos de línea escapados en el JSON puede pasar los 100 kb. Este parser de 1 MB va ANTES del
   // global y solo para esas dos rutas (Express no vuelve a leer un cuerpo ya leído); el límite de
@@ -85,6 +90,7 @@ export function createApp() {
   });
 
   app.use('/api/auth', rutasAuth);
+  app.use('/api/admin', rutasAdmin);
   app.use('/api/usuarios', rutasUsuarios);
   app.use('/api/lotes', rutasLotes);
   app.use('/api/reglas-lote', rutasReglasLote);
