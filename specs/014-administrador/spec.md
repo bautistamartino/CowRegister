@@ -104,25 +104,25 @@ El administrador **no es un usuario de tambo con el tambo vacío**: es una cuent
 - Aislamiento: el administrador ve a todos los tambos solo como cuentas; un dueño nunca ve otro tambo.
 
 ## Criterios de aceptación
-- [ ] RF-2/3: un ingreso con email inexistente, con email de administrador y contraseña mala, y con email de usuario y contraseña mala dan la misma respuesta; comparten el contador de intentos.
-- [ ] RF-4/5: el administrador ingresa y va a la pantalla de tambos; la cookie es distinta de la de tambo; dos ingresos dan tokens distintos; la sesión no se renueva con el uso.
-- [ ] RF-6/30: la cookie de administrador en una ruta del tambo (incluidas la copia local y el perfil) da rechazo, y la de tambo en una ruta del administrador también.
-- [ ] Test con base: en toda ruta de datos del tambo el tambo de la sesión nunca es nulo.
-- [ ] RF-7/8: el email repetido se rechaza en los cuatro puntos de alta (registro, usuarios del dueño, crear tambo, alta única), cada uno con su test; dos altas simultáneas con el mismo email dejan una sola cuenta y ningún error 500; la base rechaza el duplicado aun saltándose el código.
-- [ ] RF-9/10/11: el alta única crea un administrador; repetirla no cambia nada y avisa; con un email existente se detiene; la salida no contiene la contraseña.
-- [ ] RF-12: el test que lista las rutas falla si aparece una que cree o modifique administradores.
-- [ ] RF-13/14: test de la web: el ingreso y el cierre de sesión del administrador no llaman al almacén local; una tablet con datos de un tambo conserva todo.
-- [ ] RF-15: ingresos correctos y fallidos del administrador quedan auditados sin contraseña.
-- [ ] RF-16/17/18/19/31: el listado y el detalle traen todos los tambos con las cantidades correctas (usuarios activos en el listado, todos en el detalle); un test compara las claves de las respuestas con la lista blanca; ninguna contiene animales, eventos, litros ni hashes.
-- [ ] RF-20: id inexistente o mal formado da "no encontrado", nunca 500.
-- [ ] RF-22/23/25: crear un tambo deja tambo, dueño, lotes y auditoría; no cambia la sesión del administrador; no devuelve contraseña ni hash; si falla el alta del dueño no queda tambo, lotes ni auditoría.
-- [ ] RF-24: crear con el email de un usuario de otro tambo o de un administrador da 409 y no deja nada.
-- [ ] RF-26/28: datos inválidos se rechazan señalando el campo; el límite de creaciones responde con el mensaje de demasiados intentos.
-- [ ] RF-27: un nombre repetido (con otras mayúsculas o espacios de más) da 409 "Ya existe un tambo con ese nombre" en la creación del administrador y en el registro de hoy; la base lo rechaza aun saltándose el código; dos altas simultáneas con el mismo nombre dejan un solo tambo y ningún 500.
-- [ ] RF-34: con dos tambos de nombre repetido ya cargados, la actualización de la base no falla, no borra nada, deja el nombre del más antiguo y renombra al más nuevo con " (2)".
-- [ ] RF-29: un único control de acceso cubre todo `/api/admin`; un test recorre todas las rutas: sin sesión, 401; dueño, encargado y veterinario, 403.
-- [ ] RF-21/32/33: las pantallas se ven bien en tablet y celular, claro y oscuro, con controles de al menos 48 px; sin conexión avisan.
-- [ ] La constitución quedó actualizada con la excepción acotada.
+- [x] RF-2/3: un ingreso con email inexistente, con email de administrador y contraseña mala, y con email de usuario y contraseña mala dan la misma respuesta; comparten el contador de intentos.
+- [x] RF-4/5: el administrador ingresa y va a la pantalla de tambos; la cookie es distinta de la de tambo; dos ingresos dan tokens distintos; la sesión no se renueva con el uso.
+- [x] RF-6/30: la cookie de administrador en una ruta del tambo (incluidas la copia local y el perfil) da rechazo, y la de tambo en una ruta del administrador también.
+- [x] Test con base: en toda ruta de datos del tambo el tambo de la sesión nunca es nulo.
+- [x] RF-7/8: el email repetido se rechaza en los cuatro puntos de alta (registro, usuarios del dueño, crear tambo, alta única), cada uno con su test; dos altas simultáneas con el mismo email dejan una sola cuenta y ningún error 500; la base rechaza el duplicado aun saltándose el código.
+- [x] RF-9/10/11: el alta única crea un administrador; repetirla no cambia nada y avisa; con un email existente se detiene; la salida no contiene la contraseña.
+- [x] RF-12: el test que lista las rutas falla si aparece una que cree o modifique administradores.
+- [x] RF-13/14: test de la web: el ingreso y el cierre de sesión del administrador no llaman al almacén local; una tablet con datos de un tambo conserva todo.
+- [x] RF-15: ingresos correctos y fallidos del administrador quedan auditados sin contraseña.
+- [x] RF-16/17/18/19/31: el listado y el detalle traen todos los tambos con las cantidades correctas (usuarios activos en el listado, todos en el detalle); un test compara las claves de las respuestas con la lista blanca; ninguna contiene animales, eventos, litros ni hashes.
+- [x] RF-20: id inexistente o mal formado da "no encontrado", nunca 500.
+- [x] RF-22/23/25: crear un tambo deja tambo, dueño, lotes y auditoría; no cambia la sesión del administrador; no devuelve contraseña ni hash; si falla el alta del dueño no queda tambo, lotes ni auditoría.
+- [x] RF-24: crear con el email de un usuario de otro tambo o de un administrador da 409 y no deja nada.
+- [x] RF-26/28: datos inválidos se rechazan señalando el campo; el límite de creaciones responde con el mensaje de demasiados intentos.
+- [x] RF-27: un nombre repetido (con otras mayúsculas o espacios de más) da 409 "Ya existe un tambo con ese nombre" en la creación del administrador y en el registro de hoy; la base lo rechaza aun saltándose el código; dos altas simultáneas con el mismo nombre dejan un solo tambo y ningún 500.
+- [x] RF-34: con dos tambos de nombre repetido ya cargados, la actualización de la base no falla, no borra nada, deja el nombre del más antiguo y renombra al más nuevo con " (2)".
+- [x] RF-29: un único control de acceso cubre todo `/api/admin`; un test recorre todas las rutas: sin sesión, 401; dueño, encargado y veterinario, 403.
+- [x] RF-21/32/33: las pantallas se ven bien en tablet y celular, claro y oscuro, con controles de al menos 48 px; sin conexión avisan.
+- [x] La constitución quedó actualizada con la excepción acotada.
 
 ## Relación con la spec 013 (publicación)
 La 013 está commiteada en la rama `spec/013-publicacion` (no en esta rama), así que acá no se lista requisito por requisito; lo que seguro cambia:

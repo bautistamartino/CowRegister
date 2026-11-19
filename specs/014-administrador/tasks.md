@@ -22,7 +22,7 @@ Cada tarea empieza escribiendo los tests y termina con `npm test -w api` (o los 
   - RF: RF-13, RF-14, RF-21
   - Hecho cuando: los tests de la web pasan (el ingreso y el cierre del administrador no tocan el almacén, una tablet con datos de un tambo no se borra ni pide confirmación, sin conexión sale "Esto necesita conexión" sin leer la copia) y `npm run typecheck` está en verde; los tests de la web existentes siguen pasando.
 
-- [ ] **T5** — Pantallas del administrador, verificación y cierre
+- [x] **T5** — Pantallas del administrador, verificación y cierre
   - Pantallas `web/src/admin/{LayoutAdmin,ListadoTambos,TamboDetalle,TamboNuevo}.tsx` y `adminDatos.ts` con estilos en `estilos.css`; verificación en el navegador (768 px y 375 px, claro y oscuro, controles de 48 px, ingreso, listado, detalle, crear con error de nombre repetido, cierre de sesión, y una tablet con datos de un tambo que no se borran al ingresar el administrador); enmienda a `docs/constitution.md` con la excepción acotada tal como la aprobó el usuario (texto de la spec); actualizar `MEMORY.md` (decisiones: tabla aparte, cookie con `path`, disparador de email, nombre único, un solo administrador, límite aceptado de contraseñas) y `docs/plan.md`; borrar de la base de desarrollo cualquier tambo o administrador de prueba; correr `npm test` y `npm run typecheck` completos.
   - RF: RF-32, RF-33 (y cierre de todos los RF y criterios de aceptación)
   - Hecho cuando: los criterios de aceptación de la spec están marcados, la verificación manual no muestra desbordes ni controles menores de 48 px, la constitución, `MEMORY.md` y `docs/plan.md` están al día, y todo está commiteado con `npm test` y `npm run typecheck` en verde.

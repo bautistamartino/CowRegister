@@ -15,10 +15,12 @@ export async function emailEnUso(email: string): Promise<boolean> {
 
 // ¿Hay un tambo con este nombre? Misma clave que el índice único de la base: sin distinguir
 // mayúsculas y con los espacios colapsados.
+// OJO: en una plantilla etiquetada, un `\s` suelto se lee como la letra "s". Por eso se escribe `\\s`:
+// así llega a Postgres como \s (cualquier espacio en blanco) y también colapsa los espacios del medio.
 export async function nombreTamboEnUso(nombre: string): Promise<boolean> {
   const filas = await prisma.$queryRaw<{ existe: number }[]>`
     SELECT 1 AS existe FROM establecimientos
-    WHERE lower(regexp_replace(btrim(nombre), '\s+', ' ', 'g')) = lower(regexp_replace(btrim(${nombre}), '\s+', ' ', 'g'))
+    WHERE lower(regexp_replace(btrim(nombre), '\\s+', ' ', 'g')) = lower(regexp_replace(btrim(${nombre}), '\\s+', ' ', 'g'))
     LIMIT 1`;
   return filas.length > 0;
 }

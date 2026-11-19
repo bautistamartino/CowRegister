@@ -17,7 +17,10 @@ import { Informes } from './informes/Informes';
 import { SinConexionProvider } from './sinconexion/SinConexionProvider';
 import { ColaProvider } from './sinconexion/ColaProvider';
 import { Pendientes } from './sinconexion/Pendientes';
-import { PantallaAdminProvisoria } from './admin/PantallaAdminProvisoria';
+import { LayoutAdmin } from './admin/LayoutAdmin';
+import { ListadoTambos } from './admin/ListadoTambos';
+import { TamboDetalle } from './admin/TamboDetalle';
+import { TamboNuevo } from './admin/TamboNuevo';
 
 export function App() {
   return (
@@ -30,10 +33,13 @@ export function App() {
           <Routes>
             <Route path="/login" element={<RutaPublica><Login /></RutaPublica>} />
             <Route path="/registro" element={<RutaPublica><Registro /></RutaPublica>} />
-            {/* Administrador de la plataforma (spec 014). Pantallas provisorias: las reales llegan en la T5. */}
-            <Route path="/admin" element={<RutaAdmin><PantallaAdminProvisoria titulo="Tambos" /></RutaAdmin>} />
-            <Route path="/admin/tambos/nuevo" element={<RutaAdmin><PantallaAdminProvisoria titulo="Crear tambo" /></RutaAdmin>} />
-            <Route path="/admin/tambos/:id" element={<RutaAdmin><PantallaAdminProvisoria titulo="Detalle del tambo" /></RutaAdmin>} />
+            {/* Administrador de la plataforma (spec 014): sus pantallas no usan el Layout del tambo. */}
+            <Route path="/admin" element={<RutaAdmin><LayoutAdmin /></RutaAdmin>}>
+              <Route index element={<ListadoTambos />} />
+              {/* "nuevo" va antes que ":id" (React Router igual prioriza la ruta fija). */}
+              <Route path="tambos/nuevo" element={<TamboNuevo />} />
+              <Route path="tambos/:id" element={<TamboDetalle />} />
+            </Route>
             {/* Ruta "de layout": no tiene path propio. Exige sesión y dibuja el menú;
                 las rutas hijas se muestran dentro del <Outlet /> del Layout. */}
             <Route element={<RutaPrivada><Layout /></RutaPrivada>}>

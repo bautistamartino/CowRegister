@@ -123,12 +123,14 @@ describe('POST /api/admin/tambos: rechazos (RF-24, RF-26, RF-27)', () => {
   it('409 "Ya existe un tambo con ese nombre" (también con otras mayúsculas y espacios de más)', async () => {
     const { agente } = await iniciarSesionAdmin();
     await registrarTambo('Libertad', 'dueno@prueba.test');
-    for (const nombre of ['Libertad', ' libertad  ', 'LIBERTAD']) {
+    // También con espacios REPETIDOS en el medio, que el nombre guardado ya trae colapsados.
+    await registrarTambo('La Libertad', 'otro@prueba.test');
+    for (const nombre of ['Libertad', ' libertad  ', 'LIBERTAD', '  la   LIBERTAD ']) {
       const res = await agente.post('/api/admin/tambos').send(cuerpo({ nombreEstablecimiento: nombre })).expect(409);
       expect(res.body.error).toBe('Ya existe un tambo con ese nombre');
     }
-    expect(await prisma.establecimiento.count()).toBe(1);
-    expect(await prisma.usuario.count()).toBe(1);
+    expect(await prisma.establecimiento.count()).toBe(2);
+    expect(await prisma.usuario.count()).toBe(2);
     expect(await prisma.auditoriaAdmin.count({ where: { accion: 'TAMBO_CREADO' } })).toBe(0);
   });
 
