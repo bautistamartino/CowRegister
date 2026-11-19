@@ -64,3 +64,26 @@ describe('api() con rutas /admin', () => {
     quitar();
   });
 });
+
+describe('acciones de la spec 015 sin conexión', () => {
+  it('baja, reactivar, restablecer contraseña y reactivar usuario: "Esto necesita conexión" sin pedido ni copia', async () => {
+    estado.enLinea = false;
+    const fetchFalso = vi.fn();
+    vi.stubGlobal('fetch', fetchFalso);
+    const { darDeBajaTambo, reactivarTambo, restablecerContrasena, reactivarUsuario } = await import('../src/admin/adminDatos');
+    const llamadas = [
+      () => darDeBajaTambo('t1', 'motivo'),
+      () => reactivarTambo('t1'),
+      () => restablecerContrasena('t1', 'u1', 'una-clave-larga'),
+      () => reactivarUsuario('t1', 'u1'),
+    ];
+    for (const llamar of llamadas) {
+      const error = (await llamar().catch((e: unknown) => e)) as ApiError;
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.message).toBe(TEXTO_NECESITA_CONEXION);
+    }
+    expect(fetchFalso).not.toHaveBeenCalled();
+    expect(lecturas.copia).not.toHaveBeenCalled();
+    expect(lecturas.contexto).not.toHaveBeenCalled();
+  });
+});
