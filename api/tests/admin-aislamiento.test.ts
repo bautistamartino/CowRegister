@@ -35,6 +35,9 @@ const RUTAS_ADMIN_ESPERADAS = [
   'GET /yo',
   'POST /logout',
   'POST /tambos',
+  // Spec 015: cambios de estado del tambo (los de usuarios se suman en la tarea 3).
+  'POST /tambos/:id/baja',
+  'POST /tambos/:id/reactivar',
 ];
 
 // Ninguna de estas rutas crea ni modifica administradores (RF-12). Si aparece una nueva en /api/auth,
