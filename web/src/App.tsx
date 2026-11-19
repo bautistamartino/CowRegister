@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { AuthProvider } from './sesion/auth';
-import { RutaConConexion, RutaPrivada, RutaPublica } from './compartido/Rutas';
+import { RutaAdmin, RutaConConexion, RutaPrivada, RutaPublica } from './compartido/Rutas';
 import { Layout } from './compartido/Layout';
 import { Login } from './sesion/Login';
 import { Registro } from './sesion/Registro';
@@ -17,6 +17,7 @@ import { Informes } from './informes/Informes';
 import { SinConexionProvider } from './sinconexion/SinConexionProvider';
 import { ColaProvider } from './sinconexion/ColaProvider';
 import { Pendientes } from './sinconexion/Pendientes';
+import { PantallaAdminProvisoria } from './admin/PantallaAdminProvisoria';
 
 export function App() {
   return (
@@ -29,6 +30,10 @@ export function App() {
           <Routes>
             <Route path="/login" element={<RutaPublica><Login /></RutaPublica>} />
             <Route path="/registro" element={<RutaPublica><Registro /></RutaPublica>} />
+            {/* Administrador de la plataforma (spec 014). Pantallas provisorias: las reales llegan en la T5. */}
+            <Route path="/admin" element={<RutaAdmin><PantallaAdminProvisoria titulo="Tambos" /></RutaAdmin>} />
+            <Route path="/admin/tambos/nuevo" element={<RutaAdmin><PantallaAdminProvisoria titulo="Crear tambo" /></RutaAdmin>} />
+            <Route path="/admin/tambos/:id" element={<RutaAdmin><PantallaAdminProvisoria titulo="Detalle del tambo" /></RutaAdmin>} />
             {/* Ruta "de layout": no tiene path propio. Exige sesión y dibuja el menú;
                 las rutas hijas se muestran dentro del <Outlet /> del Layout. */}
             <Route element={<RutaPrivada><Layout /></RutaPrivada>}>

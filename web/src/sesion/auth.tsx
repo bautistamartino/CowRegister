@@ -3,6 +3,7 @@ import { alVencerSesion, api, ApiError, type Perfil } from '../compartido/api';
 import { obtenerAlmacen } from '../sinconexion/almacenIndexedDb';
 import { almacenMarcaLocalStorage, completarCierrePendiente, crearMarcaCierre } from '../sinconexion/marcaCierre';
 import { cerrarSesionLocal, evaluarIngreso, perfilParaEntrarSinConexion } from '../sinconexion/propietario';
+import { cerrarSesionAdmin, ingresarAdmin, type PerfilAdmin } from './sesionAdmin';
 
 // Contexto de autenticación: guarda quién está logueado y lo comparte con toda la app.
 //
@@ -12,6 +13,11 @@ import { cerrarSesionLocal, evaluarIngreso, perfilParaEntrarSinConexion } from '
 //  - Al ingresar, si lo guardado en la tablet es de OTRO usuario o tambo, no se muestra nada hasta decidir:
 //    sin pendientes se reemplaza solo; con pendientes se pide confirmación explícita (RF-46).
 //  - Cerrar sesión borra TODO lo local, también sin conexión (RF-43, RF-45).
+//
+// Spec 014: el administrador de la plataforma tiene su estado propio (`admin`), aparte de `usuario`. Ingresar o
+// salir como administrador NO pasa por `entrar` ni por `cerrarSesionLocal`: no toca el almacén local, así que una
+// tablet con datos de un tambo no se borra ni pide confirmación. ColaProvider y SinConexionProvider solo leen
+// `usuario`, por eso con un administrador quedan inertes.
 
 type DatosRegistro = { nombreEstablecimiento: string; nombre: string; email: string; password: string };
 
@@ -21,8 +27,11 @@ export type IngresoPendiente = { perfil: Perfil; pendientes: number };
 
 type Auth = {
   usuario: Perfil | null;
+  admin: PerfilAdmin | null;
+  // Cierra la sesión del administrador en el servidor. No toca lo local. Si no hay conexión, lanza y sigue abierta.
+  logoutAdmin: () => Promise<void>;
   cargando: boolean;
-  // Devuelven true si se entró; false si quedó esperando la confirmación de `ingresoPendiente`.
+  // Devuelven true si se entró (tambo o administrador); false si quedó esperando la confirmación de `ingresoPendiente`.
   login: (email: string, password: string) => Promise<boolean>;
   registro: (datos: DatosRegistro) => Promise<boolean>;
   // Cierra la sesión y borra lo local. Devuelve false si no se pudo cerrar la del servidor (sin conexión).
@@ -33,6 +42,16 @@ type Auth = {
   // Aviso para la pantalla de ingreso tras un cierre sin conexión.
   avisoCierre: string | null;
 };
+
+// Cierra la sesión del administrador en el servidor; un 401 (ya vencida) cuenta como cerrada.
+async function cerrarSesionAdminServidor(): Promise<void> {
+  try {
+    await api('/admin/logout', { method: 'POST' });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) return;
+    throw e;
+  }
+}
 
 const AuthContext = createContext<Auth | null>(null);
 
@@ -56,6 +75,7 @@ async function cerrarSesionServidor(): Promise<'cerrado' | 'sin-red'> {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Perfil | null>(null);
+  const [admin, setAdmin] = useState<PerfilAdmin | null>(null);
   const [cargando, setCargando] = useState(true);
   const [ingresoPendiente, setIngresoPendiente] = useState<IngresoPendiente | null>(null);
   const [avisoCierre, setAvisoCierre] = useState<string | null>(null);
@@ -63,7 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Si cualquier pedido a la API responde 401 (sesión vencida o borrada), se olvida al
   // usuario: RutaPrivada lo detecta y lo lleva al login (RF-29). Los datos locales NO se tocan:
   // si vuelve a ingresar el mismo usuario, conserva su copia y sus pendientes (RF-47).
-  useEffect(() => alVencerSesion(() => setUsuario(null)), []);
+  // También apaga la sesión del administrador (spec 014).
+  useEffect(() => alVencerSesion(() => { setUsuario(null); setAdmin(null); }), []);
 
   // Decide qué hacer con lo guardado antes de mostrar nada del perfil que acaba de ingresar (RF-46, RF-47).
   const entrar = useCallback(async (perfil: Perfil): Promise<boolean> => {
@@ -97,7 +118,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Con timeout: un WiFi sin salida a internet no debe dejar colgada la apertura (se trata como sin red).
         await entrar(await api<Perfil>('/auth/yo', { timeoutMs: 4000 }));
       } catch (e) {
-        if (e instanceof ApiError && e.status === 401) return; // sin sesión: login (no se borra nada)
+        if (e instanceof ApiError && e.status === 401) {
+          // Sin sesión de tambo: puede haber una de administrador (cookie aparte). Sin ninguna, login (no se borra nada).
+          const perfilAdmin = await api<PerfilAdmin>('/admin/yo', { timeoutMs: 4000 }).catch(() => null);
+          if (perfilAdmin) setAdmin({ id: perfilAdmin.id, nombre: perfilAdmin.nombre, email: perfilAdmin.email });
+          return;
+        }
         // Sin conexión (no se llegó al servidor): se entra con el último perfil guardado si es del dueño de los
         // datos locales. La sesión se revalida al volver la señal; si ahí fue revocada, se pide el ingreso (RF-48).
         if (e instanceof ApiError && e.status === 0) {
@@ -112,12 +138,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const valor: Auth = {
     usuario,
+    admin,
     cargando,
     ingresoPendiente,
     avisoCierre,
     async login(email, password) {
-      const perfil = await api<Perfil>('/auth/login', { method: 'POST', body: { email, password } });
-      return entrar(perfil);
+      const respuesta = await api<Perfil | (PerfilAdmin & { rol: 'ADMIN' })>('/auth/login', { method: 'POST', body: { email, password } });
+      // Administrador: solo se guarda en `admin`. No se evalúa el propietario ni se toca el almacén (spec 014).
+      const perfilAdmin = ingresarAdmin(respuesta);
+      if (perfilAdmin) {
+        setAvisoCierre(null);
+        setAdmin(perfilAdmin);
+        return true;
+      }
+      return entrar(respuesta as Perfil);
     },
     async registro(datos) {
       const perfil = await api<Perfil>('/auth/registro', { method: 'POST', body: datos });
@@ -130,6 +164,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAvisoCierre(servidorCerrado ? null : TEXTO_CIERRE_SIN_RED);
       setUsuario(null);
       return servidorCerrado;
+    },
+    async logoutAdmin() {
+      await cerrarSesionAdmin({ cerrarServidor: cerrarSesionAdminServidor });
+      setAdmin(null);
     },
     async confirmarIngreso() {
       if (!ingresoPendiente) return;

@@ -47,7 +47,7 @@ export function Login() {
     <main className="pantalla-auth">
       <form className="tarjeta" onSubmit={enviar}>
         <h1>CowRegister</h1>
-        <p className="subtitulo">Ingresá a tu tambo</p>
+        <p className="subtitulo">Ingresá</p>
 
         {avisoCierre && <div className="aviso" role="status">{avisoCierre}</div>}
         {error && <div className="alerta" role="alert">{error}</div>}

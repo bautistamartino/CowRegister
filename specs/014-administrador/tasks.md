@@ -17,7 +17,7 @@ Cada tarea empieza escribiendo los tests y termina con `npm test -w api` (o los 
   - RF: RF-12, RF-16, RF-17, RF-18, RF-19, RF-20, RF-22, RF-23, RF-24, RF-25, RF-26, RF-27, RF-28, RF-29, RF-30, RF-31
   - Hecho cuando: los tests pasan, incluido el que recorre todas las rutas del administrador (sin sesión 401, rol de tambo 403, cookie del administrador rechazada en las rutas del tambo), el de claves exactas de la lista blanca y el de "falla el alta del dueño: no queda tambo, lotes ni auditoría"; ningún módulo de `api/src/admin/` consulta datos del tambo salvo el conteo de animales activos.
 
-- [ ] **T4** — Web: sesión del administrador separada del almacén local
+- [x] **T4** — Web: sesión del administrador separada del almacén local
   - Tests primero: `web/tests/sesion-admin.test.ts` y `web/tests/api-admin.test.ts`. Después `web/src/sesion/sesionAdmin.ts`, `auth.tsx` (estado `admin`, `logoutAdmin`, arranque con `/auth/yo` y luego `/admin/yo`), `compartido/api.ts` (rutas `/admin` sin copia local, `/admin/yo` con 401 normal, `alVencerSesion` apaga ambas sesiones), `Rutas.tsx` (`RutaAdmin` y redirecciones) y `App.tsx` con las rutas `/admin` apuntando a pantallas provisorias; `Login.tsx` con el subtítulo "Ingresá".
   - RF: RF-13, RF-14, RF-21
   - Hecho cuando: los tests de la web pasan (el ingreso y el cierre del administrador no tocan el almacén, una tablet con datos de un tambo no se borra ni pide confirmación, sin conexión sale "Esto necesita conexión" sin leer la copia) y `npm run typecheck` está en verde; los tests de la web existentes siguen pasando.
